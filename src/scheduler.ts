@@ -57,6 +57,44 @@ function daysBetween(aIso: string, bIso: string): number {
 }
 
 /**
+ * Aggregate counts used to balance the Treasures opening Talk between
+ * elders and ministerial servants.
+ */
+export interface TalkSplit {
+  elderCount: number;
+  msCount: number;
+}
+
+/** Tally how many past Treasures Talks have gone to each group. */
+export function buildTalkSplit(
+  assignees: Assignee[],
+  weeks: Week[]
+): TalkSplit {
+  const split: TalkSplit = { elderCount: 0, msCount: 0 };
+  for (const w of weeks) {
+    for (const a of w.assignments) {
+      if (a.partType !== "Talk") continue;
+      if (a.assigneeId == null) continue;
+      const person = assignees.find((p) => p.id === a.assigneeId);
+      if (person) tallyTalk(person, split);
+    }
+  }
+  return split;
+}
+
+/**
+ * Increment a TalkSplit by a single Talk assigned to `person`.
+ * QE → E and QMS → MS are already normalised on save. If somehow both
+ * flags are present (rare), the person is counted as MS for sharing.
+ */
+function tallyTalk(person: Assignee, split: TalkSplit): void {
+  const isE = person.privileges.includes("E");
+  const isMS = person.privileges.includes("MS");
+  if (isMS) split.msCount += 1;
+  else if (isE) split.elderCount += 1;
+}
+
+/**
  * Score a candidate for an assignment. Higher = better.
  *
  * Primary factor: time since last assignment (absence rewarded).
@@ -69,7 +107,8 @@ function scoreCandidate(
   weekOf: string,
   stats: AssigneeStats,
   seed: number,
-  privilegedMinistryShare: number
+  privilegedMinistryShare: number,
+  talkSplit: TalkSplit
 ): number {
   let score = 0;
 
@@ -112,8 +151,26 @@ function scoreCandidate(
     }
   } else if (part.segment === "treasures") {
     if (part.partType === "Talk") {
-      // Opening Talk is normally given to elders.
-      if (a.privileges.includes("E")) score += 4;
+      // The Treasures opening Talk is split ~50/50 between elders and
+      // ministerial servants over time. Bias toward whichever group is
+      // currently under-represented; if the count is even, neither
+      // group gets a boost and the regular fairness factors decide.
+      const isE = a.privileges.includes("E");
+      const isMS = a.privileges.includes("MS");
+      const total = talkSplit.elderCount + talkSplit.msCount;
+      if (isE || isMS) {
+        if (total === 0) {
+          // No history yet — give both groups a small equal nudge so
+          // they outrank non-eligible candidates if pools overlap.
+          score += 4;
+        } else {
+          const elderShare = talkSplit.elderCount / total;
+          // 0 when balanced, +/- up to ~10 when fully skewed.
+          const bias = (0.5 - elderShare) * 20;
+          if (isMS && !isE) score -= bias; // MS preferred when elders over-share
+          else if (isE && !isMS) score += bias; // elder preferred when MS over-share
+        }
+      }
     }
     if (part.partType === "Spiritual Gems") {
       // Either an elder or a ministerial servant can handle Spiritual
@@ -188,6 +245,12 @@ export function autoAssignWeek(
     if (isPrivileged(person)) ministryPrivileged += 1;
   }
 
+  // Track running 50/50 split for the Treasures opening Talk — seeded
+  // from history only. Pre-existing Talks in the current draft (when
+  // preserveExisting=true) are counted as we encounter them in the
+  // loop below, alongside newly assigned ones.
+  const talkSplit: TalkSplit = buildTalkSplit(assignees, workingWeeks);
+
   // Order parts so Treasures is filled before Ministry (which depends on
   // the privileged-share counter) — the array is already in this order.
   for (const assignment of assignments) {
@@ -208,6 +271,7 @@ export function autoAssignWeek(
         privilegedMinistryShare: opts.privilegedMinistryShare,
         ministryTotal,
         ministryPrivileged,
+        talkSplit,
       });
       if (candidate) {
         assignment.assigneeId = candidate.id!;
@@ -216,7 +280,14 @@ export function autoAssignWeek(
           ministryTotal += 1;
           if (isPrivileged(candidate)) ministryPrivileged += 1;
         }
+        if (assignment.partType === "Talk") {
+          tallyTalk(candidate, talkSplit);
+        }
       }
+    } else if (assignment.partType === "Talk") {
+      // Preserved manual Talk — count it toward the running 50/50 split.
+      const person = assignees.find((p) => p.id === assignment.assigneeId);
+      if (person) tallyTalk(person, talkSplit);
     }
 
     // Secondary participant (householder / reader).
@@ -238,6 +309,7 @@ export function autoAssignWeek(
           privilegedMinistryShare: opts.privilegedMinistryShare,
           ministryTotal,
           ministryPrivileged,
+          talkSplit,
         });
         if (candidate) {
           assignment.assistantId = candidate.id!;
@@ -261,6 +333,7 @@ interface PickArgs {
   privilegedMinistryShare: number;
   ministryTotal: number;
   ministryPrivileged: number;
+  talkSplit: TalkSplit;
 }
 
 function pickCandidate(args: PickArgs): Assignee | null {
@@ -275,6 +348,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
     privilegedMinistryShare,
     ministryTotal,
     ministryPrivileged,
+    talkSplit,
   } = args;
 
   // For demo assistants, prefer same gender as the main assignee.
@@ -305,11 +379,27 @@ function pickCandidate(args: PickArgs): Assignee | null {
     const target = privilegedMinistryShare / 100;
     const nonPrivileged = eligible.filter((a) => !isPrivileged(a));
     if (projected >= target && nonPrivileged.length > 0) {
-      return rankAndPick(nonPrivileged, part, weekOf, stats, seed, privilegedMinistryShare);
+      return rankAndPick(
+        nonPrivileged,
+        part,
+        weekOf,
+        stats,
+        seed,
+        privilegedMinistryShare,
+        talkSplit
+      );
     }
   }
 
-  return rankAndPick(eligible, part, weekOf, stats, seed, privilegedMinistryShare);
+  return rankAndPick(
+    eligible,
+    part,
+    weekOf,
+    stats,
+    seed,
+    privilegedMinistryShare,
+    talkSplit
+  );
 }
 
 function rankAndPick(
@@ -318,7 +408,8 @@ function rankAndPick(
   weekOf: string,
   stats: Map<number, AssigneeStats>,
   seed: number,
-  privilegedMinistryShare: number
+  privilegedMinistryShare: number,
+  talkSplit: TalkSplit
 ): Assignee {
   const empty: AssigneeStats = {
     total: 0,
@@ -328,8 +419,24 @@ function rankAndPick(
     const sa = stats.get(a.id!) ?? empty;
     const sb = stats.get(b.id!) ?? empty;
     return (
-      scoreCandidate(b, part, weekOf, sb, seed, privilegedMinistryShare) -
-      scoreCandidate(a, part, weekOf, sa, seed, privilegedMinistryShare)
+      scoreCandidate(
+        b,
+        part,
+        weekOf,
+        sb,
+        seed,
+        privilegedMinistryShare,
+        talkSplit
+      ) -
+      scoreCandidate(
+        a,
+        part,
+        weekOf,
+        sa,
+        seed,
+        privilegedMinistryShare,
+        talkSplit
+      )
     );
   });
   return ranked[0];
