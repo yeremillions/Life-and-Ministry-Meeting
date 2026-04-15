@@ -1,5 +1,5 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { db } from "../db";
 import type { Assignee, Gender, Privilege } from "../types";
 import { parseAssigneeFile, parsedToAssignee, parseTextList } from "../importers";
@@ -22,6 +22,7 @@ export default function EnrolleesPage() {
   const [importPreview, setImportPreview] = useState<
     Omit<Assignee, "id">[] | null
   >(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
@@ -38,6 +39,69 @@ export default function EnrolleesPage() {
       return true;
     });
   }, [assignees, filter, search]);
+
+  // Drop selections that no longer exist in the current view (because of
+  // filter/search changes or external deletions). Keeps state honest.
+  useEffect(() => {
+    const visible = new Set(
+      filtered.map((a) => a.id).filter((id): id is number => id != null)
+    );
+    setSelected((cur) => {
+      let changed = false;
+      const next = new Set<number>();
+      for (const id of cur) {
+        if (visible.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : cur;
+    });
+  }, [filtered]);
+
+  const filteredIds = useMemo(
+    () => filtered.map((a) => a.id).filter((id): id is number => id != null),
+    [filtered]
+  );
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
+  const someFilteredSelected =
+    !allFilteredSelected && filteredIds.some((id) => selected.has(id));
+
+  function toggleOne(id: number) {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (allFilteredSelected) {
+        for (const id of filteredIds) next.delete(id);
+      } else {
+        for (const id of filteredIds) next.add(id);
+      }
+      return next;
+    });
+  }
+
+  async function deleteSelected() {
+    if (selected.size === 0) return;
+    const names = assignees
+      .filter((a) => a.id != null && selected.has(a.id))
+      .map((a) => a.name);
+    const preview = names.slice(0, 5).join(", ") + (names.length > 5 ? ", …" : "");
+    if (
+      !confirm(
+        `Delete ${selected.size} enrollee${selected.size === 1 ? "" : "s"}?\n\n${preview}\n\nThis cannot be undone.`
+      )
+    )
+      return;
+    await db.assignees.bulkDelete([...selected]);
+    setSelected(new Set());
+  }
 
   async function handleFile(file: File) {
     setImportError(null);
@@ -104,6 +168,25 @@ export default function EnrolleesPage() {
           </span>
         </div>
 
+        {selected.size > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm">
+            <span className="font-medium">
+              {selected.size} selected
+            </span>
+            <button
+              className="text-slate-600 hover:text-slate-900 underline text-xs"
+              onClick={() => setSelected(new Set())}
+            >
+              clear selection
+            </button>
+            <div className="ml-auto flex gap-2">
+              <button className="btn-danger" onClick={deleteSelected}>
+                Delete selected
+              </button>
+            </div>
+          </div>
+        )}
+
         {filtered.length === 0 ? (
           <p className="text-sm text-slate-500">
             No enrollees match the current filter. Click <b>Add enrollee</b> or{" "}
@@ -114,6 +197,17 @@ export default function EnrolleesPage() {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                  <th className="py-2 pr-3 w-8">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all visible"
+                      checked={allFilteredSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = someFilteredSelected;
+                      }}
+                      onChange={toggleAllVisible}
+                    />
+                  </th>
                   <th className="py-2 pr-3">Name</th>
                   <th className="py-2 pr-3">Gender</th>
                   <th className="py-2 pr-3">Baptised</th>
@@ -123,52 +217,69 @@ export default function EnrolleesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((a) => (
-                  <tr key={a.id} className="border-t border-slate-100">
-                    <td className="py-2 pr-3 font-medium">{a.name}</td>
-                    <td className="py-2 pr-3">
-                      {a.gender === "M" ? "Brother" : "Sister"}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {a.baptised ? "Yes" : "No"}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {a.privileges.length === 0 ? (
-                        <span className="text-slate-400">—</span>
-                      ) : (
-                        <div className="flex gap-1 flex-wrap">
-                          {a.privileges.map((p) => (
-                            <span
-                              key={p}
-                              className="pill bg-amber-100 text-amber-800"
-                            >
-                              {p}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {a.active ? (
-                        <span className="pill bg-emerald-100 text-emerald-800">
-                          Active
-                        </span>
-                      ) : (
-                        <span className="pill bg-slate-100 text-slate-600">
-                          Inactive
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 text-right">
-                      <button
-                        className="btn-secondary"
-                        onClick={() => setEditing(a)}
-                      >
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((a) => {
+                  const isSelected = a.id != null && selected.has(a.id);
+                  return (
+                    <tr
+                      key={a.id}
+                      className={
+                        "border-t border-slate-100 " +
+                        (isSelected ? "bg-slate-50" : "")
+                      }
+                    >
+                      <td className="py-2 pr-3">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${a.name}`}
+                          checked={isSelected}
+                          onChange={() => a.id != null && toggleOne(a.id)}
+                        />
+                      </td>
+                      <td className="py-2 pr-3 font-medium">{a.name}</td>
+                      <td className="py-2 pr-3">
+                        {a.gender === "M" ? "Brother" : "Sister"}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {a.baptised ? "Yes" : "No"}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {a.privileges.length === 0 ? (
+                          <span className="text-slate-400">—</span>
+                        ) : (
+                          <div className="flex gap-1 flex-wrap">
+                            {a.privileges.map((p) => (
+                              <span
+                                key={p}
+                                className="pill bg-amber-100 text-amber-800"
+                              >
+                                {p}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {a.active ? (
+                          <span className="pill bg-emerald-100 text-emerald-800">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="pill bg-slate-100 text-slate-600">
+                            Inactive
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 text-right">
+                        <button
+                          className="btn-secondary"
+                          onClick={() => setEditing(a)}
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
