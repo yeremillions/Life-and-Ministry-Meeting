@@ -2,6 +2,7 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import mammoth from "mammoth";
 import type { Assignee, Gender, Privilege } from "./types";
+import { normalizePrivileges } from "./meeting";
 
 /** Fields we know how to map from a row's column name (case-insensitive). */
 const NAME_KEYS = ["name", "full name", "publisher", "assignee"];
@@ -77,7 +78,7 @@ function rowToAssignee(row: Record<string, unknown>): ParsedAssignee | null {
     name,
     gender: parseGender(pick(row, GENDER_KEYS)),
     baptised: parseBool(pick(row, BAPTISED_KEYS), true),
-    privileges: parsePrivileges(pick(row, PRIV_KEYS)),
+    privileges: normalizePrivileges(parsePrivileges(pick(row, PRIV_KEYS))),
     active: parseBool(pick(row, ACTIVE_KEYS), true),
     notes: pick(row, NOTES_KEYS),
   };
@@ -167,7 +168,7 @@ export function parseTextList(text: string): ParsedAssignee[] {
       name,
       gender,
       baptised,
-      privileges: privs,
+      privileges: normalizePrivileges(privs),
       active,
     });
   }

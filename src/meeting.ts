@@ -77,6 +77,23 @@ export function isMSorAbove(a: Assignee): boolean {
   );
 }
 
+/**
+ * Apply implication rules to a privilege list:
+ *   - QE  implies E   (every QE is also an E)
+ *   - QMS implies MS  (every QMS is also an MS)
+ *
+ * The reverse is *not* true. Use this whenever privileges are read from
+ * user input or imported from a file before storing them.
+ */
+export function normalizePrivileges(privs: Privilege[]): Privilege[] {
+  const set = new Set(privs);
+  if (set.has("QE")) set.add("E");
+  if (set.has("QMS")) set.add("MS");
+  // Stable canonical ordering for display.
+  const order: Privilege[] = ["E", "QE", "MS", "QMS"];
+  return order.filter((p) => set.has(p));
+}
+
 /** Does this part type involve a second participant? */
 export function needsAssistant(partType: PartType): boolean {
   return (
@@ -163,11 +180,16 @@ export function isEligible(
   }
 }
 
-/** Short pill label for an assignee's strongest privilege. */
+/**
+ * Short pill label for an assignee's most specific privilege.
+ *
+ * Because QE implies E (and QMS implies MS), we report the *more
+ * specific* tag when both are present so the badge is meaningful.
+ */
 export function privilegeLabel(a: Assignee): string | null {
-  if (a.privileges.includes("E")) return "E";
   if (a.privileges.includes("QE")) return "QE";
-  if (a.privileges.includes("MS")) return "MS";
+  if (a.privileges.includes("E")) return "E";
   if (a.privileges.includes("QMS")) return "QMS";
+  if (a.privileges.includes("MS")) return "MS";
   return null;
 }

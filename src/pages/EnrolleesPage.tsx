@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import { db } from "../db";
 import type { Assignee, Gender, Privilege } from "../types";
 import { parseAssigneeFile, parsedToAssignee, parseTextList } from "../importers";
+import { normalizePrivileges } from "../meeting";
 
 const PRIV_OPTIONS: Privilege[] = ["E", "QE", "MS", "QMS"];
 
@@ -256,9 +257,19 @@ function EnrolleeModal({
   const canSubmit = name.trim().length > 0;
 
   function togglePriv(p: Privilege) {
-    setPrivileges((cur) =>
-      cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]
-    );
+    setPrivileges((cur) => {
+      const set = new Set(cur);
+      if (set.has(p)) {
+        // Removing a parent (E or MS) is blocked while its child (QE/QMS)
+        // is set, since QE implies E and QMS implies MS.
+        if (p === "E" && set.has("QE")) return cur;
+        if (p === "MS" && set.has("QMS")) return cur;
+        set.delete(p);
+      } else {
+        set.add(p);
+      }
+      return normalizePrivileges([...set]);
+    });
   }
 
   return (
@@ -325,8 +336,10 @@ function EnrolleeModal({
               ))}
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              E = Elder, QE = Qualified (to be) Elder, MS = Ministerial Servant,
-              QMS = Qualified (to be) MS.
+              E = Elder, QE = Qualified Elder, MS = Ministerial Servant,
+              QMS = Qualified Ministerial Servant. Every QE is also an E and
+              every QMS is also an MS, so checking QE / QMS automatically
+              checks the parent.
             </p>
           </div>
         )}
@@ -359,7 +372,8 @@ function EnrolleeModal({
                 gender,
                 baptised,
                 active,
-                privileges: gender === "M" ? privileges : [],
+                privileges:
+                  gender === "M" ? normalizePrivileges(privileges) : [],
                 notes: notes.trim() || undefined,
               })
             }

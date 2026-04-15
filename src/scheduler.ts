@@ -111,8 +111,20 @@ function scoreCandidate(
       else if (a.privileges.includes("QE")) score += 4;
     }
   } else if (part.segment === "treasures") {
-    if (part.partType === "Talk" || part.partType === "Spiritual Gems") {
+    if (part.partType === "Talk") {
+      // Opening Talk is normally given to elders.
       if (a.privileges.includes("E")) score += 4;
+    }
+    if (part.partType === "Spiritual Gems") {
+      // Either an elder or a ministerial servant can handle Spiritual
+      // Gems, but ministerial servants are preferred. (Note: because
+      // QMS implies MS via normalizePrivileges, QMS also gets this
+      // bonus; same for QE/E.)
+      const isMS = a.privileges.includes("MS");
+      const isE = a.privileges.includes("E");
+      if (isMS && !isE) score += 6; // pure MS — most preferred
+      else if (isMS && isE) score += 3; // unusual: both flags set
+      else if (isE) score += 2; // elder fallback
     }
     if (part.partType === "Bible Reading") {
       // Prefer non-privileged brothers for the Bible Reading so they get
