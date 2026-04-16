@@ -6,6 +6,7 @@ import { SEGMENTS } from "../meeting";
 import { autoAssignWeek } from "../scheduler";
 import { nextMondayIso, uid } from "../utils";
 import WeekEditor from "../components/WeekEditor";
+import WorkbookImportModal from "../components/WorkbookImportModal";
 
 function buildEmptyWeek(weekOf: string): Week {
   const now = Date.now();
@@ -86,6 +87,8 @@ export default function SchedulePage() {
     useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [creatingOpen, setCreatingOpen] = useState(false);
+  const [importingWorkbook, setImportingWorkbook] = useState(false);
+  const [lastImportCount, setLastImportCount] = useState<number | null>(null);
 
   const selected = useMemo(
     () => weeks.find((w) => w.id === selectedId) ?? null,
@@ -181,13 +184,28 @@ export default function SchedulePage() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[260px,1fr] gap-6">
       <aside className="space-y-3">
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2">
           <button
             className="btn w-full"
             onClick={() => setCreatingOpen(true)}
           >
             + New week
           </button>
+          <button
+            className="btn-secondary w-full"
+            onClick={() => {
+              setLastImportCount(null);
+              setImportingWorkbook(true);
+            }}
+            title="Upload a workbook PDF to extract every week"
+          >
+            Import workbook PDF
+          </button>
+          {lastImportCount != null && (
+            <p className="text-xs text-emerald-700">
+              Imported {lastImportCount} week{lastImportCount === 1 ? "" : "s"}.
+            </p>
+          )}
         </div>
         <div className="card p-0 overflow-hidden">
           <div className="px-3 py-2 text-xs uppercase tracking-wide text-slate-500 border-b border-slate-100">
@@ -247,6 +265,14 @@ export default function SchedulePage() {
           onClose={() => setCreatingOpen(false)}
           existingWeeks={weeks.map((w) => w.weekOf)}
           onCreate={createWeek}
+        />
+      )}
+
+      {importingWorkbook && (
+        <WorkbookImportModal
+          onClose={() => setImportingWorkbook(false)}
+          existingWeekOfs={weeks.map((w) => w.weekOf)}
+          onImported={(n) => setLastImportCount(n)}
         />
       )}
     </div>
