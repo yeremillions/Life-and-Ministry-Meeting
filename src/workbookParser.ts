@@ -76,22 +76,27 @@ const SEGMENT_RE = {
  * avoid matching part-title text further down.
  */
 function extractBibleReading(slice: string): string | undefined {
-  // Restrict search to the first 5 lines (banner area only).
-  const header = slice.split("\n").slice(0, 5).join("\n");
+  const lines = slice.split("\n");
+  const firstLine = lines[0] ?? "";
 
   // Case A: "JANUARY 5-11 | GENESIS 1-3"  (| present as text element)
-  const mPipe = /\|\s*([A-Z][A-Za-z ]+?\s+\d+(?:[:\d–—-]+)?(?:\s*[-–—]\s*\d+)?)/i.exec(header);
+  const mPipe = /\|\s*([A-Z][A-Za-z ]+?\s+\d+(?:[:\d–—-]+)?(?:\s*[-–—]\s*\d+)?)/i.exec(firstLine);
   if (mPipe) return mPipe[1].trim();
 
-  // Case B: "JANUARY 5-11  GENESIS 1-3"   (| was a graphic, not text)
-  // After the closing day-number of the range, look for "BOOK N-N".
-  const mNoPipe = /\d{1,2}\s{2,}([A-Z][A-Za-z]+(?: [A-Za-z]+)*\s+\d+\s*[-–—]\s*\d+)/i.exec(header);
-  if (mNoPipe) return mNoPipe[1].trim();
+  // Case B: on the banner line, after the day range: "MAY 4-10 ISAIAH 58-59 2"
+  // Match BOOK CHAPTERS (optionally with a trailing page-number digit).
+  const mBanner =
+    /[-–—]\s*\d{1,2}\s+((?:\d\s+)?[A-Z][A-Za-z]+(?:\s+[A-Za-z]+)?\s+\d+(?:\s*[-–—]\s*\d+)?)/i.exec(
+      firstLine
+    );
+  if (mBanner) return mBanner[1].trim();
 
   // Case C: reading on its own line immediately after the banner.
-  const lines = slice.split("\n").slice(1, 4);
-  for (const line of lines) {
-    const mLine = /^([A-Z][A-Za-z]+(?: [A-Za-z]+)*\s+\d+\s*[-–—]\s*\d+)\s*$/.exec(line.trim());
+  for (const line of lines.slice(1, 4)) {
+    const mLine =
+      /^((?:\d\s+)?[A-Z][A-Za-z]+(?:\s+[A-Za-z]+)?\s+\d+\s*[-–—]\s*\d+)\b/.exec(
+        line.trim()
+      );
     if (mLine) return mLine[1].trim();
   }
 
@@ -102,6 +107,13 @@ function extractBibleReading(slice: string): string | undefined {
  * Load the file as an ArrayBuffer and extract line-preserving text.
  * Uses pdf.js in the browser (no server calls). Worker is loaded
  * from the bundle via a Vite ?url import.
+ *
+ * Many MWB PDFs use heavy letter-spacing/tracking for display headings
+ * (e.g. "T R E A S U R E S").  pdf.js surfaces each character as a
+ * separate text item in that case, so we cannot join naively — we use
+ * each item's reported x/width to detect whether the gap between two
+ * adjacent items is a within-word letter-space (no separator) or a
+ * real inter-word space.
  */
 export async function extractPdfText(file: File): Promise<string> {
   // Dynamic imports so pdf.js isn't in the main bundle until the user
@@ -120,17 +132,27 @@ export async function extractPdfText(file: File): Promise<string> {
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
-    // Reconstruct lines by grouping items with similar y-coordinates.
     const items = content.items as Array<{
       str: string;
       transform: number[];
+      width?: number;
+      height?: number;
       hasEOL?: boolean;
     }>;
-    type Row = { y: number; pieces: { x: number; text: string }[] };
+
+    type Piece = { x: number; width: number; text: string };
+    type Row = { y: number; pieces: Piece[] };
+
     const rows: Row[] = [];
     for (const it of items) {
+      if (!it.str) continue;
       const y = Math.round(it.transform[5]);
       const x = it.transform[4];
+      // Fall back to a 4-pt-per-char estimate when pdf.js omits width.
+      const width =
+        typeof it.width === "number" && it.width > 0
+          ? it.width
+          : it.str.length * 4;
       // 5-point tolerance (≈1.7 mm) handles PDFs where glyphs on the same
       // visual line have slightly different baseline y values.
       let row = rows.find((r) => Math.abs(r.y - y) < 5);
@@ -138,24 +160,48 @@ export async function extractPdfText(file: File): Promise<string> {
         row = { y, pieces: [] };
         rows.push(row);
       }
-      row.pieces.push({ x, text: it.str });
+      row.pieces.push({ x, width, text: it.str });
     }
     rows.sort((a, b) => b.y - a.y); // top of page first (higher y = higher)
-    // Join with a space so adjacent text items that lack their own trailing
-    // space character don't get merged ("JANUARY" + "5-11" → "JANUARY 5-11"
-    // instead of "JANUARY5-11"). The subsequent collapse of \s+ handles
-    // double-spaces when items already had trailing whitespace.
+
     const lines = rows.map((r) =>
-      r.pieces
-        .sort((a, b) => a.x - b.x)
-        .map((p) => p.text)
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim()
+      assembleLine(r.pieces.sort((a, b) => a.x - b.x))
     );
     pages.push(lines.filter(Boolean).join("\n"));
   }
   return pages.join("\n\n");
+}
+
+/**
+ * Glue a row's pieces into a single line, using x-coordinate gaps to
+ * decide between "no separator" (within-word) and "space" (between words).
+ */
+function assembleLine(
+  pieces: { x: number; width: number; text: string }[]
+): string {
+  if (pieces.length === 0) return "";
+  let result = pieces[0].text;
+  for (let i = 1; i < pieces.length; i++) {
+    const prev = pieces[i - 1];
+    const curr = pieces[i];
+    const prevEnd = prev.x + prev.width;
+    const gap = curr.x - prevEnd;
+    // Approximate glyph width, taking the wider of the two neighbours so
+    // short multi-char tokens (e.g. "sh", "RE") don't force an overly
+    // tight threshold that confuses letter-spacing with real spaces.
+    const prevCharW = prev.width / Math.max(prev.text.length, 1);
+    const currCharW = curr.width / Math.max(curr.text.length, 1);
+    const charW = Math.max(prevCharW, currCharW);
+    // Small gap relative to a glyph = letter-spacing / kerning (no space).
+    // Use a 2.5 pt floor so narrow glyphs still cluster correctly.
+    const threshold = Math.max(charW * 0.5, 2.5);
+    if (gap < threshold) {
+      result += curr.text;
+    } else {
+      result += " " + curr.text;
+    }
+  }
+  return result.replace(/\s+/g, " ").trim();
 }
 
 /* -------------------------- core parsing --------------------------- */
@@ -174,7 +220,10 @@ export function parseWorkbookText(
     .replace(/\r\n?/g, "\n")
     .replace(/\u00a0/g, " ")
     .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201c\u201d]/g, '"');
+    .replace(/[\u201c\u201d]/g, '"')
+    // Collapse "20 26" → "2026" so year detection still works when the
+    // digit-pair didn't merge through gap-based extraction.
+    .replace(/\b(20)\s(\d{2})\b/g, "$1$2");
 
   const year = forcedYear ?? detectYear(normalised);
 
