@@ -29,6 +29,8 @@ export default function WorkbookImportModal({
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParsedMeeting[] | null>(null);
+  const [rawText, setRawText] = useState<string | null>(null);
+  const [showRaw, setShowRaw] = useState(false);
   const [forcedYear, setForcedYear] = useState<string>("");
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -43,8 +45,11 @@ export default function WorkbookImportModal({
     setParsing(true);
     setError(null);
     setParsed(null);
+    setRawText(null);
+    setShowRaw(false);
     try {
       const text = await extractPdfText(file);
+      setRawText(text);
       const yearNum = forcedYear.trim() ? parseInt(forcedYear, 10) : undefined;
       const meetings = parseWorkbookText(
         text,
@@ -52,7 +57,9 @@ export default function WorkbookImportModal({
       );
       if (meetings.length === 0) {
         setError(
-          "No meeting weeks were recognised. Double-check that this is a recent MWB PDF, or try setting the year manually."
+          "No meeting weeks were recognised. " +
+            "Double-check that this is a recent MWB PDF, or try setting the year manually. " +
+            "Use 'Show extracted text' below to inspect what was read from the file."
         );
       }
       setParsed(meetings);
@@ -265,6 +272,24 @@ export default function WorkbookImportModal({
             Also update weeks that are already in my schedule (preserves
             existing assignee selections where the part matches).
           </label>
+        )}
+
+        {rawText && (
+          <div className="mt-3">
+            <button
+              className="text-xs text-slate-500 underline"
+              onClick={() => setShowRaw((v) => !v)}
+            >
+              {showRaw ? "Hide" : "Show"} extracted text (for debugging)
+            </button>
+            {showRaw && (
+              <textarea
+                readOnly
+                className="mt-1 w-full h-40 text-xs font-mono border border-slate-200 rounded p-2 bg-slate-50 resize-y"
+                value={rawText}
+              />
+            )}
+          </div>
         )}
 
         <div className="mt-4 flex justify-end gap-2">

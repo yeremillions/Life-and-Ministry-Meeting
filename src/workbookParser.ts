@@ -69,7 +69,34 @@ const SEGMENT_RE = {
   living: /LIVING\s*AS\s*CHRISTIANS/i,
 };
 
-const BIBLE_READING_RE = /\|\s*([A-Z][A-Za-z ]+?\s+\d+(?:[:\d\-–—]+)?(?:\s*[-–—]\s*\d+)?)\s*$/m;
+/**
+ * Bible reading appears after the week banner, typically on the same line
+ * after a pipe separator (which may be a graphic, not a text char), or on
+ * the very next line.  We search only the first few lines of the slice to
+ * avoid matching part-title text further down.
+ */
+function extractBibleReading(slice: string): string | undefined {
+  // Restrict search to the first 5 lines (banner area only).
+  const header = slice.split("\n").slice(0, 5).join("\n");
+
+  // Case A: "JANUARY 5-11 | GENESIS 1-3"  (| present as text element)
+  const mPipe = /\|\s*([A-Z][A-Za-z ]+?\s+\d+(?:[:\d–—-]+)?(?:\s*[-–—]\s*\d+)?)/i.exec(header);
+  if (mPipe) return mPipe[1].trim();
+
+  // Case B: "JANUARY 5-11  GENESIS 1-3"   (| was a graphic, not text)
+  // After the closing day-number of the range, look for "BOOK N-N".
+  const mNoPipe = /\d{1,2}\s{2,}([A-Z][A-Za-z]+(?: [A-Za-z]+)*\s+\d+\s*[-–—]\s*\d+)/i.exec(header);
+  if (mNoPipe) return mNoPipe[1].trim();
+
+  // Case C: reading on its own line immediately after the banner.
+  const lines = slice.split("\n").slice(1, 4);
+  for (const line of lines) {
+    const mLine = /^([A-Z][A-Za-z]+(?: [A-Za-z]+)*\s+\d+\s*[-–—]\s*\d+)\s*$/.exec(line.trim());
+    if (mLine) return mLine[1].trim();
+  }
+
+  return undefined;
+}
 
 /**
  * Load the file as an ArrayBuffer and extract line-preserving text.
@@ -104,7 +131,9 @@ export async function extractPdfText(file: File): Promise<string> {
     for (const it of items) {
       const y = Math.round(it.transform[5]);
       const x = it.transform[4];
-      let row = rows.find((r) => Math.abs(r.y - y) < 3);
+      // 5-point tolerance (≈1.7 mm) handles PDFs where glyphs on the same
+      // visual line have slightly different baseline y values.
+      let row = rows.find((r) => Math.abs(r.y - y) < 5);
       if (!row) {
         row = { y, pieces: [] };
         rows.push(row);
@@ -112,6 +141,10 @@ export async function extractPdfText(file: File): Promise<string> {
       row.pieces.push({ x, text: it.str });
     }
     rows.sort((a, b) => b.y - a.y); // top of page first (higher y = higher)
+    // Join with a space so adjacent text items that lack their own trailing
+    // space character don't get merged ("JANUARY" + "5-11" → "JANUARY 5-11"
+    // instead of "JANUARY5-11"). The subsequent collapse of \s+ handles
+    // double-spaces when items already had trailing whitespace.
     const lines = rows.map((r) =>
       r.pieces
         .sort((a, b) => a.x - b.x)
@@ -212,13 +245,6 @@ function toIsoDate(year: number, monthName: string, day: number): string | null 
   const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${mm}-${dd}`;
-}
-
-function extractBibleReading(slice: string): string | undefined {
-  // Typical banner line: "JANUARY 5-11 | PROVERBS 26-28"
-  const m = BIBLE_READING_RE.exec(slice);
-  if (m) return m[1].trim();
-  return undefined;
 }
 
 /**
