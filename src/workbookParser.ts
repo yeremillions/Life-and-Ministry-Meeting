@@ -227,6 +227,18 @@ export function parseWorkbookText(
 
   const year = forcedYear ?? detectYear(normalised);
 
+  // --- Diagnostics (temporary) ---
+  console.log("[parser] normalised length:", normalised.length);
+  console.log("[parser] first 800 chars:", JSON.stringify(normalised.slice(0, 800)));
+  // Check what TREASURES-like text exists
+  const treasuresDebug = /TREASURES/gi;
+  let dbgM: RegExpExecArray | null;
+  const dbgHits: string[] = [];
+  while ((dbgM = treasuresDebug.exec(normalised))) {
+    dbgHits.push(`@${dbgM.index}: "${normalised.slice(dbgM.index, dbgM.index + 60)}"`);
+  }
+  console.log("[parser] TREASURES occurrences:", dbgHits.length, dbgHits.slice(0, 5));
+
   // --- Step 1: find all TREASURES headings (one per week, reliable) ---
   const treasuresGlobal = new RegExp(SEGMENT_RE.treasures.source, "gi");
   const treasuresPositions: number[] = [];
@@ -234,6 +246,7 @@ export function parseWorkbookText(
   while ((tm = treasuresGlobal.exec(normalised))) {
     treasuresPositions.push(tm.index);
   }
+  console.log("[parser] treasuresPositions:", treasuresPositions.length, treasuresPositions);
 
   // --- Step 2: find all banner matches (date ranges like "MAY 4-10") ---
   WEEK_RE.lastIndex = 0;
@@ -261,6 +274,7 @@ export function parseWorkbookText(
       endDay,
     });
   }
+  console.log("[parser] banners found:", banners.length, banners.map(b => `${b.startMonth} ${b.startDay} @${b.index}`));
 
   // --- Step 3: delimit weeks by TREASURES headings ---
   // Each TREASURES heading starts a new week. We scan backwards from each
