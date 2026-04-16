@@ -59,14 +59,14 @@ const MONTHS_RE = Object.keys(MONTHS).join("|");
  * Some workbooks also split across months: "JANUARY 26–FEBRUARY 1".
  */
 const WEEK_RE = new RegExp(
-  `(${MONTHS_RE})\\s+(\\d{1,2})\\s*[-\\u2013\\u2014]\\s*(?:(${MONTHS_RE})\\s+)?(\\d{1,2})`,
+  `(${MONTHS_RE})\\s*(\\d{1,2})\\s*[-\\u2010-\\u2015\\u2212~]\\s*(?:(${MONTHS_RE})\\s*)?(\\d{1,2})`,
   "gi"
 );
 
 const SEGMENT_RE = {
-  treasures: /TREASURES\s+FROM\s+GOD'?S?\s*\u2019?S?\s*WORD/i,
-  ministry: /APPLY\s+YOURSELF\s+TO\s+THE\s+FIELD\s+MINISTRY/i,
-  living: /LIVING\s+AS\s+CHRISTIANS/i,
+  treasures: /TREASURES\s*FROM\s*GOD'?S?\s*\u2019?S?\s*WORD/i,
+  ministry: /APPLY\s*YOURSELF\s*TO\s*THE\s*FIELD\s*MINISTRY/i,
+  living: /LIVING\s*AS\s*CHRISTIANS/i,
 };
 
 const BIBLE_READING_RE = /\|\s*([A-Z][A-Za-z ]+?\s+\d+(?:[:\d\-–—]+)?(?:\s*[-–—]\s*\d+)?)\s*$/m;
@@ -116,7 +116,7 @@ export async function extractPdfText(file: File): Promise<string> {
       r.pieces
         .sort((a, b) => a.x - b.x)
         .map((p) => p.text)
-        .join("")
+        .join(" ")
         .replace(/\s+/g, " ")
         .trim()
     );
@@ -260,9 +260,11 @@ interface SegmentMarker {
 function findSegmentMarkers(slice: string): SegmentMarker[] {
   const out: SegmentMarker[] = [];
   for (const id of ["treasures", "ministry", "living"] as SegmentId[]) {
-    const re = SEGMENT_RE[id];
-    const m = re.exec(slice);
-    if (m) out.push({ id, start: m.index + m[0].length });
+    const re = new RegExp(SEGMENT_RE[id].source, "gi");
+    let m;
+    while ((m = re.exec(slice))) {
+      out.push({ id, start: m.index + m[0].length });
+    }
   }
   return out.sort((a, b) => a.start - b.start);
 }
