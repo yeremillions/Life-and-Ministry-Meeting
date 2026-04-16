@@ -227,10 +227,19 @@ export function parseWorkbookText(
 
   const year = forcedYear ?? detectYear(normalised);
 
-  // Find every week banner and its offset. Regexp state reset each call.
+  // --- Step 1: find all TREASURES headings (one per week, reliable) ---
+  const treasuresGlobal = new RegExp(SEGMENT_RE.treasures.source, "gi");
+  const treasuresPositions: number[] = [];
+  let tm: RegExpExecArray | null;
+  while ((tm = treasuresGlobal.exec(normalised))) {
+    treasuresPositions.push(tm.index);
+  }
+
+  // --- Step 2: find all banner matches (date ranges like "MAY 4-10") ---
   WEEK_RE.lastIndex = 0;
   const banners: {
-    match: RegExpExecArray;
+    index: number;
+    text: string;
     startMonth: string;
     startDay: number;
     endMonth: string;
@@ -242,23 +251,88 @@ export function parseWorkbookText(
     const startDay = parseInt(m[2], 10);
     const endMonth = (m[3] ?? m[1]).toUpperCase();
     const endDay = parseInt(m[4], 10);
-    // Guard: realistic day ranges.
     if (startDay < 1 || startDay > 31 || endDay < 1 || endDay > 31) continue;
-    banners.push({ match: m, startMonth, startDay, endMonth, endDay });
+    banners.push({
+      index: m.index,
+      text: m[0],
+      startMonth,
+      startDay,
+      endMonth,
+      endDay,
+    });
   }
 
-  const results: ParsedMeeting[] = [];
-  for (let i = 0; i < banners.length; i++) {
-    const b = banners[i];
-    const next = banners[i + 1]?.match.index ?? normalised.length;
-    const slice = normalised.slice(b.match.index, next);
-    const weekOf = toIsoDate(year, b.startMonth, b.startDay);
-    if (!weekOf) continue;
+  // --- Step 3: delimit weeks by TREASURES headings ---
+  // Each TREASURES heading starts a new week. We scan backwards from each
+  // TREASURES position to capture the banner line that precedes it.
+  // The slice for each week ends where the next week's slice begins.
+  const weekSlices: { sliceStart: number; sliceEnd: number }[] = [];
 
-    const banner =
-      b.startMonth === b.endMonth
-        ? `${b.startMonth} ${b.startDay}-${b.endDay}`
-        : `${b.startMonth} ${b.startDay}-${b.endMonth} ${b.endDay}`;
+  // First pass: compute the start of each week (looking back for banner).
+  const weekStarts: number[] = [];
+  for (let i = 0; i < treasuresPositions.length; i++) {
+    const earliest = i > 0 ? weekStarts[i - 1] + 1 : 0;
+    const region = normalised.slice(earliest, treasuresPositions[i]);
+    // Find the *last* "Song N" line before TREASURES (each week starts
+    // with "Song N and Prayer / Opening Comments").
+    let songIdx = -1;
+    const songRe = /\bSong\s+\d+/gi;
+    let sm: RegExpExecArray | null;
+    while ((sm = songRe.exec(region))) songIdx = sm.index;
+
+    if (songIdx >= 0) {
+      const beforeSong = region.lastIndexOf("\n", songIdx);
+      weekStarts.push(earliest + (beforeSong >= 0 ? beforeSong : songIdx));
+    } else {
+      // Fallback: find the last double-newline (paragraph break).
+      const dblNl = region.lastIndexOf("\n\n");
+      weekStarts.push(earliest + (dblNl >= 0 ? dblNl : 0));
+    }
+  }
+
+  for (let i = 0; i < treasuresPositions.length; i++) {
+    const sliceStart = weekStarts[i];
+    const sliceEnd =
+      i + 1 < weekStarts.length ? weekStarts[i + 1] : normalised.length;
+    weekSlices.push({ sliceStart, sliceEnd });
+  }
+
+  // --- Step 4: pair each week slice with a banner ---
+  const results: ParsedMeeting[] = [];
+  let lastWeekOf: string | null = null;
+
+  for (let i = 0; i < weekSlices.length; i++) {
+    const { sliceStart, sliceEnd } = weekSlices[i];
+    const slice = normalised.slice(sliceStart, sliceEnd);
+
+    // Find the best banner for this slice: the latest banner whose index
+    // falls within [sliceStart, treasuresPositions[i]).
+    const tPos = treasuresPositions[i];
+    const matchingBanner = banners
+      .filter((b) => b.index >= sliceStart && b.index < tPos)
+      .sort((a, b) => b.index - a.index)[0];
+
+    let weekOf: string | null = null;
+    let banner: string;
+
+    if (matchingBanner) {
+      weekOf = toIsoDate(year, matchingBanner.startMonth, matchingBanner.startDay);
+      banner =
+        matchingBanner.startMonth === matchingBanner.endMonth
+          ? `${matchingBanner.startMonth} ${matchingBanner.startDay}-${matchingBanner.endDay}`
+          : `${matchingBanner.startMonth} ${matchingBanner.startDay}-${matchingBanner.endMonth} ${matchingBanner.endDay}`;
+    } else if (lastWeekOf) {
+      // Infer date: previous week + 7 days.
+      const prev = new Date(lastWeekOf + "T00:00:00Z");
+      prev.setUTCDate(prev.getUTCDate() + 7);
+      weekOf = toIsoDate(prev.getUTCFullYear(), monthNameFromNum(prev.getUTCMonth() + 1), prev.getUTCDate());
+      banner = weekOf ? `Week of ${weekOf}` : "Unknown week";
+    } else {
+      banner = "Unknown week";
+    }
+
+    if (!weekOf) continue;
+    lastWeekOf = weekOf;
 
     const bibleReading = extractBibleReading(slice);
     const parts = extractParts(slice);
@@ -283,6 +357,14 @@ function detectYear(text: string): number {
   const m = /\b(20\d{2})\b/.exec(text);
   if (m) return parseInt(m[1], 10);
   return new Date().getFullYear();
+}
+
+function monthNameFromNum(monthNum: number): string {
+  const names = [
+    "", "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+    "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER",
+  ];
+  return names[monthNum] ?? "JANUARY";
 }
 
 function toIsoDate(year: number, monthName: string, day: number): string | null {
