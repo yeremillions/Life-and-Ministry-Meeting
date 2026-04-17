@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { db } from "../db";
 import type { Assignee, Assignment, Week } from "../types";
-import { SEGMENTS, segmentOf } from "../meeting";
+import { segmentOf } from "../meeting";
 import { uid } from "../utils";
 import {
   parseS140Docx,
@@ -66,9 +66,13 @@ function matchName(ref: S140NameRef | undefined, enrollees: Assignee[]): NameMat
   }
 
   // 3. Last-name-only match (partial).
-  const lastName = target.split(" ").at(-1) ?? "";
+  const targetParts = target.split(" ");
+  const lastName = targetParts[targetParts.length - 1] ?? "";
   if (lastName.length >= 3) {
-    found = enrollees.find((a) => norm(a.name).split(" ").at(-1) === lastName);
+    found = enrollees.find((a) => {
+      const parts = norm(a.name).split(" ");
+      return parts[parts.length - 1] === lastName;
+    });
     if (found) return { conf: "partial", assigneeId: found.id };
   }
 

@@ -5,7 +5,6 @@ import type { Assignee, Gender, Privilege } from "../types";
 import { parseAssigneeFile, parsedToAssignee, parseTextList } from "../importers";
 import { normalizePrivileges } from "../meeting";
 
-const APPOINTMENT_PRIVS: Privilege[] = ["E", "QE", "MS", "QMS"];
 const ALL_PRIVS: Privilege[] = ["E", "QE", "MS", "QMS", "RP"];
 
 export default function EnrolleesPage() {
