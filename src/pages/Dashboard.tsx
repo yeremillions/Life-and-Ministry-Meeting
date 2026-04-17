@@ -2,7 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
 import { buildStats, dueSoon } from "../scheduler";
 import { segmentOf } from "../meeting";
-import { todayIso } from "../utils";
+import { todayIso, weekRangeLabel } from "../utils";
 
 export default function Dashboard({
   onNavigate,
@@ -79,7 +79,7 @@ export default function Dashboard({
                     onClick={() => onNavigate("schedule", w.id)}
                   >
                     <div>
-                      <div className="font-medium">Week of {w.weekOf}</div>
+                      <div className="font-medium">{weekRangeLabel(w.weekOf)}</div>
                       <div className="text-xs text-slate-500">
                         {w.weeklyBibleReading ?? "—"}
                       </div>

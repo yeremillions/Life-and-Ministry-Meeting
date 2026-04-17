@@ -4,7 +4,7 @@ import { db, ensureSettings } from "../db";
 import type { Assignment, PartType, SegmentId, Week } from "../types";
 import { SEGMENTS } from "../meeting";
 import { autoAssignWeek } from "../scheduler";
-import { nextMondayIso, uid } from "../utils";
+import { nextMondayIso, uid, weekRangeLabel, workbookPeriod } from "../utils";
 import WeekEditor from "../components/WeekEditor";
 import WorkbookImportModal from "../components/WorkbookImportModal";
 import S140ImportModal from "../components/S140ImportModal";
@@ -239,26 +239,11 @@ export default function SchedulePage({
           {weeks.length === 0 ? (
             <p className="p-3 text-sm text-slate-500">No weeks yet.</p>
           ) : (
-            <ul>
-              {weeks.map((w) => {
-                const filled = w.assignments.filter((a) => a.assigneeId).length;
-                return (
-                  <li
-                    key={w.id}
-                    className={
-                      "px-3 py-2 border-b border-slate-100 cursor-pointer hover:bg-slate-50 " +
-                      (selectedId === w.id ? "bg-slate-100" : "")
-                    }
-                    onClick={() => setSelectedId(w.id ?? null)}
-                  >
-                    <div className="text-sm font-medium">{w.weekOf}</div>
-                    <div className="text-xs text-slate-500">
-                      {filled}/{w.assignments.length} filled
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <WeekListGrouped
+              weeks={weeks}
+              selectedId={selectedId}
+              onSelect={(id) => setSelectedId(id)}
+            />
           )}
         </div>
       </aside>
@@ -363,3 +348,63 @@ function NewWeekModal({
   );
 }
 
+// ─── Week list grouped by workbook period ────────────────────────────────────
+
+function WeekListGrouped({
+  weeks,
+  selectedId,
+  onSelect,
+}: {
+  weeks: Week[];
+  selectedId: number | null;
+  onSelect: (id: number | null) => void;
+}) {
+  // Group weeks by bi-monthly workbook period, preserving sort order.
+  const groups = useMemo(() => {
+    const map = new Map<string, { label: string; weeks: Week[] }>();
+    for (const w of weeks) {
+      const { key, label } = workbookPeriod(w.weekOf);
+      if (!map.has(key)) map.set(key, { label, weeks: [] });
+      map.get(key)!.weeks.push(w);
+    }
+    return [...map.values()];
+  }, [weeks]);
+
+  return (
+    <div>
+      {groups.map((group) => (
+        <div key={group.label}>
+          {/* Period heading */}
+          <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-50 border-b border-slate-100">
+            {group.label}
+          </div>
+          {/* Weeks within this period */}
+          <ul>
+            {group.weeks.map((w) => {
+              const filled = w.assignments.filter((a) => a.assigneeId).length;
+              const total  = w.assignments.length;
+              const active = selectedId === w.id;
+              return (
+                <li
+                  key={w.id}
+                  className={
+                    "px-3 py-2 border-b border-slate-100 cursor-pointer hover:bg-slate-50 " +
+                    (active ? "bg-indigo-50 border-l-2 border-l-indigo-400" : "")
+                  }
+                  onClick={() => onSelect(w.id ?? null)}
+                >
+                  <div className="text-sm font-medium">
+                    {weekRangeLabel(w.weekOf)}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {filled}/{total} filled
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}

@@ -14,6 +14,7 @@ import {
   privilegeLabel,
   segmentOf,
 } from "../meeting";
+import { weekRangeLabel } from "../utils";
 export interface WeekEditorProps {
   week: Week;
   assignees: Assignee[];
@@ -47,9 +48,12 @@ export default function WeekEditor(props: WeekEditorProps) {
       <header className="card">
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <h2 className="font-semibold text-lg">Week of {week.weekOf}</h2>
+            <h2 className="font-semibold text-lg">{weekRangeLabel(week.weekOf)}</h2>
             <div className="text-xs text-slate-500">
-              {week.assignments.length} parts •{" "}
+              {week.weeklyBibleReading
+                ? <span className="font-medium text-slate-600">{week.weeklyBibleReading} &middot; </span>
+                : null}
+              {week.assignments.length} parts &middot;{" "}
               {week.assignments.filter((a) => a.assigneeId).length} assigned
             </div>
           </div>
