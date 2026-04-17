@@ -318,11 +318,14 @@ export function parseWorkbookText(
     const { sliceStart, sliceEnd } = weekSlices[i];
     const slice = normalised.slice(sliceStart, sliceEnd);
 
-    // Find the best banner for this slice: the latest banner whose index
-    // falls within [sliceStart, treasuresPositions[i]).
+    // Find the best banner for this week: the latest banner between the
+    // previous TREASURES heading and this one. We use the wider region
+    // (not sliceStart) because the banner line appears before the Song
+    // line that sliceStart is anchored to.
     const tPos = treasuresPositions[i];
+    const prevTPos = i > 0 ? treasuresPositions[i - 1] : 0;
     const matchingBanner = banners
-      .filter((b) => b.index >= sliceStart && b.index < tPos)
+      .filter((b) => b.index >= prevTPos && b.index < tPos)
       .sort((a, b) => b.index - a.index)[0];
 
     let weekOf: string | null = null;
