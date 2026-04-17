@@ -103,6 +103,58 @@ export default function EnrolleesPage() {
     setSelected(new Set());
   }
 
+  async function bulkUpdate(changes: Partial<Omit<Assignee, "id" | "createdAt">>) {
+    if (selected.size === 0) return;
+    const ids = [...selected];
+    await db.transaction("rw", db.assignees, async () => {
+      for (const id of ids) {
+        await db.assignees.update(id, changes);
+      }
+    });
+  }
+
+  async function bulkSetPrivileges(privs: Privilege[]) {
+    if (selected.size === 0) return;
+    const normalized = normalizePrivileges(privs);
+    const ids = [...selected];
+    await db.transaction("rw", db.assignees, async () => {
+      for (const id of ids) {
+        const a = await db.assignees.get(id);
+        if (a && a.gender === "M") {
+          await db.assignees.update(id, { privileges: normalized });
+        }
+      }
+    });
+  }
+
+  async function bulkAddPrivilege(priv: Privilege) {
+    if (selected.size === 0) return;
+    const ids = [...selected];
+    await db.transaction("rw", db.assignees, async () => {
+      for (const id of ids) {
+        const a = await db.assignees.get(id);
+        if (a && a.gender === "M") {
+          const updated = normalizePrivileges([...new Set([...a.privileges, priv])]);
+          await db.assignees.update(id, { privileges: updated });
+        }
+      }
+    });
+  }
+
+  async function bulkRemovePrivilege(priv: Privilege) {
+    if (selected.size === 0) return;
+    const ids = [...selected];
+    await db.transaction("rw", db.assignees, async () => {
+      for (const id of ids) {
+        const a = await db.assignees.get(id);
+        if (a && a.gender === "M") {
+          const updated = normalizePrivileges(a.privileges.filter((p) => p !== priv));
+          await db.assignees.update(id, { privileges: updated });
+        }
+      }
+    });
+  }
+
   async function handleFile(file: File) {
     setImportError(null);
     try {
@@ -169,20 +221,92 @@ export default function EnrolleesPage() {
         </div>
 
         {selected.size > 0 && (
-          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm">
-            <span className="font-medium">
-              {selected.size} selected
-            </span>
-            <button
-              className="text-slate-600 hover:text-slate-900 underline text-xs"
-              onClick={() => setSelected(new Set())}
-            >
-              clear selection
-            </button>
-            <div className="ml-auto flex gap-2">
-              <button className="btn-danger" onClick={deleteSelected}>
-                Delete selected
+          <div className="mb-3 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="font-medium">
+                {selected.size} selected
+              </span>
+              <button
+                className="text-slate-600 hover:text-slate-900 underline text-xs"
+                onClick={() => setSelected(new Set())}
+              >
+                clear selection
               </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className="text-xs text-slate-500 mr-1">Actions:</span>
+              <select
+                className="input py-1 text-xs w-auto"
+                value=""
+                onChange={(e) => {
+                  const v = e.target.value as Gender;
+                  if (v) {
+                    bulkUpdate({
+                      gender: v,
+                      ...(v === "F" ? { privileges: [] } : {}),
+                    });
+                  }
+                }}
+              >
+                <option value="" disabled>Set gender…</option>
+                <option value="M">Brother</option>
+                <option value="F">Sister</option>
+              </select>
+              <select
+                className="input py-1 text-xs w-auto"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) bulkUpdate({ baptised: e.target.value === "yes" });
+                }}
+              >
+                <option value="" disabled>Set baptised…</option>
+                <option value="yes">Baptised</option>
+                <option value="no">Not baptised</option>
+              </select>
+              <select
+                className="input py-1 text-xs w-auto"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) bulkUpdate({ active: e.target.value === "active" });
+                }}
+              >
+                <option value="" disabled>Set status…</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <select
+                className="input py-1 text-xs w-auto"
+                value=""
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) return;
+                  if (v === "clear") bulkSetPrivileges([]);
+                  else if (v.startsWith("+")) bulkAddPrivilege(v.slice(1) as Privilege);
+                  else if (v.startsWith("-")) bulkRemovePrivilege(v.slice(1) as Privilege);
+                }}
+              >
+                <option value="" disabled>Privileges…</option>
+                <optgroup label="Add privilege">
+                  <option value="+E">+ Elder</option>
+                  <option value="+QE">+ Qualified Elder</option>
+                  <option value="+MS">+ Ministerial Servant</option>
+                  <option value="+QMS">+ Qualified MS</option>
+                </optgroup>
+                <optgroup label="Remove privilege">
+                  <option value="-E">- Elder</option>
+                  <option value="-QE">- Qualified Elder</option>
+                  <option value="-MS">- Ministerial Servant</option>
+                  <option value="-QMS">- Qualified MS</option>
+                </optgroup>
+                <optgroup label="Reset">
+                  <option value="clear">Clear all privileges</option>
+                </optgroup>
+              </select>
+              <div className="ml-auto">
+                <button className="btn-danger text-xs py-1" onClick={deleteSelected}>
+                  Delete selected
+                </button>
+              </div>
             </div>
           </div>
         )}
