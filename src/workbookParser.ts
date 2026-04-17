@@ -224,6 +224,13 @@ export function parseWorkbookText(
     .replace(/\u00a0/g, " ")
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201c\u201d]/g, '"')
+    // Collapse letter-spaced uppercase words: "J U N E" → "JUNE",
+    // "S E P T E M B E R" → "SEPTEMBER". PDF headings often use heavy
+    // tracking that survives gap-based extraction as single letters
+    // separated by spaces.
+    .replace(/(?<![A-Za-z])(?:[A-Z] ){2,}[A-Z](?![A-Za-z])/g, (m) =>
+      m.replace(/ /g, "")
+    )
     // Collapse "20 26" → "2026" so year detection still works when the
     // digit-pair didn't merge through gap-based extraction.
     .replace(/\b(20)\s(\d{2})\b/g, "$1$2");
