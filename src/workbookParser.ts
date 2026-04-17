@@ -236,6 +236,7 @@ export function parseWorkbookText(
     .replace(/\b(20)\s(\d{2})\b/g, "$1$2");
 
   const year = forcedYear ?? detectYear(normalised);
+  console.log("[parser-v2] text length:", normalised.length, "year:", year);
 
   // --- Step 1: find all TREASURES headings (one per week, reliable) ---
   const treasuresGlobal = new RegExp(SEGMENT_RE.treasures.source, "gi");
@@ -244,6 +245,7 @@ export function parseWorkbookText(
   while ((tm = treasuresGlobal.exec(normalised))) {
     treasuresPositions.push(tm.index);
   }
+  console.log("[parser-v2] TREASURES positions:", treasuresPositions.length);
 
   // --- Step 2: find all banner matches (date ranges like "MAY 4-10") ---
   WEEK_RE.lastIndex = 0;
@@ -306,6 +308,7 @@ export function parseWorkbookText(
       i + 1 < weekStarts.length ? weekStarts[i + 1] : normalised.length;
     weekSlices.push({ sliceStart, sliceEnd });
   }
+  console.log("[parser-v2] weekSlices:", weekSlices.length, weekSlices);
 
   // --- Step 4: pair each week slice with a banner ---
   const results: ParsedMeeting[] = [];
@@ -341,6 +344,7 @@ export function parseWorkbookText(
       banner = "Unknown week";
     }
 
+    console.log(`[parser-v2] week ${i}: banner=${!!matchingBanner}, weekOf=${weekOf}, banner="${banner}", sliceLen=${slice.length}`);
     if (!weekOf) continue;
     lastWeekOf = weekOf;
 
@@ -348,6 +352,7 @@ export function parseWorkbookText(
     const parts = extractParts(slice);
     results.push({ weekOf, banner, bibleReading, parts });
   }
+  console.log("[parser-v2] results before dedup:", results.length);
 
   // Deduplicate weeks (a workbook occasionally repeats a week in TOC-like
   // spots); keep the one with the most parts.
