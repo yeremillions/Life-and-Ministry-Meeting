@@ -7,6 +7,7 @@ import { autoAssignWeek } from "../scheduler";
 import { nextMondayIso, uid } from "../utils";
 import WeekEditor from "../components/WeekEditor";
 import WorkbookImportModal from "../components/WorkbookImportModal";
+import S140ImportModal from "../components/S140ImportModal";
 
 function buildEmptyWeek(weekOf: string): Week {
   const now = Date.now();
@@ -94,6 +95,7 @@ export default function SchedulePage({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [creatingOpen, setCreatingOpen] = useState(false);
   const [importingWorkbook, setImportingWorkbook] = useState(false);
+  const [importingS140, setImportingS140] = useState(false);
   const [lastImportCount, setLastImportCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -214,6 +216,16 @@ export default function SchedulePage({
           >
             Import workbook PDF
           </button>
+          <button
+            className="btn-secondary w-full"
+            onClick={() => {
+              setLastImportCount(null);
+              setImportingS140(true);
+            }}
+            title="Upload a filled S-140 schedule to import parts and assignees"
+          >
+            Import S-140 schedule
+          </button>
           {lastImportCount != null && (
             <p className="text-xs text-emerald-700">
               Imported {lastImportCount} week{lastImportCount === 1 ? "" : "s"}.
@@ -285,6 +297,15 @@ export default function SchedulePage({
         <WorkbookImportModal
           onClose={() => setImportingWorkbook(false)}
           existingWeekOfs={weeks.map((w) => w.weekOf)}
+          onImported={(n) => setLastImportCount(n)}
+        />
+      )}
+
+      {importingS140 && (
+        <S140ImportModal
+          onClose={() => setImportingS140(false)}
+          existingWeekOfs={weeks.map((w) => w.weekOf)}
+          assignees={assignees}
           onImported={(n) => setLastImportCount(n)}
         />
       )}
