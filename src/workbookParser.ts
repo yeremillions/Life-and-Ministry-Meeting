@@ -218,6 +218,9 @@ export function parseWorkbookText(
   // Normalise to simplify downstream regexes.
   const normalised = text
     .replace(/\r\n?/g, "\n")
+    // Strip non-printable control characters (PDF decorative artifacts like
+    // colored bars, icons) but keep \t (0x09) and \n (0x0a).
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "")
     .replace(/\u00a0/g, " ")
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201c\u201d]/g, '"')
