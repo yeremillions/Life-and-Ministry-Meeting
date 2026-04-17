@@ -7,7 +7,7 @@ import { todayIso } from "../utils";
 export default function Dashboard({
   onNavigate,
 }: {
-  onNavigate: (t: "enrollees" | "schedule" | "reports") => void;
+  onNavigate: (t: "enrollees" | "schedule" | "reports", weekId?: number) => void;
 }) {
   const assignees =
     useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
@@ -75,7 +75,8 @@ export default function Dashboard({
                 return (
                   <li
                     key={w.id}
-                    className="py-2 flex items-center justify-between text-sm"
+                    className="py-2 flex items-center justify-between text-sm cursor-pointer rounded hover:bg-slate-50 px-2 -mx-2"
+                    onClick={() => onNavigate("schedule", w.id)}
                   >
                     <div>
                       <div className="font-medium">Week of {w.weekOf}</div>
@@ -123,7 +124,11 @@ export default function Dashboard({
           <h2 className="font-semibold mb-3">Recent weeks</h2>
           <div className="space-y-3">
             {recent.map((w) => (
-              <div key={w.id} className="border-l-4 border-slate-200 pl-3">
+              <div
+                key={w.id}
+                className="border-l-4 border-slate-200 pl-3 cursor-pointer rounded hover:bg-slate-50 py-1 -my-1"
+                onClick={() => onNavigate("schedule", w.id)}
+              >
                 <div className="text-sm font-medium">Week of {w.weekOf}</div>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {w.assignments.slice(0, 6).map((a) => {

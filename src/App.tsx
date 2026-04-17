@@ -18,10 +18,18 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("dashboard");
+  const [scheduleWeekId, setScheduleWeekId] = useState<number | null>(null);
 
   useEffect(() => {
     ensureSettings().catch((e) => console.error("settings init", e));
   }, []);
+
+  function navigate(t: Tab, weekId?: number) {
+    setTab(t);
+    if (t === "schedule" && weekId != null) {
+      setScheduleWeekId(weekId);
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -54,9 +62,14 @@ export default function App() {
         </div>
       </header>
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-6">
-        {tab === "dashboard" && <Dashboard onNavigate={setTab} />}
+        {tab === "dashboard" && <Dashboard onNavigate={navigate} />}
         {tab === "enrollees" && <EnrolleesPage />}
-        {tab === "schedule" && <SchedulePage />}
+        {tab === "schedule" && (
+          <SchedulePage
+            initialWeekId={scheduleWeekId}
+            onConsumeInitialWeek={() => setScheduleWeekId(null)}
+          />
+        )}
         {tab === "reports" && <ReportsPage />}
         {tab === "settings" && <SettingsPage />}
       </main>

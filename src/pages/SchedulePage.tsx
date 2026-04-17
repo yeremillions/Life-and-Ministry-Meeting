@@ -1,5 +1,5 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { db, ensureSettings } from "../db";
 import type { Assignment, PartType, SegmentId, Week } from "../types";
 import { SEGMENTS } from "../meeting";
@@ -79,7 +79,13 @@ function buildEmptyWeek(weekOf: string): Week {
   };
 }
 
-export default function SchedulePage() {
+export default function SchedulePage({
+  initialWeekId,
+  onConsumeInitialWeek,
+}: {
+  initialWeekId?: number | null;
+  onConsumeInitialWeek?: () => void;
+} = {}) {
   const weeks =
     useLiveQuery(() => db.weeks.orderBy("weekOf").reverse().toArray(), []) ??
     [];
@@ -89,6 +95,13 @@ export default function SchedulePage() {
   const [creatingOpen, setCreatingOpen] = useState(false);
   const [importingWorkbook, setImportingWorkbook] = useState(false);
   const [lastImportCount, setLastImportCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (initialWeekId != null) {
+      setSelectedId(initialWeekId);
+      onConsumeInitialWeek?.();
+    }
+  }, [initialWeekId]);
 
   const selected = useMemo(
     () => weeks.find((w) => w.id === selectedId) ?? null,
