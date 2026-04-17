@@ -5,7 +5,8 @@ import type { Assignee, Gender, Privilege } from "../types";
 import { parseAssigneeFile, parsedToAssignee, parseTextList } from "../importers";
 import { normalizePrivileges } from "../meeting";
 
-const PRIV_OPTIONS: Privilege[] = ["E", "QE", "MS", "QMS"];
+const APPOINTMENT_PRIVS: Privilege[] = ["E", "QE", "MS", "QMS"];
+const ALL_PRIVS: Privilege[] = ["E", "QE", "MS", "QMS", "RP"];
 
 export default function EnrolleesPage() {
   const assignees =
@@ -115,14 +116,16 @@ export default function EnrolleesPage() {
 
   async function bulkSetPrivileges(privs: Privilege[]) {
     if (selected.size === 0) return;
-    const normalized = normalizePrivileges(privs);
     const ids = [...selected];
     await db.transaction("rw", db.assignees, async () => {
       for (const id of ids) {
         const a = await db.assignees.get(id);
-        if (a && a.gender === "M") {
-          await db.assignees.update(id, { privileges: normalized });
-        }
+        if (!a) continue;
+        const allowed =
+          a.gender === "M" ? privs : privs.filter((p) => p === "RP");
+        await db.assignees.update(id, {
+          privileges: normalizePrivileges(allowed),
+        });
       }
     });
   }
@@ -133,10 +136,10 @@ export default function EnrolleesPage() {
     await db.transaction("rw", db.assignees, async () => {
       for (const id of ids) {
         const a = await db.assignees.get(id);
-        if (a && a.gender === "M") {
-          const updated = normalizePrivileges([...new Set([...a.privileges, priv])]);
-          await db.assignees.update(id, { privileges: updated });
-        }
+        if (!a) continue;
+        if (priv !== "RP" && a.gender !== "M") continue;
+        const updated = normalizePrivileges([...new Set([...a.privileges, priv])]);
+        await db.assignees.update(id, { privileges: updated });
       }
     });
   }
@@ -147,10 +150,9 @@ export default function EnrolleesPage() {
     await db.transaction("rw", db.assignees, async () => {
       for (const id of ids) {
         const a = await db.assignees.get(id);
-        if (a && a.gender === "M") {
-          const updated = normalizePrivileges(a.privileges.filter((p) => p !== priv));
-          await db.assignees.update(id, { privileges: updated });
-        }
+        if (!a) continue;
+        const updated = normalizePrivileges(a.privileges.filter((p) => p !== priv));
+        await db.assignees.update(id, { privileges: updated });
       }
     });
   }
@@ -238,13 +240,25 @@ export default function EnrolleesPage() {
               <select
                 className="input py-1 text-xs w-auto"
                 value=""
-                onChange={(e) => {
+                onChange={async (e) => {
                   const v = e.target.value as Gender;
-                  if (v) {
-                    bulkUpdate({
-                      gender: v,
-                      ...(v === "F" ? { privileges: [] } : {}),
+                  if (!v) return;
+                  if (v === "F") {
+                    const ids = [...selected];
+                    await db.transaction("rw", db.assignees, async () => {
+                      for (const id of ids) {
+                        const a = await db.assignees.get(id);
+                        if (!a) continue;
+                        await db.assignees.update(id, {
+                          gender: "F",
+                          privileges: normalizePrivileges(
+                            a.privileges.filter((p) => p === "RP")
+                          ),
+                        });
+                      }
                     });
+                  } else {
+                    bulkUpdate({ gender: "M" });
                   }
                 }}
               >
@@ -291,12 +305,14 @@ export default function EnrolleesPage() {
                   <option value="+QE">+ Qualified Elder</option>
                   <option value="+MS">+ Ministerial Servant</option>
                   <option value="+QMS">+ Qualified MS</option>
+                  <option value="+RP">+ Regular Pioneer</option>
                 </optgroup>
                 <optgroup label="Remove privilege">
                   <option value="-E">- Elder</option>
                   <option value="-QE">- Qualified Elder</option>
                   <option value="-MS">- Ministerial Servant</option>
                   <option value="-QMS">- Qualified MS</option>
+                  <option value="-RP">- Regular Pioneer</option>
                 </optgroup>
                 <optgroup label="Reset">
                   <option value="clear">Clear all privileges</option>
@@ -550,34 +566,32 @@ function EnrolleeModal({
             </label>
           </div>
         </div>
-        {gender === "M" && (
-          <div>
-            <label className="label">Privileges</label>
-            <div className="flex gap-2 flex-wrap">
-              {PRIV_OPTIONS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => togglePriv(p)}
-                  className={
-                    "px-2.5 py-1 rounded-full text-xs font-medium border " +
-                    (privileges.includes(p)
-                      ? "bg-amber-500 border-amber-600 text-white"
-                      : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50")
-                  }
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              E = Elder, QE = Qualified Elder, MS = Ministerial Servant,
-              QMS = Qualified Ministerial Servant. Every QE is also an E and
-              every QMS is also an MS, so checking QE / QMS automatically
-              checks the parent.
-            </p>
+        <div>
+          <label className="label">Privileges</label>
+          <div className="flex gap-2 flex-wrap">
+            {(gender === "M" ? ALL_PRIVS : (["RP"] as Privilege[])).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => togglePriv(p)}
+                className={
+                  "px-2.5 py-1 rounded-full text-xs font-medium border " +
+                  (privileges.includes(p)
+                    ? "bg-amber-500 border-amber-600 text-white"
+                    : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50")
+                }
+              >
+                {p}
+              </button>
+            ))}
           </div>
-        )}
+          <p className="text-xs text-slate-500 mt-1">
+            E = Elder, QE = Qualified Elder, MS = Ministerial Servant,
+            QMS = Qualified Ministerial Servant, RP = Regular Pioneer.
+            {gender === "M" && " Every QE is also an E and every QMS is also an MS, so checking QE / QMS automatically checks the parent."}
+            {" "}RP can be held by brothers and sisters.
+          </p>
+        </div>
         <div>
           <label className="label">Notes (optional)</label>
           <textarea
@@ -608,7 +622,9 @@ function EnrolleeModal({
                 baptised,
                 active,
                 privileges:
-                  gender === "M" ? normalizePrivileges(privileges) : [],
+                  gender === "M"
+                    ? normalizePrivileges(privileges)
+                    : normalizePrivileges(privileges.filter((p) => p === "RP")),
                 notes: notes.trim() || undefined,
               })
             }

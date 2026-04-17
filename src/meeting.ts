@@ -55,9 +55,16 @@ export const SEGMENT_PART_TYPES: Record<SegmentId, PartType[]> = {
   ],
 };
 
-/** Is this privilege "privileged" (E / QE / MS / QMS)? */
+/** Is this assignee an appointed brother (E / QE / MS / QMS)?
+ *  RP is a designation, not a congregation appointment, so it
+ *  doesn't count here. */
 export function isPrivileged(a: Assignee): boolean {
-  return a.privileges.length > 0;
+  return (
+    a.privileges.includes("E") ||
+    a.privileges.includes("QE") ||
+    a.privileges.includes("MS") ||
+    a.privileges.includes("QMS")
+  );
 }
 
 export function hasPrivilege(a: Assignee, p: Privilege): boolean {
@@ -90,7 +97,7 @@ export function normalizePrivileges(privs: Privilege[]): Privilege[] {
   if (set.has("QE")) set.add("E");
   if (set.has("QMS")) set.add("MS");
   // Stable canonical ordering for display.
-  const order: Privilege[] = ["E", "QE", "MS", "QMS"];
+  const order: Privilege[] = ["E", "QE", "MS", "QMS", "RP"];
   return order.filter((p) => set.has(p));
 }
 
@@ -191,5 +198,6 @@ export function privilegeLabel(a: Assignee): string | null {
   if (a.privileges.includes("E")) return "E";
   if (a.privileges.includes("QMS")) return "QMS";
   if (a.privileges.includes("MS")) return "MS";
+  if (a.privileges.includes("RP")) return "RP";
   return null;
 }

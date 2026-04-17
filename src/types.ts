@@ -7,13 +7,14 @@
 export type Gender = "M" | "F";
 
 /**
- * Special privileges that can apply to male enrollees.
+ * Privileges / designations.
  * - E   = Elder
  * - QE  = Qualified (to be) Elder
  * - MS  = Ministerial Servant
  * - QMS = Qualified (to be) Ministerial Servant
+ * - RP  = Regular Pioneer (can be held by brothers or sisters)
  */
-export type Privilege = "E" | "QE" | "MS" | "QMS";
+export type Privilege = "E" | "QE" | "MS" | "QMS" | "RP";
 
 export interface Assignee {
   id?: number;

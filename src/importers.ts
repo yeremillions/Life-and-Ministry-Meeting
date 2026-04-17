@@ -105,7 +105,7 @@ function parsePrivileges(v: string | undefined): Privilege[] {
     .replace(/[,/|;]/g, " ")
     .split(/\s+/)
     .filter(Boolean);
-  const allowed: Privilege[] = ["E", "QE", "MS", "QMS"];
+  const allowed: Privilege[] = ["E", "QE", "MS", "QMS", "RP"];
   const out: Privilege[] = [];
   for (const t of tokens) {
     const clean = t.replace(/[()\[\]]/g, "");
@@ -394,7 +394,9 @@ export function parseTextList(text: string): ParsedAssignee[] {
       else if (t === "M" || t === "BROTHER" || t === "MALE") gender = "M";
       else if (t === "UNBAPTISED" || t === "UNBAPTIZED") baptised = false;
       else if (t === "INACTIVE") active = false;
-      else {
+      else if (t === "RP" || t === "REGULAR PIONEER" || t === "PIONEER") {
+        if (!privs.includes("RP")) privs.push("RP");
+      } else {
         const p = parsePrivileges(t);
         for (const x of p) if (!privs.includes(x)) privs.push(x);
       }
