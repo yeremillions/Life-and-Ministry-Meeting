@@ -35,14 +35,17 @@ export default function App() {
     <div className="min-h-screen flex flex-col">
       <header className="bg-slate-900 text-white">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
+          <button
+            onClick={() => setTab("dashboard")}
+            className="text-left hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-white/40 rounded-md"
+          >
             <h1 className="font-semibold text-lg leading-tight">
               Life &amp; Ministry Meeting
             </h1>
             <p className="text-xs text-slate-300">
               Smart weekly assignment scheduler
             </p>
-          </div>
+          </button>
           <nav className="flex gap-1">
             {TABS.map((t) => (
               <button
