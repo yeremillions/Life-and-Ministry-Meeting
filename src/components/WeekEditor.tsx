@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   Assignee,
   Assignment,
@@ -348,33 +348,164 @@ function AssigneePicker({
   usedIds: Set<number>;
   onChange: (id: number | undefined) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Close when clicking outside
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  const selected = options.find((a) => a.id === value);
+  const displayValue = selected
+    ? [selected.name, privilegeLabel(selected) ? `(${privilegeLabel(selected)})` : null]
+        .filter(Boolean)
+        .join(" ")
+    : "";
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((a) =>
+      a.name.toLowerCase().includes(q) ||
+      (privilegeLabel(a) ?? "").toLowerCase().includes(q)
+    );
+  }, [options, query]);
+
+  function selectOption(id: number | undefined) {
+    onChange(id);
+    setOpen(false);
+    setQuery("");
+  }
+
   return (
-    <div>
+    <div ref={containerRef} style={{ position: "relative" }}>
       <label className="label">{label}</label>
-      <select
-        className="input"
-        value={value ?? ""}
-        onChange={(e) =>
-          onChange(e.target.value === "" ? undefined : Number(e.target.value))
-        }
-      >
-        <option value="">— unassigned —</option>
-        {options.map((a) => {
-          const label = [
-            a.name,
-            privilegeLabel(a) ? `(${privilegeLabel(a)})` : null,
-          ]
-            .filter(Boolean)
-            .join(" ");
-          const alreadyUsed = a.id != null && usedIds.has(a.id);
-          return (
-            <option key={a.id} value={a.id}>
-              {alreadyUsed ? "⚠️ " : ""}
-              {label}
-            </option>
-          );
-        })}
-      </select>
+      {/* Trigger input */}
+      <div style={{ position: "relative" }}>
+        <input
+          ref={inputRef}
+          className="input"
+          style={{ paddingRight: "2rem", cursor: "text" }}
+          placeholder="— unassigned —"
+          value={open ? query : displayValue}
+          onFocus={() => {
+            setOpen(true);
+            setQuery("");
+          }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") { setOpen(false); setQuery(""); }
+            if (e.key === "Enter" && filtered.length === 1) {
+              selectOption(filtered[0].id);
+            }
+          }}
+          autoComplete="off"
+        />
+        {/* Chevron icon */}
+        <span
+          style={{
+            position: "absolute",
+            right: "0.5rem",
+            top: "50%",
+            transform: "translateY(-50%)",
+            pointerEvents: "none",
+            color: "#94a3b8",
+            fontSize: "0.75rem",
+          }}
+        >
+          ▾
+        </span>
+      </div>
+
+      {/* Dropdown list */}
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            zIndex: 50,
+            top: "100%",
+            left: 0,
+            right: 0,
+            marginTop: "2px",
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: "6px",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+            maxHeight: "220px",
+            overflowY: "auto",
+          }}
+        >
+          {/* Unassigned option */}
+          <div
+            onMouseDown={(e) => { e.preventDefault(); selectOption(undefined); }}
+            style={{
+              padding: "0.45rem 0.75rem",
+              cursor: "pointer",
+              fontSize: "0.875rem",
+              color: "#64748b",
+              borderBottom: "1px solid #f1f5f9",
+              background: value === undefined ? "#eef2ff" : undefined,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = value === undefined ? "#eef2ff" : "")}
+          >
+            — unassigned —
+          </div>
+
+          {filtered.length === 0 ? (
+            <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "#94a3b8" }}>
+              No matches
+            </div>
+          ) : (
+            filtered.map((a) => {
+              const optLabel = [
+                a.name,
+                privilegeLabel(a) ? `(${privilegeLabel(a)})` : null,
+              ]
+                .filter(Boolean)
+                .join(" ");
+              const alreadyUsed = a.id != null && usedIds.has(a.id);
+              const isSelected = a.id === value;
+              return (
+                <div
+                  key={a.id}
+                  onMouseDown={(e) => { e.preventDefault(); selectOption(a.id); }}
+                  style={{
+                    padding: "0.45rem 0.75rem",
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                    background: isSelected ? "#eef2ff" : undefined,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = isSelected ? "#eef2ff" : "")}
+                >
+                  {alreadyUsed && (
+                    <span title="Already assigned this week" style={{ fontSize: "0.85rem" }}>⚠️</span>
+                  )}
+                  <span style={{ color: isSelected ? "#4f46e5" : undefined }}>{optLabel}</span>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
       {options.length === 0 && (
         <p className="text-xs text-amber-700 mt-1">
           No eligible enrollees for this part. Check privileges / baptism /
