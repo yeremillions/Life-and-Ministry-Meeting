@@ -1,5 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import { db } from "../db";
 import type { Assignee, Gender, Privilege } from "../types";
 import { parseAssigneeFile, parsedToAssignee, parseTextList } from "../importers";
@@ -156,6 +157,67 @@ export default function EnrolleesPage() {
     });
   }
 
+  // ---- Export helpers ----
+
+  function buildRows(list: Assignee[]) {
+    return list.map((a) => ({
+      Name: a.name,
+      Gender: a.gender === "M" ? "Brother" : "Sister",
+      Baptised: a.baptised ? "Yes" : "No",
+      Privileges: a.privileges.join(", ") || "",
+      Status: a.active ? "Active" : "Inactive",
+      Notes: a.notes ?? "",
+    }));
+  }
+
+  function exportCSV() {
+    const rows = buildRows(filtered);
+    const headers = Object.keys(rows[0] ?? {}) as (keyof (typeof rows)[0])[];
+    const csvLines = [
+      headers.join(","),
+      ...rows.map((r) =>
+        headers
+          .map((h) => {
+            const val = String(r[h]);
+            return val.includes(",") || val.includes('"') || val.includes("\n")
+              ? `"${val.replace(/"/g, '""')}"`
+              : val;
+          })
+          .join(",")
+      ),
+    ];
+    const blob = new Blob([csvLines.join("\r\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `enrollees-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportExcel() {
+    const rows = buildRows(filtered);
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // Auto-width columns
+    const colWidths = Object.keys(rows[0] ?? {}).map((key) => ({
+      wch: Math.max(
+        key.length,
+        ...rows.map((r) => String(r[key as keyof typeof r]).length)
+      ),
+    }));
+    ws["!cols"] = colWidths;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Enrollees");
+    XLSX.writeFile(
+      wb,
+      `enrollees-${new Date().toISOString().slice(0, 10)}.xlsx`
+    );
+  }
+
+  // ---- Import handler ----
+
   async function handleFile(file: File) {
     setImportError(null);
     try {
@@ -190,6 +252,22 @@ export default function EnrolleesPage() {
         <h2 className="text-lg font-semibold mr-auto">Enrollees</h2>
         <button className="btn-secondary" onClick={() => setImportOpen(true)}>
           Import file
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={exportCSV}
+          disabled={filtered.length === 0}
+          title="Export visible enrollees as CSV"
+        >
+          Export CSV
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={exportExcel}
+          disabled={filtered.length === 0}
+          title="Export visible enrollees as Excel"
+        >
+          Export Excel
         </button>
         <button className="btn" onClick={() => setAdding(true)}>
           Add enrollee
