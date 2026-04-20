@@ -429,7 +429,7 @@ interface SegmentMarker {
 
 function findSegmentMarkers(slice: string): SegmentMarker[] {
   const out: SegmentMarker[] = [];
-  for (const id of ["treasures", "ministry", "living"] as SegmentId[]) {
+  for (const id of ["treasures", "ministry", "living"] as (keyof typeof SEGMENT_RE)[]) {
     const re = new RegExp(SEGMENT_RE[id].source, "gi");
     let m;
     while ((m = re.exec(slice))) {
