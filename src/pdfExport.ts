@@ -180,14 +180,24 @@ function renderWeek(
   const bodyParts = parts.filter((a) => a.partType !== "Closing Prayer");
 
   // ── Render body parts by segment ─────────────────────────────────────────
+  // Sort bodyParts by canonical segment order (Treasures -> Ministry -> Living)
+  // then by local 'order' to prevent duplicate banners from interspersed parts.
+  const SEG_WEIGHT = { treasures: 1, ministry: 2, living: 3 };
+  const groupedBodyParts = [...bodyParts].sort((a, b) => {
+    const wa = SEG_WEIGHT[a.segment as keyof typeof SEG_WEIGHT] ?? 99;
+    const wb = SEG_WEIGHT[b.segment as keyof typeof SEG_WEIGHT] ?? 99;
+    if (wa !== wb) return wa - wb;
+    return a.order - b.order;
+  });
+
   let currentSegment: string | null = null;
   let partNumber = 1;
 
-  for (const part of bodyParts) {
+  for (const part of groupedBodyParts) {
     // Emit segment header bar when segment changes
     if (part.segment !== currentSegment) {
       currentSegment = part.segment;
-      partNumber = 1; // reset numbering per segment
+      // Note: partNumber no longer resets to 1 here per user request for continuous numbering.
       if (part.segment === "treasures") {
         y = drawSegmentBar(doc, y, "TREASURES FROM GOD'S WORD", COLOUR.treasuresBg);
       } else if (part.segment === "ministry") {
