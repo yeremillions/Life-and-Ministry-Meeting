@@ -12,6 +12,14 @@ import S140ImportModal from "../components/S140ImportModal";
 function buildEmptyWeek(weekOf: string): Week {
   const now = Date.now();
   const defaults: Assignment[] = [
+    // Opening — Chairman for the whole programme
+    {
+      uid: uid(),
+      segment: "opening",
+      order: 0,
+      partType: "Chairman",
+      title: "",
+    },
     // Treasures (fixed order 1-3)
     {
       uid: uid(),
@@ -299,8 +307,8 @@ export default function SchedulePage({
 }
 
 function byOrder(a: Assignment, b: Assignment) {
-  const seg = (s: SegmentId) =>
-    SEGMENTS.findIndex((x) => x.id === s);
+  const SEG_ORDER: SegmentId[] = ["opening", "treasures", "ministry", "living"];
+  const seg = (s: SegmentId) => SEG_ORDER.indexOf(s);
   const sd = seg(a.segment) - seg(b.segment);
   if (sd !== 0) return sd;
   return a.order - b.order;

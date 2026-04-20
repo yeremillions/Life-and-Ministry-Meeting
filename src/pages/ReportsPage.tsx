@@ -33,16 +33,17 @@ export default function ReportsPage() {
     const arr = assignees.map((a) => ({
       assignee: a,
       stats: stats.get(a.id!) ?? {
-        total: 0,
-        bySegment: { treasures: 0, ministry: 0, living: 0 },
+        totalMain: 0,
+        bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
+        totalAssistant: 0,
       },
     }));
     arr.sort((a, b) => {
       if (sortBy === "name") return a.assignee.name.localeCompare(b.assignee.name);
-      if (sortBy === "total") return b.stats.total - a.stats.total;
+      if (sortBy === "total") return b.stats.totalMain - a.stats.totalMain;
       // Sort by last-assigned ascending (oldest first, never-assigned pinned to top).
-      const la = a.stats.lastWeek ?? "0000-00-00";
-      const lb = b.stats.lastWeek ?? "0000-00-00";
+      const la = a.stats.lastWeekMain ?? "0000-00-00";
+      const lb = b.stats.lastWeekMain ?? "0000-00-00";
       return la.localeCompare(lb);
     });
     return arr;
@@ -55,8 +56,9 @@ export default function ReportsPage() {
       "baptised",
       "privileges",
       "active",
-      "total",
+      "totalMain",
       "lastAssigned",
+      "opening",
       "treasures",
       "ministry",
       "living",
@@ -67,11 +69,12 @@ export default function ReportsPage() {
       r.assignee.baptised ? "yes" : "no",
       r.assignee.privileges.join("|"),
       r.assignee.active ? "yes" : "no",
-      String(r.stats.total),
+      String(r.stats.totalMain),
       fmtLastAssigned(r.stats),
-      String(r.stats.bySegment.treasures),
-      String(r.stats.bySegment.ministry),
-      String(r.stats.bySegment.living),
+      String(r.stats.bySegmentMain.opening),
+      String(r.stats.bySegmentMain.treasures),
+      String(r.stats.bySegmentMain.ministry),
+      String(r.stats.bySegmentMain.living),
     ]);
     downloadCsv(
       "enrollee-assignment-report.csv",
@@ -148,6 +151,7 @@ export default function ReportsPage() {
               <th className="py-2 px-3 text-left">Name</th>
               <th className="py-2 px-3 text-left">Priv.</th>
               <th className="py-2 px-3 text-right">Total</th>
+              <th className="py-2 px-3 text-right">Opening</th>
               <th className="py-2 px-3 text-right">Treasures</th>
               <th className="py-2 px-3 text-right">Ministry</th>
               <th className="py-2 px-3 text-right">Living</th>
@@ -170,16 +174,19 @@ export default function ReportsPage() {
                   )}
                 </td>
                 <td className="py-2 px-3 text-right font-medium">
-                  {r.stats.total}
+                  {r.stats.totalMain}
                 </td>
                 <td className="py-2 px-3 text-right">
-                  {r.stats.bySegment.treasures}
+                  {r.stats.bySegmentMain.opening}
                 </td>
                 <td className="py-2 px-3 text-right">
-                  {r.stats.bySegment.ministry}
+                  {r.stats.bySegmentMain.treasures}
                 </td>
                 <td className="py-2 px-3 text-right">
-                  {r.stats.bySegment.living}
+                  {r.stats.bySegmentMain.ministry}
+                </td>
+                <td className="py-2 px-3 text-right">
+                  {r.stats.bySegmentMain.living}
                 </td>
                 <td className="py-2 px-3">{fmtLastAssigned(r.stats)}</td>
               </tr>

@@ -13,6 +13,12 @@ export const SEGMENTS: {
   accent: string;
 }[] = [
   {
+    id: "opening",
+    label: "Opening",
+    color: "#64748b",
+    accent: "opening",
+  },
+  {
     id: "treasures",
     label: "Treasures From God's Word",
     color: "#b8860b",
@@ -38,6 +44,7 @@ export function segmentOf(id: SegmentId) {
 
 /** Which part types belong to each segment in the picker. */
 export const SEGMENT_PART_TYPES: Record<SegmentId, PartType[]> = {
+  opening: ["Chairman"],
   treasures: ["Talk", "Spiritual Gems", "Bible Reading"],
   ministry: [
     "Starting a Conversation",
@@ -97,7 +104,7 @@ export function normalizePrivileges(privs: Privilege[]): Privilege[] {
   if (set.has("QE")) set.add("E");
   if (set.has("QMS")) set.add("MS");
   // Stable canonical ordering for display.
-  const order: Privilege[] = ["E", "QE", "MS", "QMS", "RP"];
+  const order: Privilege[] = ["E", "QE", "MS", "QMS", "RP", "CBSR"];
   return order.filter((p) => set.has(p));
 }
 
@@ -116,6 +123,7 @@ export function needsAssistant(partType: PartType): boolean {
 /** True if this part must be given to a male enrollee. */
 export function isBrothersPart(partType: PartType): boolean {
   switch (partType) {
+    case "Chairman":
     case "Talk":
     case "Spiritual Gems":
     case "Bible Reading":
@@ -148,6 +156,10 @@ export function isEligible(
   if (brothersOnly && a.gender !== "M") return false;
 
   switch (partType) {
+    case "Chairman":
+      // Programme moderator — must be a Qualified Elder (QE only).
+      return a.gender === "M" && a.privileges.includes("QE");
+
     case "Talk": // Treasures opening talk — elders (sometimes MS)
       return a.gender === "M" && isMSorAbove(a) && a.baptised;
 
@@ -155,7 +167,9 @@ export function isEligible(
       return a.gender === "M" && isMSorAbove(a) && a.baptised;
 
     case "Bible Reading":
-      return a.gender === "M" && a.baptised;
+      // Any active male may read — baptism is not required.
+      // Non-privileged brothers are strongly preferred via scoring (−4).
+      return a.gender === "M";
 
     case "Talk (Ministry)":
       return a.gender === "M" && a.baptised;
@@ -168,11 +182,11 @@ export function isEligible(
 
     case "Congregation Bible Study":
       if (role === "main") {
-        // Conductor: elder (preferred) or MS.
-        return a.gender === "M" && isMSorAbove(a) && a.baptised;
+        // Conductor: Qualified Elder only.
+        return a.gender === "M" && a.privileges.includes("QE");
       }
-      // Reader: any baptised brother.
-      return a.gender === "M" && a.baptised;
+      // Reader: must hold the CBSR privilege.
+      return a.privileges.includes("CBSR");
 
     case "Starting a Conversation":
     case "Following Up":
@@ -199,5 +213,6 @@ export function privilegeLabel(a: Assignee): string | null {
   if (a.privileges.includes("QMS")) return "QMS";
   if (a.privileges.includes("MS")) return "MS";
   if (a.privileges.includes("RP")) return "RP";
+  if (a.privileges.includes("CBSR")) return "CBSR";
   return null;
 }

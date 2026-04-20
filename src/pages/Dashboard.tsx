@@ -24,7 +24,7 @@ export default function Dashboard({
   const stats = buildStats(assignees, weeks);
 
   const totalAssignments = [...stats.values()].reduce(
-    (sum, s) => sum + s.total,
+    (sum, s) => sum + s.totalMain,
     0
   );
   const activeAssignees = assignees.filter((a) => a.active);
@@ -109,8 +109,8 @@ export default function Dashboard({
                 >
                   <span className="font-medium">{assignee.name}</span>
                   <span className="text-xs text-slate-500">
-                    {stats.total} past •{" "}
-                    {stats.lastWeek ? `last ${stats.lastWeek}` : "never"}
+                    {stats.totalMain} past •{" "}
+                    {stats.lastWeekMain ? `last ${stats.lastWeekMain}` : "never"}
                   </span>
                 </li>
               ))}

@@ -32,6 +32,7 @@ export default function WeekEditor(props: WeekEditorProps) {
 
   const bySegment = useMemo(() => {
     const map: Record<SegmentId, Assignment[]> = {
+      opening: [],
       treasures: [],
       ministry: [],
       living: [],
@@ -99,7 +100,20 @@ export default function WeekEditor(props: WeekEditorProps) {
         </div>
       </header>
 
-      {SEGMENTS.map((seg) => (
+      {/* Opening segment — always first, single Chairman slot */}
+      <SegmentCard
+        key="opening"
+        segment="opening"
+        title="Opening"
+        accent="#64748b"
+        assignments={bySegment.opening}
+        assignees={assignees}
+        week={week}
+        onAddPart={(t) => props.onAddPart("opening", t)}
+        onRemovePart={props.onRemovePart}
+        onUpdateAssignment={props.onUpdateAssignment}
+      />
+      {SEGMENTS.filter((s) => s.id !== "opening").map((seg) => (
         <SegmentCard
           key={seg.id}
           segment={seg.id}
@@ -518,6 +532,8 @@ function AssigneePicker({
 
 function titlePlaceholder(t: PartType): string {
   switch (t) {
+    case "Chairman":
+      return "Chairman";
     case "Talk":
       return 'e.g. "Endure With Joy"';
     case "Bible Reading":

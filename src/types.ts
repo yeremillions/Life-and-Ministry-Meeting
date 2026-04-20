@@ -14,7 +14,7 @@ export type Gender = "M" | "F";
  * - QMS = Qualified (to be) Ministerial Servant
  * - RP  = Regular Pioneer (can be held by brothers or sisters)
  */
-export type Privilege = "E" | "QE" | "MS" | "QMS" | "RP";
+export type Privilege = "E" | "QE" | "MS" | "QMS" | "RP" | "CBSR";
 
 export interface Assignee {
   id?: number;
@@ -31,7 +31,7 @@ export interface Assignee {
 }
 
 /** Which segment an assignment belongs to. */
-export type SegmentId = "treasures" | "ministry" | "living";
+export type SegmentId = "opening" | "treasures" | "ministry" | "living";
 
 /**
  * Catalog of supported assignment types per segment. The title on the
@@ -39,6 +39,8 @@ export type SegmentId = "treasures" | "ministry" | "living";
  * talk title), but the part *type* is fixed.
  */
 export type PartType =
+  // Opening
+  | "Chairman"
   // Treasures
   | "Talk" // 10-min opening talk
   | "Spiritual Gems"

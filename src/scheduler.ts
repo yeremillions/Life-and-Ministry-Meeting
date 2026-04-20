@@ -10,9 +10,13 @@ import type {
 } from "./types";
 
 export interface AssigneeStats {
-  total: number;
-  lastWeek?: string; // ISO date, undefined if never assigned
-  bySegment: { treasures: number; ministry: number; living: number };
+  /** Main (direct) assignment history. */
+  totalMain: number;
+  lastWeekMain?: string; // ISO date, undefined if never assigned as main
+  bySegmentMain: { opening: number; treasures: number; ministry: number; living: number };
+  /** Assistant (secondary) assignment history — tracked separately. */
+  totalAssistant: number;
+  lastWeekAssistant?: string; // ISO date, undefined if never served as assistant
 }
 
 /** Compute per-assignee assignment history from weeks. */
@@ -24,8 +28,9 @@ export function buildStats(
   for (const a of assignees) {
     if (a.id == null) continue;
     stats.set(a.id, {
-      total: 0,
-      bySegment: { treasures: 0, ministry: 0, living: 0 },
+      totalMain: 0,
+      bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
+      totalAssistant: 0,
     });
   }
 
@@ -35,13 +40,24 @@ export function buildStats(
 
   for (const w of sortedWeeks) {
     for (const ass of w.assignments) {
-      for (const id of [ass.assigneeId, ass.assistantId]) {
-        if (id == null) continue;
-        const s = stats.get(id);
-        if (!s) continue;
-        s.total += 1;
-        s.bySegment[ass.segment] += 1;
-        if (!s.lastWeek || w.weekOf > s.lastWeek) s.lastWeek = w.weekOf;
+      // Main assignee — counts toward main history only.
+      if (ass.assigneeId != null) {
+        const s = stats.get(ass.assigneeId);
+        if (s) {
+          s.totalMain += 1;
+          s.bySegmentMain[ass.segment] += 1;
+          if (!s.lastWeekMain || w.weekOf > s.lastWeekMain)
+            s.lastWeekMain = w.weekOf;
+        }
+      }
+      // Assistant — counts toward assistant history only.
+      if (ass.assistantId != null) {
+        const s = stats.get(ass.assistantId);
+        if (s) {
+          s.totalAssistant += 1;
+          if (!s.lastWeekAssistant || w.weekOf > s.lastWeekAssistant)
+            s.lastWeekAssistant = w.weekOf;
+        }
       }
     }
   }
@@ -97,9 +113,9 @@ function tallyTalk(person: Assignee, split: TalkSplit): void {
 /**
  * Score a candidate for an assignment. Higher = better.
  *
- * Primary factor: time since last assignment (absence rewarded).
- * Secondary: inverse of total assignments (less-used rewarded).
- * Tertiary: small randomisation to break ties deterministically per-week.
+ * Main role scoring uses main-only history (days since last main,
+ * total mains, segment-specific mains). Assistant role scoring uses
+ * assistant-only history. Neither bleeds into the other.
  */
 function scoreCandidate(
   a: Assignee,
@@ -108,86 +124,79 @@ function scoreCandidate(
   stats: AssigneeStats,
   seed: number,
   privilegedMinistryShare: number,
-  talkSplit: TalkSplit
+  talkSplit: TalkSplit,
+  role: "main" | "assistant"
 ): number {
   let score = 0;
 
-  if (stats.lastWeek) {
-    score += daysBetween(stats.lastWeek, weekOf); // days since last
+  if (role === "main") {
+    if (stats.lastWeekMain) {
+      score += daysBetween(stats.lastWeekMain, weekOf);
+    } else {
+      score += 365; // never assigned as main — strongly prefer
+    }
+    score -= stats.totalMain * 7;
+    // Segment balancing — penalise heavy use in this segment.
+    score -= stats.bySegmentMain[part.segment] * 3;
   } else {
-    score += 365; // never assigned — strongly prefer
+    // Assistant role — use assistant-only history.
+    if (stats.lastWeekAssistant) {
+      score += daysBetween(stats.lastWeekAssistant, weekOf);
+    } else {
+      score += 365;
+    }
+    score -= stats.totalAssistant * 7;
+    // No segment-balance penalty for assistants.
   }
 
-  // Penalise people with many total assignments.
-  score -= stats.total * 7;
-
-  // Segment balancing — if the person has been heavily used in this
-  // segment, prefer rotating to someone else.
-  score -= stats.bySegment[part.segment] * 3;
-
-  // Privilege preferences per segment:
-  if (part.segment === "ministry") {
-    // Field Ministry parts should mostly go to non-privileged publishers.
-    // Honour the configured "privilegedMinistryShare" (default 10%).
-    if (isPrivileged(a)) {
-      // Pull privileged brothers down unless their share is already low.
-      // We can't know the share before assigning, so use a soft penalty
-      // proportional to (100 - share).
-      score -= (100 - privilegedMinistryShare) / 5; // default ~18
-    }
-  } else if (part.segment === "living") {
-    if (part.partType === "Living Part") {
-      // Talks in Living-as-Christians are preferably given to baptised
-      // brothers who are *not* E/QE/MS/QMS.
-      if (isPrivileged(a)) score -= 10;
-    }
-    if (
-      part.partType === "Local Needs" ||
-      part.partType === "Governing Body Update"
-    ) {
-      // These are normally handled by elders.
-      if (a.privileges.includes("E")) score += 8;
-      else if (a.privileges.includes("QE")) score += 4;
-    }
-  } else if (part.segment === "treasures") {
-    if (part.partType === "Talk") {
-      // The Treasures opening Talk is split ~50/50 between elders and
-      // ministerial servants over time. Bias toward whichever group is
-      // currently under-represented; if the count is even, neither
-      // group gets a boost and the regular fairness factors decide.
-      const isE = a.privileges.includes("E");
-      const isMS = a.privileges.includes("MS");
-      const total = talkSplit.elderCount + talkSplit.msCount;
-      if (isE || isMS) {
-        if (total === 0) {
-          // No history yet — give both groups a small equal nudge so
-          // they outrank non-eligible candidates if pools overlap.
-          score += 4;
-        } else {
-          const elderShare = talkSplit.elderCount / total;
-          // 0 when balanced, +/- up to ~10 when fully skewed.
-          const bias = (0.5 - elderShare) * 20;
-          if (isMS && !isE) score -= bias; // MS preferred when elders over-share
-          else if (isE && !isMS) score += bias; // elder preferred when MS over-share
+  // Privilege preferences only apply to main roles.
+  if (role === "main") {
+    if (part.segment === "ministry") {
+      // Field Ministry parts should mostly go to non-privileged publishers.
+      if (isPrivileged(a)) {
+        score -= (100 - privilegedMinistryShare) / 5; // default ~18
+      }
+    } else if (part.segment === "living") {
+      if (part.partType === "Living Part") {
+        if (isPrivileged(a)) score -= 10;
+      }
+      if (
+        part.partType === "Local Needs" ||
+        part.partType === "Governing Body Update"
+      ) {
+        if (a.privileges.includes("E")) score += 8;
+        else if (a.privileges.includes("QE")) score += 4;
+      }
+    } else if (part.segment === "treasures") {
+      if (part.partType === "Talk") {
+        const isE = a.privileges.includes("E");
+        const isMS = a.privileges.includes("MS");
+        const total = talkSplit.elderCount + talkSplit.msCount;
+        if (isE || isMS) {
+          if (total === 0) {
+            score += 4;
+          } else {
+            const elderShare = talkSplit.elderCount / total;
+            const bias = (0.5 - elderShare) * 20;
+            if (isMS && !isE) score -= bias;
+            else if (isE && !isMS) score += bias;
+          }
         }
       }
+      if (part.partType === "Spiritual Gems") {
+        const isMS = a.privileges.includes("MS");
+        const isE = a.privileges.includes("E");
+        if (isMS && !isE) score += 6;
+        else if (isMS && isE) score += 3;
+        else if (isE) score += 2;
+      }
+      if (part.partType === "Bible Reading") {
+        // Prefer non-privileged brothers.
+        if (isPrivileged(a)) score -= 4;
+      }
     }
-    if (part.partType === "Spiritual Gems") {
-      // Either an elder or a ministerial servant can handle Spiritual
-      // Gems, but ministerial servants are preferred. (Note: because
-      // QMS implies MS via normalizePrivileges, QMS also gets this
-      // bonus; same for QE/E.)
-      const isMS = a.privileges.includes("MS");
-      const isE = a.privileges.includes("E");
-      if (isMS && !isE) score += 6; // pure MS — most preferred
-      else if (isMS && isE) score += 3; // unusual: both flags set
-      else if (isE) score += 2; // elder fallback
-    }
-    if (part.partType === "Bible Reading") {
-      // Prefer non-privileged brothers for the Bible Reading so they get
-      // featured more often.
-      if (isPrivileged(a)) score -= 4;
-    }
+    // opening/Chairman: all eligible candidates are QE, so only
+    // the fairness factors (time since last, total count) decide.
   }
 
   // Deterministic tiny jitter for reproducible tie-breaking per week.
@@ -386,7 +395,8 @@ function pickCandidate(args: PickArgs): Assignee | null {
         stats,
         seed,
         privilegedMinistryShare,
-        talkSplit
+        talkSplit,
+        role
       );
     }
   }
@@ -398,7 +408,8 @@ function pickCandidate(args: PickArgs): Assignee | null {
     stats,
     seed,
     privilegedMinistryShare,
-    talkSplit
+    talkSplit,
+    role
   );
 }
 
@@ -409,11 +420,13 @@ function rankAndPick(
   stats: Map<number, AssigneeStats>,
   seed: number,
   privilegedMinistryShare: number,
-  talkSplit: TalkSplit
+  talkSplit: TalkSplit,
+  role: "main" | "assistant"
 ): Assignee {
   const empty: AssigneeStats = {
-    total: 0,
-    bySegment: { treasures: 0, ministry: 0, living: 0 },
+    totalMain: 0,
+    bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
+    totalAssistant: 0,
   };
   const ranked = [...pool].sort((a, b) => {
     const sa = stats.get(a.id!) ?? empty;
@@ -426,7 +439,8 @@ function rankAndPick(
         sb,
         seed,
         privilegedMinistryShare,
-        talkSplit
+        talkSplit,
+        role
       ) -
       scoreCandidate(
         a,
@@ -435,7 +449,8 @@ function rankAndPick(
         sa,
         seed,
         privilegedMinistryShare,
-        talkSplit
+        talkSplit,
+        role
       )
     );
   });
@@ -445,6 +460,8 @@ function rankAndPick(
 /**
  * "Who should be assigned soon" — returns assignees ranked by a
  * neediness score (never-assigned > longest-gap > fewest total).
+ * Uses main-assignment history only; assistant appearances do not
+ * count as "used up" for this ranking.
  */
 export function dueSoon(
   assignees: Assignee[],
@@ -457,11 +474,13 @@ export function dueSoon(
     .filter((a) => a.active)
     .map((a) => {
       const s = stats.get(a.id!) ?? {
-        total: 0,
-        bySegment: { treasures: 0, ministry: 0, living: 0 },
+        totalMain: 0,
+        bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
+        totalAssistant: 0,
       };
       const neglect =
-        (s.lastWeek ? daysBetween(s.lastWeek, today) : 999) - s.total * 7;
+        (s.lastWeekMain ? daysBetween(s.lastWeekMain, today) : 999) -
+        s.totalMain * 7;
       return { assignee: a, stats: s, neglect };
     })
     .sort((a, b) => b.neglect - a.neglect)
@@ -469,6 +488,6 @@ export function dueSoon(
 }
 
 export function fmtLastAssigned(stats: AssigneeStats): string {
-  if (!stats.lastWeek) return "never";
-  return stats.lastWeek;
+  if (!stats.lastWeekMain) return "never";
+  return stats.lastWeekMain;
 }
