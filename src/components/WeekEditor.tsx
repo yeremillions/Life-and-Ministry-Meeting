@@ -534,6 +534,10 @@ function titlePlaceholder(t: PartType): string {
   switch (t) {
     case "Chairman":
       return "Chairman";
+    case "Opening Prayer":
+      return "Opening Prayer";
+    case "Closing Prayer":
+      return "Closing Prayer";
     case "Talk":
       return 'e.g. "Endure With Joy"';
     case "Bible Reading":

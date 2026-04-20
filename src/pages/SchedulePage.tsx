@@ -20,6 +20,14 @@ function buildEmptyWeek(weekOf: string): Week {
       partType: "Chairman",
       title: "",
     },
+    // Opening prayer
+    {
+      uid: uid(),
+      segment: "opening",
+      order: 1,
+      partType: "Opening Prayer",
+      title: "",
+    },
     // Treasures (fixed order 1-3)
     {
       uid: uid(),
@@ -77,6 +85,14 @@ function buildEmptyWeek(weekOf: string): Week {
       segment: "living",
       order: 8,
       partType: "Congregation Bible Study",
+      title: "",
+    },
+    // Closing prayer
+    {
+      uid: uid(),
+      segment: "living",
+      order: 9,
+      partType: "Closing Prayer",
       title: "",
     },
   ];

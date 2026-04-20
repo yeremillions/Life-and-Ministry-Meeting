@@ -44,7 +44,7 @@ export function segmentOf(id: SegmentId) {
 
 /** Which part types belong to each segment in the picker. */
 export const SEGMENT_PART_TYPES: Record<SegmentId, PartType[]> = {
-  opening: ["Chairman"],
+  opening: ["Chairman", "Opening Prayer"],
   treasures: ["Talk", "Spiritual Gems", "Bible Reading"],
   ministry: [
     "Starting a Conversation",
@@ -59,6 +59,7 @@ export const SEGMENT_PART_TYPES: Record<SegmentId, PartType[]> = {
     "Local Needs",
     "Governing Body Update",
     "Congregation Bible Study",
+    "Closing Prayer",
   ],
 };
 
@@ -124,6 +125,8 @@ export function needsAssistant(partType: PartType): boolean {
 export function isBrothersPart(partType: PartType): boolean {
   switch (partType) {
     case "Chairman":
+    case "Opening Prayer":
+    case "Closing Prayer":
     case "Talk":
     case "Spiritual Gems":
     case "Bible Reading":
@@ -159,6 +162,11 @@ export function isEligible(
     case "Chairman":
       // Programme moderator — must be a Qualified Elder (QE only).
       return a.gender === "M" && a.privileges.includes("QE");
+
+    case "Opening Prayer":
+    case "Closing Prayer":
+      // Any active baptised brother may offer prayer.
+      return a.gender === "M" && a.baptised;
 
     case "Talk": // Treasures opening talk — elders (sometimes MS)
       return a.gender === "M" && isMSorAbove(a) && a.baptised;

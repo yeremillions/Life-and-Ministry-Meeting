@@ -41,6 +41,9 @@ export type SegmentId = "opening" | "treasures" | "ministry" | "living";
 export type PartType =
   // Opening
   | "Chairman"
+  | "Opening Prayer"
+  // Closing
+  | "Closing Prayer"
   // Treasures
   | "Talk" // 10-min opening talk
   | "Spiritual Gems"
