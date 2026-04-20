@@ -438,7 +438,7 @@ export default function EnrolleesPage() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="min-w-full text-sm table-zebra">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-3 w-8">

@@ -21,19 +21,19 @@ export const SEGMENTS: {
   {
     id: "treasures",
     label: "Treasures From God's Word",
-    color: "#b8860b",
+    color: "#424242",
     accent: "treasures",
   },
   {
     id: "ministry",
     label: "Apply Yourself to the Field Ministry",
-    color: "#d9581f",
+    color: "#b4731e",
     accent: "ministry",
   },
   {
     id: "living",
     label: "Living as Christians",
-    color: "#2f855a",
+    color: "#781428",
     accent: "living",
   },
 ];
