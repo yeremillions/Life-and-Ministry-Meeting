@@ -6,7 +6,16 @@ import type { Assignee, Gender, Privilege } from "../types";
 import { parseAssigneeFile, parsedToAssignee, parseTextList } from "../importers";
 import { normalizePrivileges } from "../meeting";
 
-const ALL_PRIVS: Privilege[] = ["E", "QE", "MS", "QMS", "RP"];
+const ALL_PRIVS: Privilege[] = ["E", "QE", "MS", "QMS", "RP", "CBSR"];
+
+const PRIV_LABELS: Record<Privilege, string> = {
+  E: "Elder (E)",
+  QE: "Qualified Elder (QE)",
+  MS: "Ministerial Servant (MS)",
+  QMS: "Qualified MS (QMS)",
+  RP: "Regular Pioneer (RP)",
+  CBSR: "CBS Reader (CBSR)",
+};
 
 export default function EnrolleesPage() {
   const assignees =
@@ -15,6 +24,7 @@ export default function EnrolleesPage() {
   const [filter, setFilter] = useState<"all" | "active" | "inactive" | "M" | "F">(
     "active"
   );
+  const [privFilter, setPrivFilter] = useState<"all" | Privilege>("all");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Assignee | null>(null);
   const [adding, setAdding] = useState(false);
@@ -32,6 +42,7 @@ export default function EnrolleesPage() {
       if (filter === "inactive" && a.active) return false;
       if (filter === "M" && a.gender !== "M") return false;
       if (filter === "F" && a.gender !== "F") return false;
+      if (privFilter !== "all" && !a.privileges.includes(privFilter)) return false;
       if (
         search.trim() &&
         !a.name.toLowerCase().includes(search.trim().toLowerCase())
@@ -39,7 +50,7 @@ export default function EnrolleesPage() {
         return false;
       return true;
     });
-  }, [assignees, filter, search]);
+  }, [assignees, filter, privFilter, search]);
 
   // Drop selections that no longer exist in the current view (because of
   // filter/search changes or external deletions). Keeps state honest.
@@ -294,6 +305,20 @@ export default function EnrolleesPage() {
             <option value="M">Brothers</option>
             <option value="F">Sisters</option>
           </select>
+          <select
+            className="input max-w-xs"
+            value={privFilter}
+            onChange={(e) => setPrivFilter(e.target.value as typeof privFilter)}
+            title="Filter by privilege"
+          >
+            <option value="all">All privileges</option>
+            <option value="all" disabled style={{ borderTop: "1px solid #e2e8f0" }}></option>
+            {ALL_PRIVS.map((p) => (
+              <option key={p} value={p}>
+                {PRIV_LABELS[p]}
+              </option>
+            ))}
+          </select>
           <span className="text-xs text-slate-500 ml-auto">
             {filtered.length} of {assignees.length}
           </span>
@@ -383,6 +408,7 @@ export default function EnrolleesPage() {
                   <option value="+MS">+ Ministerial Servant</option>
                   <option value="+QMS">+ Qualified MS</option>
                   <option value="+RP">+ Regular Pioneer</option>
+                  <option value="+CBSR">+ CBS Reader</option>
                 </optgroup>
                 <optgroup label="Remove privilege">
                   <option value="-E">- Elder</option>
@@ -390,6 +416,7 @@ export default function EnrolleesPage() {
                   <option value="-MS">- Ministerial Servant</option>
                   <option value="-QMS">- Qualified MS</option>
                   <option value="-RP">- Regular Pioneer</option>
+                  <option value="-CBSR">- CBS Reader</option>
                 </optgroup>
                 <optgroup label="Reset">
                   <option value="clear">Clear all privileges</option>
