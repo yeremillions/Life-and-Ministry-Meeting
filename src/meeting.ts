@@ -164,8 +164,16 @@ export function isEligible(
       return a.gender === "M" && a.privileges.includes("QE");
 
     case "Opening Prayer":
+      // Opening prayer — appointed/privileged brothers (E, QE, MS, QMS, RP).
+      // The Chairman (QE) already satisfies this, so he remains eligible.
+      return (
+        a.gender === "M" &&
+        a.baptised &&
+        (isMSorAbove(a) || a.privileges.includes("RP"))
+      );
+
     case "Closing Prayer":
-      // Any active baptised brother may offer prayer.
+      // Closing prayer — any active baptised brother.
       return a.gender === "M" && a.baptised;
 
     case "Talk": // Treasures opening talk — elders (sometimes MS)
