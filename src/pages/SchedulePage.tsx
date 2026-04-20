@@ -8,6 +8,8 @@ import { nextMondayIso, uid, weekRangeLabel, workbookPeriod } from "../utils";
 import WeekEditor from "../components/WeekEditor";
 import WorkbookImportModal from "../components/WorkbookImportModal";
 import S140ImportModal from "../components/S140ImportModal";
+import ExportPdfModal from "../components/ExportPdfModal";
+import { ensureSettings as getSettings } from "../db";
 
 function buildEmptyWeek(weekOf: string): Week {
   const now = Date.now();
@@ -120,7 +122,14 @@ export default function SchedulePage({
   const [creatingOpen, setCreatingOpen] = useState(false);
   const [importingWorkbook, setImportingWorkbook] = useState(false);
   const [importingS140, setImportingS140] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [lastImportCount, setLastImportCount] = useState<number | null>(null);
+  const [congregationName, setCongregationName] = useState("");
+
+  // Load congregation name once (needed for PDF header).
+  useMemo(() => {
+    getSettings().then((s) => setCongregationName(s.congregationName ?? ""));
+  }, []);
 
   useEffect(() => {
     if (initialWeekId != null) {
@@ -133,6 +142,13 @@ export default function SchedulePage({
     () => weeks.find((w) => w.id === selectedId) ?? null,
     [weeks, selectedId]
   );
+
+  // Workbook period of the currently-selected week (used as default in export modal).
+  const currentPeriodKey = selected
+    ? workbookPeriod(selected.weekOf).key
+    : weeks.length > 0
+    ? workbookPeriod(weeks[0].weekOf).key
+    : undefined;
 
   async function createWeek(weekOf: string) {
     const existing = await db.weeks.where("weekOf").equals(weekOf).first();
@@ -250,6 +266,14 @@ export default function SchedulePage({
           >
             Import S-140 schedule
           </button>
+          <button
+            className="btn-secondary w-full"
+            onClick={() => setExportingPdf(true)}
+            title="Export filled schedule as a Midweek Meeting Schedule PDF"
+            disabled={weeks.length === 0}
+          >
+            ⬇ Export PDF
+          </button>
           {lastImportCount != null && (
             <p className="text-xs text-emerald-700">
               Imported {lastImportCount} week{lastImportCount === 1 ? "" : "s"}.
@@ -316,6 +340,16 @@ export default function SchedulePage({
           existingWeekOfs={weeks.map((w) => w.weekOf)}
           assignees={assignees}
           onImported={(n) => setLastImportCount(n)}
+        />
+      )}
+
+      {exportingPdf && (
+        <ExportPdfModal
+          weeks={weeks}
+          assignees={assignees}
+          congregationName={congregationName}
+          currentPeriodKey={currentPeriodKey}
+          onClose={() => setExportingPdf(false)}
         />
       )}
     </div>

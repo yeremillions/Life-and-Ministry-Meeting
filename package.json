@@ -12,6 +12,7 @@
   "dependencies": {
     "dexie": "^4.0.10",
     "dexie-react-hooks": "^1.1.7",
+    "jspdf": "^4.2.1",
     "mammoth": "^1.8.0",
     "papaparse": "^5.4.1",
     "pdfjs-dist": "^4.10.38",
