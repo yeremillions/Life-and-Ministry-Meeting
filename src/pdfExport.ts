@@ -179,36 +179,36 @@ function renderWeek(
   const closingPrayerAssignment = parts.find((a) => a.partType === "Closing Prayer");
   const bodyParts = parts.filter((a) => a.partType !== "Closing Prayer");
 
-  // ── Render body parts by segment ─────────────────────────────────────────
-  // Sort bodyParts by canonical segment order (Opening -> Treasures -> Ministry -> Living)
-  // then by local 'order' to prevent duplicate banners from interspersed parts.
-  const SEG_WEIGHT = { opening: 0, treasures: 1, ministry: 2, living: 3 };
-  const groupedBodyParts = [...bodyParts].sort((a, b) => {
-    const wa = SEG_WEIGHT[a.segment as keyof typeof SEG_WEIGHT] ?? 99;
-    const wb = SEG_WEIGHT[b.segment as keyof typeof SEG_WEIGHT] ?? 99;
-    if (wa !== wb) return wa - wb;
-    return a.order - b.order;
-  });
+  // ── Render body parts by segment (Explicit Grouping) ─────────────────────
+  // We group by segment first to match the UI behavior exactly.
+  const treasuresParts = bodyParts.filter((a) => a.segment === "treasures").sort((a, b) => a.order - b.order);
+  const ministryParts  = bodyParts.filter((a) => a.segment === "ministry").sort((a, b) => a.order - b.order);
+  const livingParts    = bodyParts.filter((a) => a.segment === "living").sort((a, b) => a.order - b.order);
 
-  let currentSegment: string | null = null;
   let partNumber = 1;
 
-  for (const part of groupedBodyParts) {
-    // Emit segment header bar when segment changes
-    if (part.segment !== currentSegment) {
-      currentSegment = part.segment;
-      // Note: partNumber no longer resets to 1 here per user request for continuous numbering.
-      if (part.segment === "treasures") {
-        y = drawSegmentBar(doc, y, "TREASURES FROM GOD'S WORD", COLOUR.treasuresBg);
-      } else if (part.segment === "ministry") {
-        y = drawSegmentBar(doc, y, "APPLY YOURSELF TO THE FIELD MINISTRY", COLOUR.ministryBg);
-      } else if (part.segment === "living") {
-        y = drawSegmentBar(doc, y, "LIVING AS CHRISTIANS", COLOUR.livingBg);
-      }
+  // 1. Treasures
+  if (treasuresParts.length > 0) {
+    y = drawSegmentBar(doc, y, "TREASURES FROM GOD'S WORD", COLOUR.treasuresBg);
+    for (const part of treasuresParts) {
+      y = drawPartRow(doc, part, partNumber++, name, y);
     }
+  }
 
-    y = drawPartRow(doc, part, partNumber, name, y);
-    partNumber++;
+  // 2. Ministry
+  if (ministryParts.length > 0) {
+    y = drawSegmentBar(doc, y, "APPLY YOURSELF TO THE FIELD MINISTRY", COLOUR.ministryBg);
+    for (const part of ministryParts) {
+      y = drawPartRow(doc, part, partNumber++, name, y);
+    }
+  }
+
+  // 3. Living
+  if (livingParts.length > 0) {
+    y = drawSegmentBar(doc, y, "LIVING AS CHRISTIANS", COLOUR.livingBg);
+    for (const part of livingParts) {
+      y = drawPartRow(doc, part, partNumber++, name, y);
+    }
   }
 
   // ── Closing prayer row ────────────────────────────────────────────────────
