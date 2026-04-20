@@ -180,9 +180,9 @@ function renderWeek(
   const bodyParts = parts.filter((a) => a.partType !== "Closing Prayer");
 
   // ── Render body parts by segment ─────────────────────────────────────────
-  // Sort bodyParts by canonical segment order (Treasures -> Ministry -> Living)
+  // Sort bodyParts by canonical segment order (Opening -> Treasures -> Ministry -> Living)
   // then by local 'order' to prevent duplicate banners from interspersed parts.
-  const SEG_WEIGHT = { treasures: 1, ministry: 2, living: 3 };
+  const SEG_WEIGHT = { opening: 0, treasures: 1, ministry: 2, living: 3 };
   const groupedBodyParts = [...bodyParts].sort((a, b) => {
     const wa = SEG_WEIGHT[a.segment as keyof typeof SEG_WEIGHT] ?? 99;
     const wb = SEG_WEIGHT[b.segment as keyof typeof SEG_WEIGHT] ?? 99;
