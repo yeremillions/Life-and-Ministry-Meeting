@@ -216,11 +216,23 @@ export function parseS140Text(raw: string, forcedYear?: number): S140Week[] {
 
     // ── 3. Segment banner ────────────────────────────────────────────
     {
-      let found = false;
+      const SEG_RANK: Record<string, number> = { treasures: 0, ministry: 1, living: 2 };
+      let isSegLine = false;
       for (const [id, re] of SEG_RE) {
-        if (re.test(line)) { seg = id; found = true; break; }
+        if (re.test(line)) {
+          isSegLine = true;
+          // Only advance to a segment that comes *after* the current one in
+          // canonical order (T→M→L).  A heading for an earlier segment is a
+          // repeated running header / page footer — skip without resetting seg.
+          const curRank = seg != null ? (SEG_RANK[seg] ?? -1) : -1;
+          if ((SEG_RANK[id] ?? -1) > curRank) {
+            seg = id;
+            pendingIdx = -1;
+          }
+          break;
+        }
       }
-      if (found) { pendingIdx = -1; continue; }
+      if (isSegLine) continue;
     }
 
     if (!seg) continue;

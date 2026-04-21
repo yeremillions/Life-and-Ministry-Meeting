@@ -434,17 +434,20 @@ interface SegmentMarker {
 }
 
 function findSegmentMarkers(slice: string): SegmentMarker[] {
+  // Search T → M → L in canonical order: each heading must appear *after*
+  // the previous one in the text.  This prevents out-of-order or repeated
+  // hits (page footers, running headers, ToC lines) from corrupting the
+  // body boundaries that extractParts relies on.
   const out: SegmentMarker[] = [];
+  let cursor = 0;
   for (const id of ["treasures", "ministry", "living"] as (keyof typeof SEGMENT_RE)[]) {
-    // Use only the FIRST occurrence of each section heading. A weekly text
-    // block contains exactly one of each; extra hits come from PDF footers,
-    // page headers, or table-of-contents lines and must be ignored to prevent
-    // the same segment's content from being extracted more than once.
-    const re = new RegExp(SEGMENT_RE[id].source, "i");
-    const m  = re.exec(slice);
-    if (m) out.push({ id, start: m.index + m[0].length });
+    const m = new RegExp(SEGMENT_RE[id].source, "i").exec(slice.slice(cursor));
+    if (!m) continue;
+    const absStart = cursor + m.index + m[0].length;
+    out.push({ id, start: absStart });
+    cursor = absStart; // next heading must come strictly after this one
   }
-  return out.sort((a, b) => a.start - b.start);
+  return out; // already in T→M→L order — no sort needed
 }
 
 /** Pull `(N) ...text...` style numbered lines out of a block. */
