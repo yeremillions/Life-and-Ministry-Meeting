@@ -179,19 +179,23 @@ function renderWeek(
   const closingPrayerAssignment = parts.find((a) => a.partType === "Closing Prayer");
   const bodyParts = parts.filter((a) => a.partType !== "Closing Prayer");
 
-  // ── Render body parts by segment (Explicit Grouping) ─────────────────────
-  // We group by segment first to match the UI behavior exactly.
+  // ── Render body parts by segment (Explicit Grouping & Workbook Numbering) ──
+  // We group by segment to match the UI behavior exactly.
+  const openingParts   = bodyParts.filter((a) => a.segment === "opening").sort((a, b) => a.order - b.order);
   const treasuresParts = bodyParts.filter((a) => a.segment === "treasures").sort((a, b) => a.order - b.order);
   const ministryParts  = bodyParts.filter((a) => a.segment === "ministry").sort((a, b) => a.order - b.order);
   const livingParts    = bodyParts.filter((a) => a.segment === "living").sort((a, b) => a.order - b.order);
 
-  let partNumber = 1;
+  // 0. Opening Parts (e.g. Opening Comments)
+  for (const part of openingParts) {
+    y = drawPartRow(doc, part, part.order, name, y);
+  }
 
   // 1. Treasures
   if (treasuresParts.length > 0) {
     y = drawSegmentBar(doc, y, "TREASURES FROM GOD'S WORD", COLOUR.treasuresBg);
     for (const part of treasuresParts) {
-      y = drawPartRow(doc, part, partNumber++, name, y);
+      y = drawPartRow(doc, part, part.order, name, y);
     }
   }
 
@@ -199,7 +203,7 @@ function renderWeek(
   if (ministryParts.length > 0) {
     y = drawSegmentBar(doc, y, "APPLY YOURSELF TO THE FIELD MINISTRY", COLOUR.ministryBg);
     for (const part of ministryParts) {
-      y = drawPartRow(doc, part, partNumber++, name, y);
+      y = drawPartRow(doc, part, part.order, name, y);
     }
   }
 
@@ -207,7 +211,7 @@ function renderWeek(
   if (livingParts.length > 0) {
     y = drawSegmentBar(doc, y, "LIVING AS CHRISTIANS", COLOUR.livingBg);
     for (const part of livingParts) {
-      y = drawPartRow(doc, part, partNumber++, name, y);
+      y = drawPartRow(doc, part, part.order, name, y);
     }
   }
 
