@@ -416,9 +416,15 @@ function extractParts(slice: string): ParsedPart[] {
     }
   }
 
-  // Sort by part number if present so the output is deterministic even
-  // if pdf.js returned items out of order.
-  parts.sort((a, b) => a.number - b.number);
+  // Sort: segment order first (T→M→L), then by part number within segment.
+  // This keeps the stored assignment array in a logical reading order even
+  // when pdf.js returns text items out of sequence.
+  const SEG_RANK: Record<string, number> = { treasures: 0, ministry: 1, living: 2 };
+  parts.sort(
+    (a, b) =>
+      (SEG_RANK[a.segment] ?? 9) - (SEG_RANK[b.segment] ?? 9) ||
+      a.number - b.number
+  );
   return parts;
 }
 
@@ -430,11 +436,13 @@ interface SegmentMarker {
 function findSegmentMarkers(slice: string): SegmentMarker[] {
   const out: SegmentMarker[] = [];
   for (const id of ["treasures", "ministry", "living"] as (keyof typeof SEGMENT_RE)[]) {
-    const re = new RegExp(SEGMENT_RE[id].source, "gi");
-    let m;
-    while ((m = re.exec(slice))) {
-      out.push({ id, start: m.index + m[0].length });
-    }
+    // Use only the FIRST occurrence of each section heading. A weekly text
+    // block contains exactly one of each; extra hits come from PDF footers,
+    // page headers, or table-of-contents lines and must be ignored to prevent
+    // the same segment's content from being extracted more than once.
+    const re = new RegExp(SEGMENT_RE[id].source, "i");
+    const m  = re.exec(slice);
+    if (m) out.push({ id, start: m.index + m[0].length });
   }
   return out.sort((a, b) => a.start - b.start);
 }
