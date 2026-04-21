@@ -21,19 +21,19 @@ export const SEGMENTS: {
   {
     id: "treasures",
     label: "Treasures From God's Word",
-    color: "#b8860b",
+    color: "#424242",
     accent: "treasures",
   },
   {
     id: "ministry",
     label: "Apply Yourself to the Field Ministry",
-    color: "#d9581f",
+    color: "#b4731e",
     accent: "ministry",
   },
   {
     id: "living",
     label: "Living as Christians",
-    color: "#2f855a",
+    color: "#781428",
     accent: "living",
   },
 ];
@@ -164,8 +164,16 @@ export function isEligible(
       return a.gender === "M" && a.privileges.includes("QE");
 
     case "Opening Prayer":
+      // Opening prayer — appointed/privileged brothers (E, QE, MS, QMS, RP).
+      // The Chairman (QE) already satisfies this, so he remains eligible.
+      return (
+        a.gender === "M" &&
+        a.baptised &&
+        (isMSorAbove(a) || a.privileges.includes("RP"))
+      );
+
     case "Closing Prayer":
-      // Any active baptised brother may offer prayer.
+      // Closing prayer — any active baptised brother.
       return a.gender === "M" && a.baptised;
 
     case "Talk": // Treasures opening talk — elders (sometimes MS)

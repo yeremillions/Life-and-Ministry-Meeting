@@ -75,7 +75,7 @@ export default function Dashboard({
                 return (
                   <li
                     key={w.id}
-                    className="py-2 flex items-center justify-between text-sm cursor-pointer rounded hover:bg-slate-50 px-2 -mx-2"
+                    className="py-2 flex items-center justify-between text-sm cursor-pointer rounded hover:bg-slate-50 px-2 -mx-2 even:bg-slate-50/50"
                     onClick={() => onNavigate("schedule", w.id)}
                   >
                     <div>
@@ -105,7 +105,7 @@ export default function Dashboard({
               {soon.map(({ assignee, stats }) => (
                 <li
                   key={assignee.id}
-                  className="py-2 flex items-center justify-between text-sm"
+                  className="py-2 flex items-center justify-between text-sm px-2 -mx-2 even:bg-slate-50/50 rounded"
                 >
                   <span className="font-medium">{assignee.name}</span>
                   <span className="text-xs text-slate-500">

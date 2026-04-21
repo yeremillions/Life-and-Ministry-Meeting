@@ -114,85 +114,204 @@ export default function ReportsPage() {
     return assignees.find((a) => a.id === id)?.name ?? "";
   }
 
+  const maxAssignments = useMemo(() => {
+    let max = 1;
+    for (const r of rows) {
+      if (r.stats.totalMain > max) max = r.stats.totalMain;
+    }
+    return max;
+  }, [rows]);
+
+  const insights = useMemo(() => {
+    const activeBrothers = rows.filter(
+      (r) => r.assignee.active && r.assignee.gender === "M" && r.assignee.baptised
+    );
+    const neverAssigned = activeBrothers.filter((r) => !r.stats.lastWeekMain);
+    const longestGaps = [...activeBrothers]
+      .filter((r) => r.stats.lastWeekMain)
+      .sort((a, b) =>
+        (a.stats.lastWeekMain ?? "").localeCompare(b.stats.lastWeekMain ?? "")
+      )
+      .slice(0, 3);
+
+    return {
+      neverAssigned,
+      longestGaps,
+      totalActive: assignees.filter((a) => a.active).length,
+      averageAssignments: rows.length
+        ? (
+            rows.reduce((sum, r) => sum + r.stats.totalMain, 0) / rows.length
+          ).toFixed(1)
+        : 0,
+    };
+  }, [rows, assignees]);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-wrap gap-3 items-center">
-        <h2 className="text-lg font-semibold mr-auto">Reports</h2>
-        <select
-          className="input max-w-xs"
-          value={range}
-          onChange={(e) => setRange(e.target.value as "all" | "6m" | "1y")}
-        >
-          <option value="all">All time</option>
-          <option value="1y">Last 12 months</option>
-          <option value="6m">Last 6 months</option>
-        </select>
-        <select
-          className="input max-w-xs"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as SortBy)}
-        >
-          <option value="last">Sort: oldest last assignment</option>
-          <option value="total">Sort: most assignments</option>
-          <option value="name">Sort: name (A→Z)</option>
-        </select>
-        <button className="btn-secondary" onClick={exportCsv}>
-          Export enrollee report
-        </button>
-        <button className="btn-secondary" onClick={exportSchedule}>
-          Export full schedule
-        </button>
+        <h2 className="text-xl font-bold mr-auto">Decision Insights</h2>
+        <div className="flex gap-2">
+          <select
+            className="input w-32"
+            value={range}
+            onChange={(e) => setRange(e.target.value as "all" | "6m" | "1y")}
+          >
+            <option value="all">All time</option>
+            <option value="1y">Last 12m</option>
+            <option value="6m">Last 6m</option>
+          </select>
+          <button className="btn-secondary" onClick={exportCsv}>
+            Export CSV
+          </button>
+          <button className="btn-secondary" onClick={exportSchedule}>
+            Export Schedule
+          </button>
+        </div>
       </div>
 
-      <div className="card p-0 overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="py-2 px-3 text-left">Name</th>
-              <th className="py-2 px-3 text-left">Priv.</th>
-              <th className="py-2 px-3 text-right">Total</th>
-              <th className="py-2 px-3 text-right">Opening</th>
-              <th className="py-2 px-3 text-right">Treasures</th>
-              <th className="py-2 px-3 text-right">Ministry</th>
-              <th className="py-2 px-3 text-right">Living</th>
-              <th className="py-2 px-3 text-left">Last</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr
-                key={r.assignee.id}
-                className={
-                  "border-t border-slate-100 " +
-                  (r.assignee.active ? "" : "text-slate-400 italic")
-                }
-              >
-                <td className="py-2 px-3">{r.assignee.name}</td>
-                <td className="py-2 px-3">
-                  {privilegeLabel(r.assignee) ?? (
-                    <span className="text-slate-300">—</span>
-                  )}
-                </td>
-                <td className="py-2 px-3 text-right font-medium">
-                  {r.stats.totalMain}
-                </td>
-                <td className="py-2 px-3 text-right">
-                  {r.stats.bySegmentMain.opening}
-                </td>
-                <td className="py-2 px-3 text-right">
-                  {r.stats.bySegmentMain.treasures}
-                </td>
-                <td className="py-2 px-3 text-right">
-                  {r.stats.bySegmentMain.ministry}
-                </td>
-                <td className="py-2 px-3 text-right">
-                  {r.stats.bySegmentMain.living}
-                </td>
-                <td className="py-2 px-3">{fmtLastAssigned(r.stats)}</td>
-              </tr>
+      {/* Insight Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="card border-l-4 border-l-amber-500">
+          <div className="text-xs uppercase font-bold text-slate-500 mb-1">
+            Fairness Gap
+          </div>
+          <div className="text-2xl font-bold">
+            {insights.neverAssigned.length} never assigned
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Active baptised brothers with 0 main assignments in this range.
+          </p>
+        </div>
+        <div className="card border-l-4 border-l-rose-700">
+          <div className="text-xs uppercase font-bold text-slate-500 mb-1">
+            Longest Gaps
+          </div>
+          <div className="flex flex-col gap-1 mt-1">
+            {insights.longestGaps.map((r) => (
+              <div key={r.assignee.id} className="text-sm flex justify-between">
+                <span>{r.assignee.name}</span>
+                <span className="text-slate-400 font-mono">
+                  {r.stats.lastWeekMain}
+                </span>
+              </div>
             ))}
-          </tbody>
-        </table>
+            {insights.longestGaps.length === 0 && (
+              <span className="text-sm text-slate-400">No data available</span>
+            )}
+          </div>
+        </div>
+        <div className="card border-l-4 border-l-slate-800">
+          <div className="text-xs uppercase font-bold text-slate-500 mb-1">
+            Activity Level
+          </div>
+          <div className="text-2xl font-bold">
+            {insights.averageAssignments} avg.
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Average assignments per enrollee in this period.
+          </p>
+        </div>
+      </div>
+
+      <div className="card p-0 overflow-hidden">
+        <div className="px-4 py-3 border-b flex items-center justify-between bg-slate-50/50">
+          <h3 className="font-semibold">Assignment Distribution</h3>
+          <select
+            className="input w-48 py-1 text-xs"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortBy)}
+          >
+            <option value="last">Sort: Oldest assignment</option>
+            <option value="total">Sort: Most assignments</option>
+            <option value="name">Sort: Name (A→Z)</option>
+          </select>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm table-zebra">
+            <thead className="bg-slate-50/80 text-xs uppercase tracking-wide text-slate-500 font-bold">
+              <tr>
+                <th className="py-3 px-4 text-left">Enrollee</th>
+                <th className="py-3 px-4 text-left">Privileges</th>
+                <th className="py-3 px-4 text-left w-64">Volume & Mix</th>
+                <th className="py-3 px-4 text-right">Total</th>
+                <th className="py-3 px-4 text-left">Last Assigned</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const total = r.stats.totalMain;
+                const widthPercent =
+                  total > 0 ? (total / maxAssignments) * 100 : 0;
+
+                // Segment percentages for the stacked bar
+                const s = r.stats.bySegmentMain;
+                const pOpening = total > 0 ? (s.opening / total) * 100 : 0;
+                const pTreasures = total > 0 ? (s.treasures / total) * 100 : 0;
+                const pMinistry = total > 0 ? (s.ministry / total) * 100 : 0;
+                const pLiving = total > 0 ? (s.living / total) * 100 : 0;
+
+                return (
+                  <tr
+                    key={r.assignee.id}
+                    className={
+                      "border-t border-slate-100 " +
+                      (r.assignee.active ? "" : "opacity-50 grayscale")
+                    }
+                  >
+                    <td className="py-3 px-4 font-semibold text-slate-800">
+                      {r.assignee.name}
+                    </td>
+                    <td className="py-3 px-4">
+                      {privilegeLabel(r.assignee) ?? (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden flex">
+                          <div
+                            style={{
+                              width: `${widthPercent}%`,
+                              display: "flex",
+                            }}
+                            className="h-full"
+                          >
+                            <div
+                              style={{ width: `${pOpening}%` }}
+                              className="h-full bg-slate-400"
+                              title="Opening"
+                            />
+                            <div
+                              style={{ width: `${pTreasures}%` }}
+                              className="h-full bg-[var(--treasures)]"
+                              title="Treasures"
+                            />
+                            <div
+                              style={{ width: `${pMinistry}%` }}
+                              className="h-full bg-[var(--ministry)]"
+                              title="Ministry"
+                            />
+                            <div
+                              style={{ width: `${pLiving}%` }}
+                              className="h-full bg-[var(--living)]"
+                              title="Living"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-right font-bold tabular-nums">
+                      {r.stats.totalMain}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-xs text-slate-600">
+                      {fmtLastAssigned(r.stats)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

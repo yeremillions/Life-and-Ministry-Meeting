@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --treasures: #424242;
+  --ministry: #b4731e;
+  --living: #781428;
+  --opening: #64748b;
+}
+
 @layer base {
   html,
   body,
@@ -42,7 +49,10 @@
     @apply block text-xs font-medium text-slate-600 mb-1;
   }
   .card {
-    @apply bg-white rounded-lg shadow-sm border border-slate-200 p-4;
+    @apply bg-white rounded-lg shadow-sm border border-slate-200 p-4 transition-shadow hover:shadow-md;
+  }
+  .table-zebra tbody tr:nth-child(even) {
+    @apply bg-slate-50/50;
   }
   .pill {
     @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;

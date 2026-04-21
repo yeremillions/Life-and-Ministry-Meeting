@@ -269,6 +269,19 @@ export function autoAssignWeek(
     ]);
 
     if (!(opts.preserveExisting && assignment.assigneeId != null)) {
+      // For Opening Prayer, allow the already-assigned Chairman to also be
+      // considered — remove his ID from the exclusion set for this pick only.
+      let usedForPick = usedThisWeek;
+      if (assignment.partType === "Opening Prayer") {
+        const chairmanId = assignments.find(
+          (a) => a.partType === "Chairman"
+        )?.assigneeId;
+        if (chairmanId != null && usedThisWeek.has(chairmanId)) {
+          usedForPick = new Set(usedThisWeek);
+          usedForPick.delete(chairmanId);
+        }
+      }
+
       const candidate = pickCandidate({
         part: assignment,
         role: "main",
@@ -276,7 +289,7 @@ export function autoAssignWeek(
         stats,
         weekOf: week.weekOf,
         seed,
-        used: usedThisWeek,
+        used: usedForPick,
         privilegedMinistryShare: opts.privilegedMinistryShare,
         ministryTotal,
         ministryPrivileged,
