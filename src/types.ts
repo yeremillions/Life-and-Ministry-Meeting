@@ -25,6 +25,8 @@ export interface Assignee {
   privileges: Privilege[];
   /** If false, person is skipped by the auto-assigner. */
   active: boolean;
+  /** True when the enrollee is under 18. The auto-assigner prefers adult assistants for minors. */
+  isMinor?: boolean;
   /** Optional free-form notes (e.g. availability, pairing preferences). */
   notes?: string;
   createdAt: number;

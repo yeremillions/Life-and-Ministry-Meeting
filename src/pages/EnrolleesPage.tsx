@@ -175,6 +175,7 @@ export default function EnrolleesPage() {
     return list.map((a) => ({
       Name: a.name,
       Gender: a.gender === "M" ? "Brother" : "Sister",
+      Age: a.isMinor ? "Minor" : "Adult",
       Baptised: a.baptised ? "Yes" : "No",
       Privileges: a.privileges.join(", ") || "",
       Status: a.active ? "Active" : "Inactive",
@@ -395,6 +396,17 @@ export default function EnrolleesPage() {
                 className="input py-1 text-xs w-auto"
                 value=""
                 onChange={(e) => {
+                  if (e.target.value) bulkUpdate({ isMinor: e.target.value === "minor" });
+                }}
+              >
+                <option value="" disabled>Set age…</option>
+                <option value="adult">Adult</option>
+                <option value="minor">Minor</option>
+              </select>
+              <select
+                className="input py-1 text-xs w-auto"
+                value=""
+                onChange={(e) => {
                   const v = e.target.value;
                   if (!v) return;
                   if (v === "clear") bulkSetPrivileges([]);
@@ -455,6 +467,7 @@ export default function EnrolleesPage() {
                   </th>
                   <th className="py-2 pr-3">Name</th>
                   <th className="py-2 pr-3">Gender</th>
+                  <th className="py-2 pr-3">Age</th>
                   <th className="py-2 pr-3">Baptised</th>
                   <th className="py-2 pr-3">Privileges</th>
                   <th className="py-2 pr-3">Status</th>
@@ -483,6 +496,13 @@ export default function EnrolleesPage() {
                       <td className="py-2 pr-3 font-medium">{a.name}</td>
                       <td className="py-2 pr-3">
                         {a.gender === "M" ? "Brother" : "Sister"}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {a.isMinor ? (
+                          <span className="pill bg-blue-100 text-blue-800">Minor</span>
+                        ) : (
+                          <span className="text-slate-400">Adult</span>
+                        )}
                       </td>
                       <td className="py-2 pr-3">
                         {a.baptised ? "Yes" : "No"}
@@ -605,6 +625,7 @@ function EnrolleeModal({
   const [gender, setGender] = useState<Gender>(initial?.gender ?? "M");
   const [baptised, setBaptised] = useState(initial?.baptised ?? true);
   const [active, setActive] = useState(initial?.active ?? true);
+  const [isMinor, setIsMinor] = useState(initial?.isMinor ?? false);
   const [privileges, setPrivileges] = useState<Privilege[]>(
     initial?.privileges ?? []
   );
@@ -652,24 +673,35 @@ function EnrolleeModal({
               <option value="F">Sister</option>
             </select>
           </div>
-          <div className="flex items-end gap-4">
-            <label className="flex items-center gap-2 text-sm mb-1">
-              <input
-                type="checkbox"
-                checked={baptised}
-                onChange={(e) => setBaptised(e.target.checked)}
-              />
-              Baptised
-            </label>
-            <label className="flex items-center gap-2 text-sm mb-1">
-              <input
-                type="checkbox"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
-              />
-              Active
-            </label>
+          <div>
+            <label className="label">Age group</label>
+            <select
+              className="input"
+              value={isMinor ? "minor" : "adult"}
+              onChange={(e) => setIsMinor(e.target.value === "minor")}
+            >
+              <option value="adult">Adult</option>
+              <option value="minor">Minor (under 18)</option>
+            </select>
           </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={baptised}
+              onChange={(e) => setBaptised(e.target.checked)}
+            />
+            Baptised
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={active}
+              onChange={(e) => setActive(e.target.checked)}
+            />
+            Active
+          </label>
         </div>
         <div>
           <label className="label">Privileges</label>
@@ -726,6 +758,7 @@ function EnrolleeModal({
                 gender,
                 baptised,
                 active,
+                isMinor,
                 privileges:
                   gender === "M"
                     ? normalizePrivileges(privileges)

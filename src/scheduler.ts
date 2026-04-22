@@ -125,7 +125,8 @@ function scoreCandidate(
   seed: number,
   privilegedMinistryShare: number,
   talkSplit: TalkSplit,
-  role: "main" | "assistant"
+  role: "main" | "assistant",
+  isMinorMain?: boolean
 ): number {
   let score = 0;
 
@@ -197,6 +198,11 @@ function scoreCandidate(
     }
     // opening/Chairman: all eligible candidates are QE, so only
     // the fairness factors (time since last, total count) decide.
+  }
+
+  // Prefer adult assistants when pairing with a minor main participant.
+  if (role === "assistant" && isMinorMain && !a.isMinor) {
+    score += 30;
   }
 
   // Deterministic tiny jitter for reproducible tie-breaking per week.
@@ -356,6 +362,7 @@ interface PickArgs {
   ministryTotal: number;
   ministryPrivileged: number;
   talkSplit: TalkSplit;
+  isMinorMain?: boolean;
 }
 
 function pickCandidate(args: PickArgs): Assignee | null {
@@ -376,6 +383,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
   // For demo assistants, prefer same gender as the main assignee.
   let genderFilter: "M" | "F" | null = null;
   const mainId = part.assigneeId;
+  let isMinorMain = false;
   if (role === "assistant" && mainId != null) {
     const main = assignees.find((p) => p.id === mainId);
     if (main && needsAssistant(part.partType)) {
@@ -384,6 +392,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
       } else {
         genderFilter = main.gender; // same-sex demo pairings
       }
+      isMinorMain = main.isMinor ?? false;
     }
   }
 
@@ -409,7 +418,8 @@ function pickCandidate(args: PickArgs): Assignee | null {
         seed,
         privilegedMinistryShare,
         talkSplit,
-        role
+        role,
+        isMinorMain
       );
     }
   }
@@ -422,7 +432,8 @@ function pickCandidate(args: PickArgs): Assignee | null {
     seed,
     privilegedMinistryShare,
     talkSplit,
-    role
+    role,
+    isMinorMain
   );
 }
 
@@ -434,7 +445,8 @@ function rankAndPick(
   seed: number,
   privilegedMinistryShare: number,
   talkSplit: TalkSplit,
-  role: "main" | "assistant"
+  role: "main" | "assistant",
+  isMinorMain?: boolean
 ): Assignee {
   const empty: AssigneeStats = {
     totalMain: 0,
@@ -453,7 +465,8 @@ function rankAndPick(
         seed,
         privilegedMinistryShare,
         talkSplit,
-        role
+        role,
+        isMinorMain
       ) -
       scoreCandidate(
         a,
@@ -463,7 +476,8 @@ function rankAndPick(
         seed,
         privilegedMinistryShare,
         talkSplit,
-        role
+        role,
+        isMinorMain
       )
     );
   });
