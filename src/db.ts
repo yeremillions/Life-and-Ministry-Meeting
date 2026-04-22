@@ -72,6 +72,23 @@ class MeetingDB extends Dexie {
           }
         }
       });
+
+    // v3: add isMinor field (default false) to all existing assignees that
+    // were created before this field existed.
+    this.version(3)
+      .stores({
+        assignees: "++id, name, gender, active, createdAt",
+        weeks: "++id, weekOf, createdAt",
+        settings: "id",
+      })
+      .upgrade(async (tx) => {
+        const assignees = await tx.table("assignees").toArray();
+        for (const a of assignees) {
+          if (a.isMinor == null) {
+            await tx.table("assignees").update(a.id as number, { isMinor: false });
+          }
+        }
+      });
   }
 }
 
