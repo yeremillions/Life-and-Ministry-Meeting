@@ -52,22 +52,23 @@ export default function EnrolleesPage() {
     });
   }, [assignees, filter, privFilter, search]);
 
-  // Drop selections that no longer exist in the current view (because of
-  // filter/search changes or external deletions). Keeps state honest.
+  // Drop selections only when the enrollee no longer exists (was deleted).
+  // Selections persist across search/filter changes so bulk actions work
+  // on names picked from different search queries.
   useEffect(() => {
-    const visible = new Set(
-      filtered.map((a) => a.id).filter((id): id is number => id != null)
+    const existing = new Set(
+      assignees.map((a) => a.id).filter((id): id is number => id != null)
     );
     setSelected((cur) => {
       let changed = false;
       const next = new Set<number>();
       for (const id of cur) {
-        if (visible.has(id)) next.add(id);
+        if (existing.has(id)) next.add(id);
         else changed = true;
       }
       return changed ? next : cur;
     });
-  }, [filtered]);
+  }, [assignees]);
 
   const filteredIds = useMemo(
     () => filtered.map((a) => a.id).filter((id): id is number => id != null),
