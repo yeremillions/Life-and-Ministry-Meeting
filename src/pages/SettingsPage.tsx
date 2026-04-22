@@ -2,10 +2,14 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useState } from "react";
 import { db, ensureSettings } from "../db";
 import type { AppSettings } from "../types";
+import { testGeminiKey } from "../aiService";
 
 export default function SettingsPage() {
   const settings = useLiveQuery(() => db.settings.get("app"), []);
   const [draft, setDraft] = useState<AppSettings | null>(null);
+  const [showKey, setShowKey] = useState(false);
+  const [testStatus, setTestStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
+  const [testError, setTestError] = useState<string | null>(null);
 
   useEffect(() => {
     ensureSettings().then((s) => setDraft(s));
@@ -14,6 +18,19 @@ export default function SettingsPage() {
   useEffect(() => {
     if (settings) setDraft(settings);
   }, [settings]);
+
+  async function testKey() {
+    if (!draft?.geminiApiKey?.trim()) return;
+    setTestStatus("testing");
+    setTestError(null);
+    try {
+      await testGeminiKey(draft.geminiApiKey.trim());
+      setTestStatus("ok");
+    } catch (e) {
+      setTestStatus("error");
+      setTestError(e instanceof Error ? e.message : "Connection failed.");
+    }
+  }
 
   async function save() {
     if (!draft) return;
@@ -127,6 +144,73 @@ export default function SettingsPage() {
             Default is 10%. Elders and ministerial servants are normally
             assigned to Treasures and Living-as-Christians; this cap limits how
             often they take Ministry demos.
+          </p>
+        </div>
+        <div>
+          <button className="btn" onClick={save}>
+            Save settings
+          </button>
+        </div>
+      </div>
+
+      <div className="card space-y-3">
+        <div>
+          <h2 className="font-semibold">AI integration</h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Powered by Google Gemini. Your key is stored only in this browser and sent
+            exclusively to Google's API.{" "}
+            <a
+              href="https://aistudio.google.com/app/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-slate-700"
+            >
+              Get a free key at Google AI Studio
+            </a>
+            .
+          </p>
+        </div>
+        <div>
+          <label className="label">Gemini API key</label>
+          <div className="flex gap-2 max-w-md">
+            <div className="relative flex-1">
+              <input
+                className="input pr-16"
+                type={showKey ? "text" : "password"}
+                value={draft?.geminiApiKey ?? ""}
+                placeholder="AIza..."
+                onChange={(e) => {
+                  setTestStatus("idle");
+                  setDraft(draft ? { ...draft, geminiApiKey: e.target.value } : null);
+                }}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-slate-700"
+                onClick={() => setShowKey((v) => !v)}
+              >
+                {showKey ? "Hide" : "Show"}
+              </button>
+            </div>
+            <button
+              className="btn-secondary"
+              onClick={testKey}
+              disabled={!draft?.geminiApiKey?.trim() || testStatus === "testing"}
+            >
+              {testStatus === "testing" ? "Testing…" : "Test"}
+            </button>
+          </div>
+          {testStatus === "ok" && (
+            <p className="text-xs text-emerald-600 mt-1">Connected successfully.</p>
+          )}
+          {testStatus === "error" && (
+            <p className="text-xs text-red-600 mt-1">{testError}</p>
+          )}
+          <p className="text-xs text-slate-500 mt-1">
+            Unlocks: <b>schedule explanations</b> (why each person was auto-assigned)
+            and <b>AI-enhanced import</b> (parse any roster format automatically).
           </p>
         </div>
         <div>

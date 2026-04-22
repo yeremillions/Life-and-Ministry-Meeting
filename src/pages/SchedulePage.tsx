@@ -2,6 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useState } from "react";
 import { db, ensureSettings } from "../db";
 import type { Assignment, PartType, SegmentId, Week } from "../types";
+import { explainWeekAssignments } from "../aiService";
 
 import { autoAssignWeek } from "../scheduler";
 import { nextMondayIso, uid, weekRangeLabel, workbookPeriod } from "../utils";
@@ -9,7 +10,6 @@ import WeekEditor from "../components/WeekEditor";
 import WorkbookImportModal from "../components/WorkbookImportModal";
 import S140ImportModal from "../components/S140ImportModal";
 import ExportPdfModal from "../components/ExportPdfModal";
-import { ensureSettings as getSettings } from "../db";
 
 function buildEmptyWeek(weekOf: string): Week {
   const now = Date.now();
@@ -124,12 +124,11 @@ export default function SchedulePage({
   const [importingS140, setImportingS140] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [lastImportCount, setLastImportCount] = useState<number | null>(null);
-  const [congregationName, setCongregationName] = useState("");
 
-  // Load congregation name once (needed for PDF header).
-  useMemo(() => {
-    getSettings().then((s) => setCongregationName(s.congregationName ?? ""));
-  }, []);
+  // Reactive settings — covers congregation name for PDF and AI key for explanations.
+  const appSettings = useLiveQuery(() => db.settings.get("app"), []);
+  const congregationName = appSettings?.congregationName ?? "";
+  const aiKey = appSettings?.geminiApiKey || null;
 
   useEffect(() => {
     if (initialWeekId != null) {
@@ -184,6 +183,12 @@ export default function SchedulePage({
       preserveExisting,
     });
     await saveWeek(updated);
+  }
+
+  async function explainCurrentWeek(week: Week): Promise<Map<string, string>> {
+    if (!aiKey) return new Map();
+    const allWeeks = await db.weeks.toArray();
+    return explainWeekAssignments(aiKey, week, assignees, allWeeks);
   }
 
   async function clearAssignments(week: Week) {
@@ -308,6 +313,7 @@ export default function SchedulePage({
             onAddPart={(segment, partType) => addPart(selected, segment, partType)}
             onRemovePart={(uid) => removePart(selected, uid)}
             onUpdateAssignment={(a) => updateAssignment(selected, a)}
+            onExplainWeek={aiKey ? () => explainCurrentWeek(selected) : undefined}
           />
         ) : (
           <div className="card">

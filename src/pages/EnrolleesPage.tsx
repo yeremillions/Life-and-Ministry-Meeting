@@ -5,6 +5,7 @@ import { db } from "../db";
 import type { Assignee, Gender, Privilege } from "../types";
 import { parseAssigneeFile, parsedToAssignee, parseTextList } from "../importers";
 import { normalizePrivileges } from "../meeting";
+import { parseImportWithAI } from "../aiService";
 
 const ALL_PRIVS: Privilege[] = ["E", "QE", "MS", "QMS", "RP", "CBSR"];
 
@@ -20,6 +21,8 @@ const PRIV_LABELS: Record<Privilege, string> = {
 export default function EnrolleesPage() {
   const assignees =
     useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
+  const appSettings = useLiveQuery(() => db.settings.get("app"), []);
+  const aiKey = appSettings?.geminiApiKey || null;
 
   const [filter, setFilter] = useState<"all" | "active" | "inactive" | "M" | "F">(
     "active"
@@ -33,6 +36,8 @@ export default function EnrolleesPage() {
   const [importPreview, setImportPreview] = useState<
     Omit<Assignee, "id">[] | null
   >(null);
+  const [rawFile, setRawFile] = useState<File | null>(null);
+  const [aiParsing, setAiParsing] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -227,9 +232,10 @@ export default function EnrolleesPage() {
     );
   }
 
-  // ---- Import handler ----
+  // ---- Import handlers ----
 
   async function handleFile(file: File) {
+    setRawFile(file);
     setImportError(null);
     try {
       const parsed = await parseAssigneeFile(file);
@@ -240,6 +246,24 @@ export default function EnrolleesPage() {
       setImportPreview(parsed.map(parsedToAssignee));
     } catch (e: unknown) {
       setImportError(e instanceof Error ? e.message : "Failed to parse file.");
+    }
+  }
+
+  async function handleAiParse() {
+    if (!aiKey || !rawFile) return;
+    setAiParsing(true);
+    setImportError(null);
+    try {
+      const parsed = await parseImportWithAI(aiKey, rawFile);
+      if (parsed.length === 0) {
+        setImportError("AI couldn't identify any members in the file.");
+        return;
+      }
+      setImportPreview(parsed.map(parsedToAssignee));
+    } catch (e: unknown) {
+      setImportError(e instanceof Error ? e.message : "AI parse failed.");
+    } finally {
+      setAiParsing(false);
     }
   }
 
@@ -568,6 +592,7 @@ export default function EnrolleesPage() {
             setImportOpen(false);
             setImportPreview(null);
             setImportError(null);
+            setRawFile(null);
           }}
           onFile={(f) => handleFile(f)}
           onPasteText={(text) => {
@@ -581,6 +606,9 @@ export default function EnrolleesPage() {
           }}
           onConfirm={savePreview}
           fileRef={fileRef}
+          aiAvailable={!!aiKey && !!rawFile}
+          aiParsing={aiParsing}
+          onAiParse={handleAiParse}
         />
       )}
     </div>
@@ -749,6 +777,9 @@ function ImportModal({
   onPasteText,
   onConfirm,
   fileRef,
+  aiAvailable,
+  aiParsing,
+  onAiParse,
 }: {
   error: string | null;
   preview: Omit<Assignee, "id">[] | null;
@@ -757,6 +788,9 @@ function ImportModal({
   onPasteText: (text: string) => void;
   onConfirm: () => void;
   fileRef: React.RefObject<HTMLInputElement>;
+  aiAvailable?: boolean;
+  aiParsing?: boolean;
+  onAiParse?: () => void;
 }) {
   const [pasteText, setPasteText] = useState("");
 
@@ -804,14 +838,52 @@ function ImportModal({
               Parse pasted list
             </button>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <div className="space-y-2">
+              <p className="text-sm text-red-600">{error}</p>
+              {aiAvailable && (
+                <button
+                  className="btn-secondary text-xs"
+                  onClick={onAiParse}
+                  disabled={aiParsing}
+                >
+                  {aiParsing ? "Parsing with AI…" : "Try AI parse instead"}
+                </button>
+              )}
+            </div>
+          )}
+          {!error && aiAvailable && (
+            <p className="text-xs text-slate-500">
+              Standard parse succeeded.{" "}
+              <button
+                className="underline hover:text-slate-700"
+                onClick={onAiParse}
+                disabled={aiParsing}
+              >
+                {aiParsing ? "Parsing with AI…" : "Re-parse with AI"}
+              </button>{" "}
+              if the results look wrong.
+            </p>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-sm">
-            Preview — {preview.length} enrollees will be added (existing names
-            are skipped).
-          </p>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <p className="text-sm">
+              Preview — {preview.length} enrollees will be added (existing names
+              are skipped).
+            </p>
+            {aiAvailable && (
+              <button
+                className="btn-secondary text-xs"
+                onClick={onAiParse}
+                disabled={aiParsing}
+                title="Re-parse the uploaded file using AI"
+              >
+                {aiParsing ? "Parsing with AI…" : "Re-parse with AI"}
+              </button>
+            )}
+          </div>
           <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-md">
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">

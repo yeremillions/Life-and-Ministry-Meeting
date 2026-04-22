@@ -101,6 +101,8 @@ export interface AppSettings {
   privilegedMinistryShare: number;
   /** Congregation name for report headers, etc. */
   congregationName?: string;
+  /** Google Gemini API key for AI features (stored locally, never transmitted except to Google). */
+  geminiApiKey?: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {

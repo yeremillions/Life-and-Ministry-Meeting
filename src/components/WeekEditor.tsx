@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import type {
   Assignee,
   Assignment,
@@ -25,10 +25,35 @@ export interface WeekEditorProps {
   onAddPart: (segment: SegmentId, partType: PartType) => void;
   onRemovePart: (uid: string) => void;
   onUpdateAssignment: (a: Assignment) => void;
+  /** If provided, an "Explain" button appears that generates AI explanations for all assigned slots. */
+  onExplainWeek?: () => Promise<Map<string, string>>;
 }
 
 export default function WeekEditor(props: WeekEditorProps) {
   const { week, assignees } = props;
+  const [explanations, setExplanations] = useState<Map<string, string>>(new Map());
+  const [explaining, setExplaining] = useState(false);
+  const [explainError, setExplainError] = useState<string | null>(null);
+
+  // Clear explanations when the week changes (different week selected).
+  useEffect(() => {
+    setExplanations(new Map());
+    setExplainError(null);
+  }, [week.id]);
+
+  const handleExplain = useCallback(async () => {
+    if (!props.onExplainWeek) return;
+    setExplaining(true);
+    setExplainError(null);
+    try {
+      const map = await props.onExplainWeek();
+      setExplanations(map);
+    } catch (e) {
+      setExplainError(e instanceof Error ? e.message : "AI explanation failed.");
+    } finally {
+      setExplaining(false);
+    }
+  }, [props.onExplainWeek]);
 
   const bySegment = useMemo(() => {
     const map: Record<SegmentId, Assignment[]> = {
@@ -59,6 +84,16 @@ export default function WeekEditor(props: WeekEditorProps) {
             </div>
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
+            {props.onExplainWeek && (
+              <button
+                className="btn-secondary"
+                onClick={handleExplain}
+                disabled={explaining}
+                title="Use AI to explain why each person was auto-assigned"
+              >
+                {explaining ? "Explaining…" : explanations.size > 0 ? "Re-explain" : "Explain"}
+              </button>
+            )}
             <button
               className="btn-secondary"
               onClick={() => props.onClear()}
@@ -84,6 +119,11 @@ export default function WeekEditor(props: WeekEditorProps) {
             </button>
           </div>
         </div>
+        {explainError && (
+          <p className="text-xs text-red-600 mt-2 bg-red-50 border border-red-200 rounded px-2 py-1">
+            {explainError}
+          </p>
+        )}
         <div className="mt-3">
           <label className="label">Weekly Bible reading (optional)</label>
           <input
@@ -109,6 +149,7 @@ export default function WeekEditor(props: WeekEditorProps) {
         assignments={bySegment.opening}
         assignees={assignees}
         week={week}
+        explanations={explanations}
         onAddPart={(t) => props.onAddPart("opening", t)}
         onRemovePart={props.onRemovePart}
         onUpdateAssignment={props.onUpdateAssignment}
@@ -122,6 +163,7 @@ export default function WeekEditor(props: WeekEditorProps) {
           assignments={bySegment[seg.id]}
           assignees={assignees}
           week={week}
+          explanations={explanations}
           onAddPart={(t) => props.onAddPart(seg.id, t)}
           onRemovePart={props.onRemovePart}
           onUpdateAssignment={props.onUpdateAssignment}
@@ -138,6 +180,7 @@ function SegmentCard({
   assignments,
   assignees,
   week,
+  explanations,
   onAddPart,
   onRemovePart,
   onUpdateAssignment,
@@ -148,6 +191,7 @@ function SegmentCard({
   assignments: Assignment[];
   assignees: Assignee[];
   week: Week;
+  explanations: Map<string, string>;
   onAddPart: (t: PartType) => void;
   onRemovePart: (uid: string) => void;
   onUpdateAssignment: (a: Assignment) => void;
@@ -210,6 +254,7 @@ function SegmentCard({
               assignment={a}
               assignees={assignees}
               week={week}
+              explanation={explanations.get(a.uid)}
               onRemove={() => onRemovePart(a.uid)}
               onUpdate={onUpdateAssignment}
             />
@@ -224,12 +269,14 @@ function PartRow({
   assignment,
   assignees,
   week,
+  explanation,
   onRemove,
   onUpdate,
 }: {
   assignment: Assignment;
   assignees: Assignee[];
   week: Week;
+  explanation?: string;
   onRemove: () => void;
   onUpdate: (a: Assignment) => void;
 }) {
@@ -335,6 +382,12 @@ function PartRow({
           />
         )}
       </div>
+      {explanation && (
+        <p className="text-xs text-indigo-600/80 italic mt-2 flex items-start gap-1">
+          <span className="text-indigo-400 not-italic">✦</span>
+          {explanation}
+        </p>
+      )}
       <div className="mt-2">
         <input
           className="input"
