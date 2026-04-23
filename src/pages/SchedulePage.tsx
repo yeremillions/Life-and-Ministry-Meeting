@@ -1,7 +1,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useState } from "react";
 import { db, ensureSettings } from "../db";
-import type { Assignment, Household, PartType, SegmentId, Week } from "../types";
+import type { Assignment, PartType, SegmentId, Week } from "../types";
 
 import { autoAssignWeek } from "../scheduler";
 import { nextMondayIso, uid, weekRangeLabel, workbookPeriod } from "../utils";
