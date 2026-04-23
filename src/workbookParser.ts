@@ -64,8 +64,10 @@ const WEEK_RE = new RegExp(
 );
 
 const SEGMENT_RE = {
-  treasures: /TREASURES\s*FROM\s*GOD'?S?\s*\u2019?S?\s*WORD/i,
-  ministry: /APPLY\s*YOURSELF\s*TO\s*THE\s*FIELD\s*MINISTRY/i,
+  // Allow for up to three apostrophe/whitespace chars between "GOD" and "S?WORD"
+  // so that letter-spaced PDFs that survive as "GOD ' SWORD" still match.
+  treasures: /TREASURES\s*FROM\s*GOD['\s]{0,3}S?\s*WORD/i,
+  ministry: /APPLY\s*YOURSELF\s*TO\s*THE\s*(?:FIELD\s*)?MINISTRY/i,
   living: /LIVING\s*AS\s*CHRISTIANS/i,
 };
 
@@ -231,6 +233,12 @@ export function parseWorkbookText(
     .replace(/(?<![A-Za-z])(?:[A-Z] ){2,}[A-Z](?![A-Za-z])/g, (m) =>
       m.replace(/ /g, "")
     )
+    // After collapsing letter-spaced runs, an apostrophe that was
+    // surrounded by the same inter-glyph space as the other letters
+    // remains isolated: "GOD ' SWORD" instead of "GOD'S WORD".
+    // Re-join: look for an uppercase word boundary, space-apostrophe-space,
+    // then an S that was merged into the next collapsed word.
+    .replace(/([A-Z]) ' S([A-Z])/g, "$1'S $2")
     // Collapse "20 26" → "2026" so year detection still works when the
     // digit-pair didn't merge through gap-based extraction.
     .replace(/\b(20)\s(\d{2})\b/g, "$1$2");
