@@ -2,7 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { db } from "../db";
-import type { Assignee, Gender, Privilege } from "../types";
+import type { Assignee, Gender, Household, Privilege } from "../types";
 import { parseAssigneeFile, parsedToAssignee, parseTextList } from "../importers";
 import { normalizePrivileges } from "../meeting";
 
@@ -20,7 +20,10 @@ const PRIV_LABELS: Record<Privilege, string> = {
 export default function EnrolleesPage() {
   const assignees =
     useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
+  const households =
+    useLiveQuery(() => db.households.orderBy("name").toArray(), []) ?? [];
 
+  const [tab, setTab] = useState<"enrollees" | "households">("enrollees");
   const [filter, setFilter] = useState<"all" | "active" | "inactive" | "M" | "F">(
     "active"
   );
@@ -35,6 +38,17 @@ export default function EnrolleesPage() {
   >(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
+  const [householdEditing, setHouseholdEditing] = useState<Household | null>(null);
+  const [householdAdding, setHouseholdAdding] = useState(false);
+
+  // Map enrollee id → household name for badge display
+  const enrolleeHouseholdMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const h of households) {
+      for (const id of h.memberIds) map.set(id, h.name);
+    }
+    return map;
+  }, [households]);
 
   const filtered = useMemo(() => {
     return assignees.filter((a) => {
@@ -287,6 +301,25 @@ export default function EnrolleesPage() {
         </button>
       </div>
 
+      {/* ── Tab bar ── */}
+      <div className="flex gap-1 border-b border-slate-200">
+        {(["enrollees", "households"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={
+              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors " +
+              (tab === t
+                ? "border-indigo-500 text-indigo-600"
+                : "border-transparent text-slate-500 hover:text-slate-800")
+            }
+          >
+            {t === "enrollees" ? `Enrollees (${assignees.length})` : `Households (${households.length})`}
+          </button>
+        ))}
+      </div>
+
+      {tab === "enrollees" && (
       <div className="card">
         <div className="flex flex-wrap gap-3 items-center mb-3">
           <input
@@ -471,6 +504,7 @@ export default function EnrolleesPage() {
                   <th className="py-2 pr-3">Baptised</th>
                   <th className="py-2 pr-3">Privileges</th>
                   <th className="py-2 pr-3">Status</th>
+                  <th className="py-2 pr-3">Household</th>
                   <th className="py-2"></th>
                 </tr>
               </thead>
@@ -534,6 +568,18 @@ export default function EnrolleesPage() {
                           </span>
                         )}
                       </td>
+                      <td className="py-2 pr-3">
+                        {a.id != null && enrolleeHouseholdMap.has(a.id) ? (
+                          <span
+                            className="pill bg-indigo-50 text-indigo-700"
+                            title={enrolleeHouseholdMap.get(a.id)}
+                          >
+                            🏠 {enrolleeHouseholdMap.get(a.id)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
+                      </td>
                       <td className="py-2 text-right">
                         <button
                           className="btn-secondary"
@@ -550,6 +596,71 @@ export default function EnrolleesPage() {
           </div>
         )}
       </div>
+      )} {/* end enrollees tab */}
+
+      {/* ── Households tab ── */}
+      {tab === "households" && (
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <button className="btn" onClick={() => setHouseholdAdding(true)}>
+              + New household
+            </button>
+          </div>
+          {households.length === 0 ? (
+            <div className="card">
+              <p className="text-sm text-slate-500">
+                No households yet. Click <b>+ New household</b> to group family members
+                together. Household members can be paired as main/assistant in Apply
+                Yourself parts regardless of gender.
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {households.map((h) => {
+                const members = h.memberIds
+                  .map((id) => assignees.find((a) => a.id === id))
+                  .filter((a): a is Assignee => a != null);
+                return (
+                  <li key={h.id} className="card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium flex items-center gap-1.5">
+                          <span>🏠</span> {h.name}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {members.length === 0 ? (
+                            <span className="text-xs text-slate-400">No members</span>
+                          ) : (
+                            members.map((a) => (
+                              <span
+                                key={a.id}
+                                className={
+                                  "pill " +
+                                  (a.gender === "M"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-rose-100 text-rose-800")
+                                }
+                              >
+                                {a.name}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        className="btn-secondary shrink-0"
+                        onClick={() => setHouseholdEditing(h)}
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
 
       {adding && (
         <EnrolleeModal
@@ -604,11 +715,190 @@ export default function EnrolleesPage() {
           fileRef={fileRef}
         />
       )}
+
+      {householdAdding && (
+        <HouseholdModal
+          assignees={assignees}
+          onClose={() => setHouseholdAdding(false)}
+          onSave={async (data) => {
+            await db.households.add({ ...data, createdAt: Date.now() });
+            setHouseholdAdding(false);
+          }}
+        />
+      )}
+      {householdEditing && (
+        <HouseholdModal
+          initial={householdEditing}
+          assignees={assignees}
+          onClose={() => setHouseholdEditing(null)}
+          onSave={async (data) => {
+            if (householdEditing.id != null)
+              await db.households.update(householdEditing.id, data);
+            setHouseholdEditing(null);
+          }}
+          onDelete={async () => {
+            if (
+              householdEditing.id != null &&
+              confirm(`Delete household "${householdEditing.name}"?`)
+            ) {
+              await db.households.delete(householdEditing.id);
+              setHouseholdEditing(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
 
 /* ----------------------- modals ----------------------- */
+
+function HouseholdModal({
+  initial,
+  assignees,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  initial?: Household;
+  assignees: Assignee[];
+  onClose: () => void;
+  onSave: (data: Omit<Household, "id" | "createdAt">) => void | Promise<void>;
+  onDelete?: () => void | Promise<void>;
+}) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [memberIds, setMemberIds] = useState<number[]>(initial?.memberIds ?? []);
+  const [search, setSearch] = useState("");
+
+  const canSubmit = name.trim().length > 0;
+
+  // Suggest a name from selected members' surnames
+  const suggestedName = useMemo(() => {
+    if (name) return null;
+    const surnames = [...new Set(
+      memberIds
+        .map((id) => assignees.find((a) => a.id === id))
+        .filter((a): a is Assignee => a != null)
+        .map((a) => a.name.trim().split(" ").slice(-1)[0])
+    )];
+    if (surnames.length === 1) return `${surnames[0]} Family`;
+    if (surnames.length === 2) return `${surnames[0]} / ${surnames[1]} Family`;
+    return null;
+  }, [memberIds, assignees, name]);
+
+  const filteredAssignees = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return assignees.filter(
+      (a) => !q || a.name.toLowerCase().includes(q)
+    );
+  }, [assignees, search]);
+
+  function toggleMember(id: number) {
+    setMemberIds((cur) =>
+      cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]
+    );
+  }
+
+  return (
+    <Modal
+      onClose={onClose}
+      title={initial ? "Edit household" : "New household"}
+    >
+      <div className="space-y-4">
+        <div>
+          <label className="label">Household name</label>
+          <div className="flex gap-2">
+            <input
+              className="input flex-1"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Smith Family"
+              autoFocus
+            />
+            {suggestedName && (
+              <button
+                type="button"
+                className="btn-secondary text-xs px-2 shrink-0"
+                onClick={() => setName(suggestedName)}
+                title="Use suggested name"
+              >
+                Use “{suggestedName}”
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label className="label">Members</label>
+          <input
+            type="search"
+            className="input mb-2"
+            placeholder="Search enrollees…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-md divide-y divide-slate-100">
+            {filteredAssignees.length === 0 ? (
+              <p className="p-3 text-sm text-slate-400">No enrollees match.</p>
+            ) : (
+              filteredAssignees.map((a) => {
+                const checked = memberIds.includes(a.id!);
+                return (
+                  <label
+                    key={a.id}
+                    className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => a.id != null && toggleMember(a.id)}
+                    />
+                    <span className="text-sm flex-1">{a.name}</span>
+                    <span
+                      className={
+                        "pill text-xs " +
+                        (a.gender === "M"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-rose-100 text-rose-700")
+                      }
+                    >
+                      {a.gender === "M" ? "Bro" : "Sis"}
+                    </span>
+                  </label>
+                );
+              })
+            )}
+          </div>
+          {memberIds.length > 0 && (
+            <p className="text-xs text-slate-500 mt-1">
+              {memberIds.length} member{memberIds.length > 1 ? "s" : ""} selected
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-5 flex gap-2">
+        {onDelete && (
+          <button className="btn-danger" onClick={onDelete}>
+            Delete
+          </button>
+        )}
+        <div className="ml-auto flex gap-2">
+          <button className="btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="btn"
+            disabled={!canSubmit}
+            onClick={() => onSave({ name: name.trim(), memberIds })}
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 
 function EnrolleeModal({
   initial,

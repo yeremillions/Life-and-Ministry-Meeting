@@ -1,7 +1,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useState } from "react";
 import { db, ensureSettings } from "../db";
-import type { Assignment, PartType, SegmentId, Week } from "../types";
+import type { Assignment, Household, PartType, SegmentId, Week } from "../types";
 
 import { autoAssignWeek } from "../scheduler";
 import { nextMondayIso, uid, weekRangeLabel, workbookPeriod } from "../utils";
@@ -118,6 +118,8 @@ export default function SchedulePage({
     [];
   const assignees =
     useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
+  const households =
+    useLiveQuery(() => db.households.orderBy("name").toArray(), []) ?? [];
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [creatingOpen, setCreatingOpen] = useState(false);
   const [importingWorkbook, setImportingWorkbook] = useState(false);
@@ -301,6 +303,7 @@ export default function SchedulePage({
           <WeekEditor
             week={selected}
             assignees={assignees}
+            households={households}
             onSave={saveWeek}
             onDelete={() => selected.id != null && deleteWeek(selected.id)}
             onAutoFill={(preserve) => autoFill(selected, preserve)}

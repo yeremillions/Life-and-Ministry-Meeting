@@ -95,6 +95,20 @@ export interface Week {
   updatedAt: number;
 }
 
+/**
+ * A household groups enrollees who live together (or are family members).
+ * Members of the same household may be paired as main/assistant in Apply
+ * Yourself parts even if they are of different genders.
+ */
+export interface Household {
+  id?: number;
+  /** Display name, e.g. "Smith Family" */
+  name: string;
+  /** IDs of Assignee records that belong to this household. */
+  memberIds: number[];
+  createdAt: number;
+}
+
 export interface AppSettings {
   id: "app";
   /**

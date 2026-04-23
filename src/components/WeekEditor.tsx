@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   Assignee,
   Assignment,
+  Household,
   PartType,
   SegmentId,
   Week,
@@ -18,6 +19,7 @@ import { weekRangeLabel } from "../utils";
 export interface WeekEditorProps {
   week: Week;
   assignees: Assignee[];
+  households: Household[];
   onSave: (w: Week) => void | Promise<void>;
   onDelete: () => void;
   onAutoFill: (preserveExisting: boolean) => void;
@@ -28,7 +30,7 @@ export interface WeekEditorProps {
 }
 
 export default function WeekEditor(props: WeekEditorProps) {
-  const { week, assignees } = props;
+  const { week, assignees, households } = props;
 
   const bySegment = useMemo(() => {
     const map: Record<SegmentId, Assignment[]> = {
@@ -108,6 +110,7 @@ export default function WeekEditor(props: WeekEditorProps) {
         accent="#64748b"
         assignments={bySegment.opening}
         assignees={assignees}
+        households={households}
         week={week}
         onAddPart={(t) => props.onAddPart("opening", t)}
         onRemovePart={props.onRemovePart}
@@ -121,6 +124,7 @@ export default function WeekEditor(props: WeekEditorProps) {
           accent={seg.color}
           assignments={bySegment[seg.id]}
           assignees={assignees}
+          households={households}
           week={week}
           onAddPart={(t) => props.onAddPart(seg.id, t)}
           onRemovePart={props.onRemovePart}
@@ -137,6 +141,7 @@ function SegmentCard({
   accent,
   assignments,
   assignees,
+  households,
   week,
   onAddPart,
   onRemovePart,
@@ -147,6 +152,7 @@ function SegmentCard({
   accent: string;
   assignments: Assignment[];
   assignees: Assignee[];
+  households: Household[];
   week: Week;
   onAddPart: (t: PartType) => void;
   onRemovePart: (uid: string) => void;
@@ -209,6 +215,7 @@ function SegmentCard({
               key={a.uid}
               assignment={a}
               assignees={assignees}
+              households={households}
               week={week}
               onRemove={() => onRemovePart(a.uid)}
               onUpdate={onUpdateAssignment}
@@ -223,12 +230,14 @@ function SegmentCard({
 function PartRow({
   assignment,
   assignees,
+  households,
   week,
   onRemove,
   onUpdate,
 }: {
   assignment: Assignment;
   assignees: Assignee[];
+  households: Household[];
   week: Week;
   onRemove: () => void;
   onUpdate: (a: Assignment) => void;
@@ -246,6 +255,15 @@ function PartRow({
   const seg = segmentOf(assignment.segment);
   const showAssistant = needsAssistant(assignment.partType);
   const mainPerson = assignees.find((a) => a.id === assignment.assigneeId);
+
+  // Household of the currently-selected main person (if any).
+  const mainHousehold = useMemo(
+    () =>
+      mainPerson?.id != null
+        ? households.find((h) => h.memberIds.includes(mainPerson.id!))
+        : undefined,
+    [households, mainPerson]
+  );
 
   // Flag if already used in this meeting (helpful hint)
   const usedIds = new Set(
@@ -327,17 +345,35 @@ function PartRow({
                 }
                 value={assignment.assistantId}
                 options={
-                  assignment.partType === "Congregation Bible Study"
-                    ? eligibleAssistant
-                    : // For demo parts, prefer same gender as main.
-                      eligibleAssistant.filter(
-                        (a) =>
-                          !mainPerson ||
-                          a.gender === mainPerson.gender ||
-                          mainPerson.gender == null
-                      )
+                  (() => {
+                    if (assignment.partType === "Congregation Bible Study") {
+                      return eligibleAssistant;
+                    }
+                    // For demo parts: same-gender first, plus opposite-gender
+                    // household members (family pairing).
+                    const sameGender = eligibleAssistant.filter(
+                      (a) =>
+                        !mainPerson ||
+                        a.gender === mainPerson.gender ||
+                        mainPerson.gender == null
+                    );
+                    const householdCrossGender = mainHousehold
+                      ? eligibleAssistant.filter(
+                          (a) =>
+                            a.gender !== mainPerson?.gender &&
+                            mainHousehold.memberIds.includes(a.id!)
+                        )
+                      : [];
+                    // Merge, deduplicating by id.
+                    const seen = new Set(sameGender.map((a) => a.id));
+                    return [
+                      ...sameGender,
+                      ...householdCrossGender.filter((a) => !seen.has(a.id)),
+                    ];
+                  })()
                 }
                 usedIds={usedIds}
+                householdIds={mainHousehold?.memberIds}
                 onChange={(id) => onUpdate({ ...assignment, assistantId: id })}
               />
             )}
@@ -363,12 +399,15 @@ function AssigneePicker({
   value,
   options,
   usedIds,
+  householdIds,
   onChange,
 }: {
   label: string;
   value?: number;
   options: Assignee[];
   usedIds: Set<number>;
+  /** IDs that belong to the main person's household — shown with a 🏠 tag. */
+  householdIds?: number[];
   onChange: (id: number | undefined) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -502,6 +541,7 @@ function AssigneePicker({
                 .join(" ");
               const alreadyUsed = a.id != null && usedIds.has(a.id);
               const isSelected = a.id === value;
+              const isHousehold = a.id != null && householdIds?.includes(a.id);
               return (
                 <div
                   key={a.id}
@@ -520,6 +560,14 @@ function AssigneePicker({
                 >
                   {alreadyUsed && (
                     <span title="Already assigned this week" style={{ fontSize: "0.85rem" }}>⚠️</span>
+                  )}
+                  {isHousehold && (
+                    <span
+                      title="Household member — cross-gender family pairing"
+                      style={{ fontSize: "0.75rem", color: "#6366f1" }}
+                    >
+                      🏠
+                    </span>
                   )}
                   <span style={{ color: isSelected ? "#4f46e5" : undefined }}>{optLabel}</span>
                 </div>

@@ -1,6 +1,7 @@
 import Dexie, { type Table } from "dexie";
 import {
   type Assignee,
+  type Household,
   type PartType,
   type SegmentId,
   type Week,
@@ -35,6 +36,7 @@ class MeetingDB extends Dexie {
   assignees!: Table<Assignee, number>;
   weeks!: Table<Week, number>;
   settings!: Table<AppSettings, string>;
+  households!: Table<Household, number>;
 
   constructor() {
     super("life-and-ministry-meeting");
@@ -89,6 +91,15 @@ class MeetingDB extends Dexie {
           }
         }
       });
+
+    // v4: add households table for cross-gender family pairing support.
+    // No data upgrade needed — the table is new and starts empty.
+    this.version(4).stores({
+      assignees:  "++id, name, gender, active, createdAt",
+      weeks:      "++id, weekOf, createdAt",
+      settings:   "id",
+      households: "++id, name, createdAt",
+    });
   }
 }
 
