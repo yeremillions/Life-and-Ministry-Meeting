@@ -61,7 +61,8 @@ export type PartType =
   | "Living Part"
   | "Local Needs"
   | "Governing Body Update"
-  | "Congregation Bible Study";
+  | "Congregation Bible Study"
+  | "Video";
 
 export interface Assignment {
   /** Stable id within a week so UI can reorder without re-keying. */

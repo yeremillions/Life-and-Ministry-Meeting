@@ -304,35 +304,44 @@ function PartRow({
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3 mt-3">
-        <AssigneePicker
-          label={showAssistant ? "Main / publisher" : "Assigned to"}
-          value={assignment.assigneeId}
-          options={eligibleMain}
-          usedIds={usedIds}
-          onChange={(id) => onUpdate({ ...assignment, assigneeId: id })}
-        />
-        {showAssistant && (
-          <AssigneePicker
-            label={
-              assignment.partType === "Congregation Bible Study"
-                ? "Reader"
-                : "Householder / assistant"
-            }
-            value={assignment.assistantId}
-            options={
-              assignment.partType === "Congregation Bible Study"
-                ? eligibleAssistant
-                : // For demo parts, prefer same gender as main.
-                  eligibleAssistant.filter(
-                    (a) =>
-                      !mainPerson ||
-                      a.gender === mainPerson.gender ||
-                      mainPerson.gender == null
-                  )
-            }
-            usedIds={usedIds}
-            onChange={(id) => onUpdate({ ...assignment, assistantId: id })}
-          />
+        {assignment.partType === "Video" ? (
+          <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded px-3 py-2 col-span-2 flex items-center gap-1.5">
+            <span>📹</span>
+            <span>Introduced by the <strong>chairman</strong> — no separate assignment needed.</span>
+          </p>
+        ) : (
+          <>
+            <AssigneePicker
+              label={showAssistant ? "Main / publisher" : "Assigned to"}
+              value={assignment.assigneeId}
+              options={eligibleMain}
+              usedIds={usedIds}
+              onChange={(id) => onUpdate({ ...assignment, assigneeId: id })}
+            />
+            {showAssistant && (
+              <AssigneePicker
+                label={
+                  assignment.partType === "Congregation Bible Study"
+                    ? "Reader"
+                    : "Householder / assistant"
+                }
+                value={assignment.assistantId}
+                options={
+                  assignment.partType === "Congregation Bible Study"
+                    ? eligibleAssistant
+                    : // For demo parts, prefer same gender as main.
+                      eligibleAssistant.filter(
+                        (a) =>
+                          !mainPerson ||
+                          a.gender === mainPerson.gender ||
+                          mainPerson.gender == null
+                      )
+                }
+                usedIds={usedIds}
+                onChange={(id) => onUpdate({ ...assignment, assistantId: id })}
+              />
+            )}
+          </>
         )}
       </div>
       <div className="mt-2">
@@ -544,6 +553,8 @@ function titlePlaceholder(t: PartType): string {
       return "e.g. Job 10:1-22";
     case "Living Part":
       return "e.g. Strengthen Your Faith";
+    case "Video":
+      return "e.g. \"Why Study the Bible?\"";
     case "Local Needs":
       return "Local Needs";
     case "Governing Body Update":

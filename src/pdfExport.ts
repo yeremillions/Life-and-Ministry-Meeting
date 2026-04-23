@@ -44,6 +44,7 @@ const PART_SEGMENT: Partial<Record<PartType, BodySegment>> = {
   "Local Needs":             "living",
   "Governing Body Update":   "living",
   "Congregation Bible Study":"living",
+  "Video":                   "living",
   // Chairman / Opening Prayer / Closing Prayer are NOT in this map;
   // they are handled separately (banner row / footer row).
 };
@@ -343,6 +344,8 @@ function formatPartTitle(part: Assignment, num: number): string {
       return `${num}. Local Needs  (15 min.)`;
     case "Governing Body Update":
       return `${num}. Governing Body Update`;
+    case "Video":
+      return title ? `${num}. ${title}  (Video)` : `${num}. (Video)`;
     case "Living Part":
       return title ? `${num}. ${title}  (15 min.)` : `${num}. [Title]  (15 min.)`;
     case "Starting a Conversation":

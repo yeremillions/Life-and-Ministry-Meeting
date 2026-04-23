@@ -60,6 +60,7 @@ export const SEGMENT_PART_TYPES: Record<SegmentId, PartType[]> = {
     "Governing Body Update",
     "Congregation Bible Study",
     "Closing Prayer",
+    "Video",
   ],
 };
 
@@ -136,6 +137,8 @@ export function isBrothersPart(partType: PartType): boolean {
     case "Governing Body Update":
     case "Congregation Bible Study":
       return true;
+    case "Video":
+      return false;
     default:
       return false;
   }
@@ -214,6 +217,10 @@ export function isEligible(
       // unbaptised publishers may take these. Pairing rules (same-sex,
       // household) are left to the user to confirm.
       return true;
+
+    case "Video":
+      // Videos are introduced by the chairman; no separate assignee needed.
+      return false;
   }
 }
 

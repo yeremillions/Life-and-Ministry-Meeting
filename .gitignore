@@ -8,3 +8,8 @@ dist-ssr
 .idea
 *.log
 *.tsbuildinfo
+
+# Scratch / debug files
+extracted_text.txt
+mwb_*.pdf
+scratch.mjs
