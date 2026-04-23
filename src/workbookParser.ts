@@ -64,9 +64,12 @@ const WEEK_RE = new RegExp(
 );
 
 const SEGMENT_RE = {
-  treasures: /TREASURES\s*FROM\s*GOD'?S?\s*\u2019?S?\s*WORD/i,
-  ministry: /APPLY\s*YOURSELF\s*TO\s*THE\s*FIELD\s*MINISTRY/i,
-  living: /LIVING\s*AS\s*CHRISTIANS/i,
+  // 2025 and earlier: heading on one line.
+  // 2026+: heading split across two lines ("TREASURES\nFROM GOD'S WORD").
+  // Use [\s\S] so the match can span a newline.
+  treasures: /TREASURES[\s\S]*?FROM\s+GOD[''\u2019]?S?\s+WORD/i,
+  ministry: /APPLY\s*YOURSELF[\s\S]*?TO\s+THE\s+FIELD\s+MINISTRY/i,
+  living: /LIVING[\s\S]*?AS\s+CHRISTIANS/i,
 };
 
 /**
@@ -224,12 +227,44 @@ export function parseWorkbookText(
     .replace(/\u00a0/g, " ")
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201c\u201d]/g, '"')
-    // Collapse letter-spaced uppercase words: "J U N E" → "JUNE",
-    // "S E P T E M B E R" → "SEPTEMBER". PDF headings often use heavy
-    // tracking that survives gap-based extraction as single letters
-    // separated by spaces.
+    // -----------------------------------------------------------------------
+    // Month-name normalisation.
+    //
+    // Different MWB issues use different font renderings that mangle month
+    // names in two distinct ways:
+    //   • Full letter-spacing:  "J U N E", "S E P T E M B E R"
+    //   • Internal glyph split: "SEPTEMB ER", "OCTOB ER", "N OVEMB ER"
+    //
+    // Both are handled by allowing \s* between every character of the month
+    // name. This runs BEFORE the general letter-spacing collapse so that
+    // partially-spaced variants (e.g. "S E PTE M B E R") are also caught.
+    // -----------------------------------------------------------------------
+    .replace(/J\s*A\s*N\s*U\s*A\s*R\s*Y/gi, "JANUARY")
+    .replace(/F\s*E\s*B\s*R\s*U\s*A\s*R\s*Y/gi, "FEBRUARY")
+    .replace(/M\s*A\s*R\s*C\s*H/gi, "MARCH")
+    .replace(/A\s*P\s*R\s*I\s*L/gi, "APRIL")
+    .replace(/J\s*U\s*N\s*E/gi, "JUNE")
+    .replace(/J\s*U\s*L\s*Y/gi, "JULY")
+    .replace(/A\s*U\s*G\s*U\s*S\s*T/gi, "AUGUST")
+    .replace(/S\s*E\s*P\s*T\s*E\s*M\s*B\s*E\s*R/gi, "SEPTEMBER")
+    .replace(/O\s*C\s*T\s*O\s*B\s*E\s*R/gi, "OCTOBER")
+    .replace(/N\s*O\s*V\s*E\s*M\s*B\s*E\s*R/gi, "NOVEMBER")
+    .replace(/D\s*E\s*C\s*E\s*M\s*B\s*E\s*R/gi, "DECEMBER")
+    // -----------------------------------------------------------------------
+    // Collapse any remaining letter-spaced uppercase words that survived the
+    // month pass (e.g. section headings like "M E E T I N G").
     .replace(/(?<![A-Za-z])(?:[A-Z] ){2,}[A-Z](?![A-Za-z])/g, (m) =>
       m.replace(/ /g, "")
+    )
+    // Collapse letter-spaced digit runs: "2 5" → "25", "3 1" → "31".
+    // Run twice to handle three-digit runs ("1 5 - 2 1" → "15 - 21").
+    .replace(/(?<=\b)(\d) (\d)(?=\b)/g, "$1$2")
+    .replace(/(?<=\b)(\d) (\d)(?=\b)/g, "$1$2")
+    // Remove spurious space before the range hyphen/dash in week banners
+    // e.g. "MAY 4 -10" → "MAY 4-10".
+    .replace(
+      /([A-Z]{3,}) (\d{1,2}) [-\u2013\u2014](\d{1,2})/gi,
+      "$1 $2-$3"
     )
     // Collapse "20 26" → "2026" so year detection still works when the
     // digit-pair didn't merge through gap-based extraction.
