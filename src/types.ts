@@ -118,10 +118,40 @@ export interface AppSettings {
   privilegedMinistryShare: number;
   /** Congregation name for report headers, etc. */
   congregationName?: string;
+
+  // ── Scheduler fairness knobs ──────────────────────────────────────────
+
+  /**
+   * Minimum number of weeks that must pass before the same person can
+   * receive another main assignment. Default 2.
+   */
+  minGapWeeks?: number;
+
+  /**
+   * Minimum number of weeks between Chairman assignments for the same
+   * elder. Default 3.
+   */
+  chairmanGapWeeks?: number;
+
+  /**
+   * How gently to reintroduce neglected publishers (1 = very gradual,
+   * 5 = aggressive catch-up). Default 3.
+   */
+  catchUpIntensity?: number;
+
+  /**
+   * Maximum number of main assignments a person may receive in a
+   * rolling 4-week period. 0 = no limit. Default 2.
+   */
+  maxAssignmentsPerMonth?: number;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   id: "app",
   privilegedMinistryShare: 10,
   congregationName: "",
+  minGapWeeks: 2,
+  chairmanGapWeeks: 3,
+  catchUpIntensity: 3,
+  maxAssignmentsPerMonth: 2,
 };

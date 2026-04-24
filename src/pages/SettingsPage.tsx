@@ -129,6 +129,101 @@ export default function SettingsPage() {
             often they take Ministry demos.
           </p>
         </div>
+
+        <hr className="border-slate-200" />
+        <h3 className="font-semibold text-slate-700">Scheduler Fairness</h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Minimum gap between assignments (weeks)</label>
+            <input
+              type="number"
+              min={0}
+              max={8}
+              className="input max-w-xs"
+              value={draft.minGapWeeks ?? 2}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  minGapWeeks: clamp(parseInt(e.target.value || "0", 10), 0, 8),
+                })
+              }
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              The scheduler will not assign the same person a main part
+              until at least this many weeks have passed. Set to 0 to disable.
+            </p>
+          </div>
+
+          <div>
+            <label className="label">Chairman rotation gap (weeks)</label>
+            <input
+              type="number"
+              min={1}
+              max={8}
+              className="input max-w-xs"
+              value={draft.chairmanGapWeeks ?? 3}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  chairmanGapWeeks: clamp(parseInt(e.target.value || "1", 10), 1, 8),
+                })
+              }
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Minimum weeks before the same elder can chair again.
+            </p>
+          </div>
+
+          <div>
+            <label className="label">Catch-up intensity</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={1}
+                max={5}
+                className="flex-1"
+                value={draft.catchUpIntensity ?? 3}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    catchUpIntensity: parseInt(e.target.value, 10),
+                  })
+                }
+              />
+              <span className="text-sm font-mono w-6 text-center">
+                {draft.catchUpIntensity ?? 3}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              How quickly neglected publishers are brought back.
+              1 = very gradual (spreads them over many weeks),
+              5 = aggressive (prioritises them immediately).
+            </p>
+          </div>
+
+          <div>
+            <label className="label">Max assignments per month</label>
+            <input
+              type="number"
+              min={0}
+              max={8}
+              className="input max-w-xs"
+              value={draft.maxAssignmentsPerMonth ?? 2}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  maxAssignmentsPerMonth: clamp(parseInt(e.target.value || "0", 10), 0, 8),
+                })
+              }
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Maximum main assignments a person can receive in any 4-week
+              period. Set to 0 for no limit.
+            </p>
+          </div>
+        </div>
+
         <div>
           <button className="btn" onClick={save}>
             Save settings

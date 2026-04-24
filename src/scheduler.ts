@@ -18,6 +18,8 @@ export interface AssigneeStats {
   totalAssistant: number;
   lastWeekAssistant?: string; // ISO date, undefined if never served as assistant
   lastWeekChairman?: string; // Specific history for the Chairman role
+  /** All dates (ISO) where this person was assigned as main, for rolling-window caps. */
+  recentMainDates: string[];
 }
 
 /** Compute per-assignee assignment history from weeks. */
@@ -33,6 +35,7 @@ export function buildStats(
       bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
       totalAssistant: 0,
       lastWeekChairman: undefined,
+      recentMainDates: [],
     });
   }
 
@@ -50,6 +53,7 @@ export function buildStats(
           s.bySegmentMain[ass.segment] += 1;
           if (!s.lastWeekMain || w.weekOf > s.lastWeekMain)
             s.lastWeekMain = w.weekOf;
+          s.recentMainDates.push(w.weekOf);
           if (ass.partType === "Chairman") {
             if (!s.lastWeekChairman || w.weekOf > s.lastWeekChairman)
               s.lastWeekChairman = w.weekOf;
@@ -122,6 +126,9 @@ function tallyTalk(person: Assignee, split: TalkSplit): void {
  * Main role scoring uses main-only history (days since last main,
  * total mains, segment-specific mains). Assistant role scoring uses
  * assistant-only history. Neither bleeds into the other.
+ *
+ * The scoring uses configurable knobs from AutoAssignOptions to give
+ * administrators granular control over fairness behavior.
  */
 function scoreCandidate(
   a: Assignee,
@@ -132,31 +139,46 @@ function scoreCandidate(
   privilegedMinistryShare: number,
   talkSplit: TalkSplit,
   role: "main" | "assistant",
+  opts: Pick<AutoAssignOptions, "minGapWeeks" | "catchUpIntensity">,
   isMinorMain?: boolean
 ): number {
   let score = 0;
 
+  // ── Gap-based scoring ────────────────────────────────────────────────
+  const minGapDays = (opts.minGapWeeks ?? 2) * 7;
+  // Catch-up intensity: 1 (very gradual) to 5 (aggressive).
+  // Controls how much bonus a neglected person gets.
+  const catchUp = Math.max(1, Math.min(5, opts.catchUpIntensity ?? 3));
+
   if (role === "main") {
     if (stats.lastWeekMain) {
       const gap = daysBetween(stats.lastWeekMain, weekOf);
-      // Recency penalty: strongly discourage back-to-back assignments within a 4-week window.
-      if (gap < 28) {
-        score -= (28 - gap) * 25;
+
+      // Hard recency penalty: steep penalty within the min-gap window.
+      if (gap < minGapDays) {
+        score -= (minGapDays - gap) * 30;
       }
-      // Neglect bonus: favor those overlooked, but cap at ~6 months to avoid monopolisation.
-      score += Math.min(gap, 180);
+
+      // Neglect bonus: favor those overlooked, scaled by catch-up intensity.
+      // Cap at 120 days to prevent monopolisation when catch-up is low,
+      // up to 240 days when catch-up is high.
+      const neglectCap = 80 + catchUp * 32; // 112..240
+      const neglectBonus = Math.min(gap, neglectCap);
+      score += neglectBonus * (0.5 + catchUp * 0.3); // 0.8..2.0 multiplier
     } else {
-      score += 180; // never assigned as main
+      // Never assigned — give a moderate boost proportional to catch-up.
+      score += (80 + catchUp * 32) * (0.5 + catchUp * 0.3);
     }
+
     // Workload penalty: spread the total lifetime burden.
-    score -= stats.totalMain * 20;
+    score -= stats.totalMain * 15;
     // Segment balancing — penalise heavy use in this segment.
-    score -= stats.bySegmentMain[part.segment] * 5;
+    score -= stats.bySegmentMain[part.segment] * 8;
   } else {
     // Assistant role — use assistant-only history.
     if (stats.lastWeekAssistant) {
       const gap = daysBetween(stats.lastWeekAssistant, weekOf);
-      if (gap < 21) { // 3-week window for assistants
+      if (gap < 21) {
         score -= (21 - gap) * 15;
       }
       score += Math.min(gap, 180);
@@ -171,11 +193,7 @@ function scoreCandidate(
     if (part.segment === "ministry") {
       // Field Ministry parts should mostly go to non-privileged publishers.
       if (isPrivileged(a)) {
-        score -= (100 - privilegedMinistryShare) / 5; // default ~18
-      }
-      // Talk (Ministry): strongly prefer baptised brothers when auto-filling.
-      if (part.partType === "Talk (Ministry)" && !a.baptised) {
-        score -= 50;
+        score -= (100 - privilegedMinistryShare) / 5;
       }
     } else if (part.segment === "living") {
       if (part.partType === "Living Part") {
@@ -216,8 +234,6 @@ function scoreCandidate(
         if (isPrivileged(a)) score -= 4;
       }
     }
-    // opening/Chairman: all eligible candidates are QE, so only
-    // the fairness factors (time since last, total count) decide.
   }
 
   // Prefer adult assistants when pairing with a minor main participant.
@@ -226,8 +242,9 @@ function scoreCandidate(
   }
 
   // Deterministic tiny jitter for reproducible tie-breaking per week.
+  // Scaled small enough (0..0.99) to never override meaningful differences.
   const jitter = ((a.id ?? 0) * 1315423911 + seed) % 100;
-  score += jitter / 10;
+  score += jitter / 100;
 
   return score;
 }
@@ -236,6 +253,14 @@ export interface AutoAssignOptions {
   privilegedMinistryShare: number;
   /** Keep existing manual assignments (do not overwrite). */
   preserveExisting: boolean;
+  /** Minimum weeks between main assignments. Default 2. */
+  minGapWeeks: number;
+  /** Minimum weeks between Chairman assignments. Default 3. */
+  chairmanGapWeeks: number;
+  /** Catch-up intensity (1-5). Default 3. */
+  catchUpIntensity: number;
+  /** Max main assignments in a rolling 4-week window. 0 = no limit. Default 2. */
+  maxAssignmentsPerMonth: number;
 }
 
 /**
@@ -320,6 +345,7 @@ export function autoAssignWeek(
         ministryTotal,
         ministryPrivileged,
         talkSplit,
+        opts,
       });
       if (candidate) {
         assignment.assigneeId = candidate.id!;
@@ -358,6 +384,7 @@ export function autoAssignWeek(
           ministryTotal,
           ministryPrivileged,
           talkSplit,
+          opts,
         });
         if (candidate) {
           assignment.assistantId = candidate.id!;
@@ -383,6 +410,7 @@ interface PickArgs {
   ministryPrivileged: number;
   talkSplit: TalkSplit;
   isMinorMain?: boolean;
+  opts: AutoAssignOptions;
 }
 
 function pickCandidate(args: PickArgs): Assignee | null {
@@ -398,7 +426,12 @@ function pickCandidate(args: PickArgs): Assignee | null {
     ministryTotal,
     ministryPrivileged,
     talkSplit,
+    opts,
   } = args;
+
+  const minGapDays = (opts.minGapWeeks ?? 2) * 7;
+  const chairmanGapDays = (opts.chairmanGapWeeks ?? 3) * 7;
+  const maxPerMonth = opts.maxAssignmentsPerMonth ?? 2;
 
   // For demo assistants, prefer same gender as the main assignee.
   let genderFilter: "M" | "F" | null = null;
@@ -422,7 +455,31 @@ function pickCandidate(args: PickArgs): Assignee | null {
     return isEligible(a, part.partType, role, "auto");
   });
 
-  // Enforce privileged ministry share as a *hard* cap if we're over target.
+  // ── Hard constraint: minimum gap between main assignments ──────────
+  if (role === "main" && minGapDays > 0) {
+    const filtered = eligiblePool.filter((a) => {
+      const s = stats.get(a.id!);
+      if (!s || !s.lastWeekMain) return true;
+      return daysBetween(s.lastWeekMain, weekOf) >= minGapDays;
+    });
+    if (filtered.length > 0) eligiblePool = filtered;
+  }
+
+  // ── Hard constraint: rolling monthly cap on main assignments ───────
+  if (role === "main" && maxPerMonth > 0) {
+    const windowDays = 28; // 4-week rolling window
+    const filtered = eligiblePool.filter((a) => {
+      const s = stats.get(a.id!);
+      if (!s) return true;
+      const recentCount = s.recentMainDates.filter(
+        (d) => daysBetween(d, weekOf) >= 0 && daysBetween(d, weekOf) < windowDays
+      ).length;
+      return recentCount < maxPerMonth;
+    });
+    if (filtered.length > 0) eligiblePool = filtered;
+  }
+
+  // ── Enforce privileged ministry share as a hard cap ─────────────────
   if (part.segment === "ministry" && role === "main") {
     const projected = ministryTotal > 0 ? ministryPrivileged / ministryTotal : 0;
     const target = privilegedMinistryShare / 100;
@@ -432,15 +489,13 @@ function pickCandidate(args: PickArgs): Assignee | null {
     }
   }
 
-  // Chairman Constraint: No Chairman assignments in the last 25 days (~3 weeks)
+  // ── Chairman rotation constraint ───────────────────────────────────
   if (part.partType === "Chairman") {
     const freshCandidates = eligiblePool.filter((a) => {
       const s = stats.get(a.id!) || { lastWeekChairman: undefined };
       if (!s.lastWeekChairman) return true;
-      return daysBetween(s.lastWeekChairman, weekOf) > 25;
+      return daysBetween(s.lastWeekChairman, weekOf) >= chairmanGapDays;
     });
-    // Fallback: if the 3-week gap would leave us with no one, ignore it
-    // so that SOMEONE is assigned (the scoring will still prioritize the least recent).
     if (freshCandidates.length > 0) {
       eligiblePool = freshCandidates;
     }
@@ -457,6 +512,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
     privilegedMinistryShare,
     talkSplit,
     role,
+    opts,
     isMinorMain
   );
 }
@@ -470,12 +526,14 @@ function rankAndPick(
   privilegedMinistryShare: number,
   talkSplit: TalkSplit,
   role: "main" | "assistant",
+  opts: Pick<AutoAssignOptions, "minGapWeeks" | "catchUpIntensity">,
   isMinorMain?: boolean
 ): Assignee {
   const empty: AssigneeStats = {
     totalMain: 0,
     bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
     totalAssistant: 0,
+    recentMainDates: [],
   };
   const ranked = [...pool].sort((a, b) => {
     const sa = stats.get(a.id!) ?? empty;
@@ -490,6 +548,7 @@ function rankAndPick(
         privilegedMinistryShare,
         talkSplit,
         role,
+        opts,
         isMinorMain
       ) -
       scoreCandidate(
@@ -501,6 +560,7 @@ function rankAndPick(
         privilegedMinistryShare,
         talkSplit,
         role,
+        opts,
         isMinorMain
       )
     );
@@ -528,6 +588,7 @@ export function dueSoon(
         totalMain: 0,
         bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
         totalAssistant: 0,
+        recentMainDates: [],
       };
       const neglect =
         (s.lastWeekMain ? daysBetween(s.lastWeekMain, today) : 999) -

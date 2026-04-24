@@ -108,6 +108,10 @@ export default function SchedulePage({
     const updated = autoAssignWeek(week, assignees, allWeeks, {
       privilegedMinistryShare: settings.privilegedMinistryShare,
       preserveExisting,
+      minGapWeeks: settings.minGapWeeks ?? 2,
+      chairmanGapWeeks: settings.chairmanGapWeeks ?? 3,
+      catchUpIntensity: settings.catchUpIntensity ?? 3,
+      maxAssignmentsPerMonth: settings.maxAssignmentsPerMonth ?? 2,
     });
     await saveWeek(updated);
   }

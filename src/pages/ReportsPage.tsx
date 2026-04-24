@@ -40,6 +40,7 @@ export default function ReportsPage({
         totalMain: 0,
         bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
         totalAssistant: 0,
+        recentMainDates: [],
       },
     }));
     arr.sort((a, b) => {
