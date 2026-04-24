@@ -41,29 +41,29 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       {/* ── Header ───────────────────────────────────────────────────── */}
-      <header className="bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-lg">
-        <div className="max-w-6xl mx-auto px-4 py-0 flex items-center justify-between">
+      <header style={{ backgroundColor: '#222' }} className="text-white">
+        <div className="max-w-6xl mx-auto px-4 flex items-center justify-between">
           <button
             onClick={() => setTab("dashboard")}
-            className="py-3 text-left hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-white/30 rounded-md group"
+            className="py-3 text-left hover:opacity-80 transition-opacity focus:outline-none"
           >
-            <h1 className="font-bold text-lg leading-tight tracking-tight">
+            <h1 className="font-semibold text-base leading-tight text-white">
               Life &amp; Ministry Meeting
             </h1>
-            <p className="text-[11px] text-slate-400 font-medium tracking-wide group-hover:text-slate-300 transition-colors">
+            <p className="text-[11px] text-gray-400 mt-0.5">
               Midweek Meeting Assignment Scheduler
             </p>
           </button>
-          <nav className="hidden md:flex items-center gap-0.5 bg-white/[0.06] rounded-lg p-1">
+          <nav className="hidden md:flex items-center">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={
-                  "px-3.5 py-1.5 rounded-md text-sm font-medium transition-all duration-150 " +
+                  "px-3 py-2 text-sm font-medium transition-colors duration-150 " +
                   (tab === t.id
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-300 hover:text-white hover:bg-white/10")
+                    ? "text-white border-b-2 border-white"
+                    : "text-gray-400 hover:text-white border-b-2 border-transparent")
                 }
               >
                 {t.label}
@@ -72,12 +72,13 @@ export default function App() {
           </nav>
           {/* Mobile nav */}
           <select
-            className="md:hidden bg-white/10 text-white text-sm rounded-lg px-2 py-1.5 border border-white/20 focus:outline-none"
+            className="md:hidden text-white text-sm px-2 py-1.5 border border-gray-600 focus:outline-none"
+            style={{ backgroundColor: '#333', borderRadius: '3px' }}
             value={tab === "profile" ? "enrollees" : tab}
             onChange={(e) => setTab(e.target.value as Tab)}
           >
             {TABS.map((t) => (
-              <option key={t.id} value={t.id} className="text-slate-900">
+              <option key={t.id} value={t.id}>
                 {t.label}
               </option>
             ))}

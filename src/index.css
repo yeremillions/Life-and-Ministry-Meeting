@@ -4,17 +4,23 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── JW.org-inspired segment palette ─────────────────────────────────── */
+/* ── JW.org Design System ────────────────────────────────────────────── */
 :root {
-  --color-primary:    #4a6da7;   /* JW Blue — nav accents, primary buttons  */
-  --color-primary-dk: #36527f;   /* Darker blue for hover / focus           */
-  --color-header-bg:  #1f2937;   /* Dark charcoal header                   */
+  --color-primary:    #4a6da7;   /* JW Blue — links, buttons, active nav */
+  --color-primary-dk: #3d5b8e;   /* Hover state                          */
+  --color-header-bg:  #222222;   /* Dark grey header                     */
+  --color-page-bg:    #f0f0f0;   /* Light grey page background           */
+  --color-card-bg:    #ffffff;   /* White card surfaces                  */
+  --color-border:     #dddddd;   /* Subtle card/divider borders          */
+  --color-text:       #333333;   /* Heading text                         */
+  --color-text-body:  #555555;   /* Body text                            */
+  --color-text-muted: #888888;   /* Secondary/muted text                 */
 
-  /* Meeting segments — matches the official workbook colors */
-  --opening:   #546e7a;   /* Steel – Opening/Chairman                 */
-  --treasures: #006064;   /* Teal  – Treasures from God's Word        */
-  --ministry:  #c4952a;   /* Gold  – Apply Yourself to the Ministry   */
-  --living:    #7b1928;   /* Maroon – Living as Christians            */
+  /* Meeting segment palette — official workbook colors */
+  --opening:   #546e7a;
+  --treasures: #006064;
+  --ministry:  #c4952a;
+  --living:    #7b1928;
 }
 
 @layer base {
@@ -26,84 +32,107 @@
   body {
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto,
       'Helvetica Neue', Arial, sans-serif;
-    @apply text-slate-800 bg-slate-50 antialiased;
+    background-color: var(--color-page-bg);
+    color: var(--color-text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     font-size: 14px;
     line-height: 1.6;
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-semibold tracking-tight;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--color-text);
   }
-  /* Smoother scrollbar */
+  a { color: var(--color-primary); }
+  a:hover { color: var(--color-primary-dk); }
+
+  /* Slim scrollbar */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { @apply bg-transparent; }
-  ::-webkit-scrollbar-thumb { @apply bg-slate-300 rounded-full; }
-  ::-webkit-scrollbar-thumb:hover { @apply bg-slate-400; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #aaa; }
 }
 
 @layer components {
   /* ── Buttons ──────────────────────────────────────────────────────── */
   .btn {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold
-           shadow-sm transition-all duration-150 ease-in-out cursor-pointer select-none;
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold
+           transition-colors duration-150 cursor-pointer select-none;
     background: var(--color-primary);
     color: #fff;
+    border-radius: 3px;
   }
   .btn:hover:not(:disabled) {
     background: var(--color-primary-dk);
-    @apply shadow-md;
   }
-  .btn:active:not(:disabled) { @apply scale-[0.98]; }
   .btn:disabled { @apply opacity-50 cursor-not-allowed; }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium
-           border border-slate-300 bg-white text-slate-700 transition-all duration-150
-           ease-in-out cursor-pointer select-none;
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium
+           bg-white transition-colors duration-150 cursor-pointer select-none;
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: 3px;
   }
-  .btn-secondary:hover:not(:disabled) { @apply bg-slate-50 border-slate-400 shadow-sm; }
+  .btn-secondary:hover:not(:disabled) {
+    background: #f8f8f8;
+    border-color: #bbb;
+  }
   .btn-secondary:disabled { @apply opacity-50 cursor-not-allowed; }
 
   .btn-danger {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold
-           shadow-sm bg-red-600 text-white transition-all duration-150 ease-in-out cursor-pointer;
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold
+           bg-red-600 text-white transition-colors duration-150 cursor-pointer;
+    border-radius: 3px;
   }
-  .btn-danger:hover:not(:disabled) { @apply bg-red-500 shadow-md; }
+  .btn-danger:hover:not(:disabled) { @apply bg-red-500; }
   .btn-danger:disabled { @apply opacity-50 cursor-not-allowed; }
 
   /* ── Inputs ───────────────────────────────────────────────────────── */
   .input {
-    @apply block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white
-           outline-none transition-all duration-150;
+    @apply block w-full px-3 py-2 text-sm bg-white outline-none transition-colors duration-150;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    color: var(--color-text);
   }
   .input:focus {
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgba(74, 109, 167, 0.15);
+    box-shadow: 0 0 0 2px rgba(74, 109, 167, 0.12);
   }
 
   .label {
-    @apply block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5;
+    @apply block text-xs font-semibold uppercase tracking-wider mb-1.5;
+    color: var(--color-text-muted);
   }
 
-  /* ── Cards ────────────────────────────────────────────────────────── */
+  /* ── Cards — clean, flat, minimal borders ─────────────────────────── */
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-slate-200/80 p-5 transition-shadow duration-200;
+    background: var(--color-card-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 1.25rem;
+    transition: border-color 0.15s;
   }
   .card:hover {
-    @apply shadow-md;
+    border-color: #ccc;
   }
 
   /* ── Tables ───────────────────────────────────────────────────────── */
   .table-zebra tbody tr:nth-child(even) {
-    @apply bg-slate-50/60;
+    background: #fafafa;
   }
 
   /* ── Pills / Badges ──────────────────────────────────────────────── */
   .pill {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide;
+    @apply inline-flex items-center py-0.5 text-xs font-medium;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    border-radius: 2px;
   }
 }
 
-/* ── Segment accent colors (used by WeekEditor segment headers) ──── */
+/* ── Segment accent colors ───────────────────────────────────────── */
 .segment-opening   { border-left-color: var(--opening);   }
 .segment-treasures { border-left-color: var(--treasures);  }
 .segment-ministry  { border-left-color: var(--ministry);   }
