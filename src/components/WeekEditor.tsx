@@ -149,6 +149,7 @@ function SegmentCard({
   onAddPart,
   onRemovePart,
   onUpdateAssignment,
+  onNavigateToProfile,
 }: {
   segment: SegmentId;
   title: string;
@@ -266,6 +267,7 @@ function PartRow({
   week,
   onRemove,
   onUpdate,
+  onNavigateToProfile,
 }: {
   assignment: Assignment;
   assignees: Assignee[];
@@ -441,6 +443,7 @@ function AssigneePicker({
   usedIds,
   householdIds,
   onChange,
+  onNavigateToProfile,
 }: {
   label: string;
   value?: number;

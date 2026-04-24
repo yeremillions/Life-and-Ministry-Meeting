@@ -8,6 +8,7 @@ import { buildStats, AssigneeStats } from "../scheduler";
 export default function EnrolleeProfile({
   id,
   onBack,
+  onNavigateToProfile,
 }: {
   id: number;
   onBack: () => void;
@@ -18,7 +19,7 @@ export default function EnrolleeProfile({
   const weeks = useLiveQuery(() => db.weeks.orderBy("weekOf").toArray(), []);
   const households = useLiveQuery(() => db.households.toArray(), []);
 
-  if (!enrollee || !weeks || !allAssignees) return <div className="p-8 text-center text-slate-500">Loading...</div>;
+  if (!enrollee || !weeks || !allAssignees || !households) return <div className="p-8 text-center text-slate-500">Loading...</div>;
 
   const myHouseholds = households.filter((h) => h.memberIds.includes(enrollee.id!));
   const housemates = Array.from(new Set(myHouseholds.flatMap(h => h.memberIds))).filter(mid => mid !== enrollee.id);
