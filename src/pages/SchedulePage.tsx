@@ -346,16 +346,46 @@ function WeekListGrouped({
     new Date().toISOString().slice(0, 10)
   ).key;
 
-  // Group weeks by bi-monthly workbook period, preserving sort order.
+  // ── Year selector ────────────────────────────────────────────────────
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    for (const w of weeks) {
+      years.add(new Date(w.weekOf + "T00:00:00").getFullYear());
+    }
+    return [...years].sort((a, b) => b - a); // newest first
+  }, [weeks]);
+
+  const currentYear = new Date().getFullYear();
+  const [activeYear, setActiveYear] = useState<number>(
+    availableYears.includes(currentYear)
+      ? currentYear
+      : availableYears[0] ?? currentYear
+  );
+
+  // Keep activeYear in sync when new weeks are imported
+  useEffect(() => {
+    if (availableYears.length > 0 && !availableYears.includes(activeYear)) {
+      setActiveYear(availableYears[0]);
+    }
+  }, [availableYears]);
+
+  // Filter weeks to the active year
+  const filteredWeeks = useMemo(() => {
+    return weeks.filter(
+      (w) => new Date(w.weekOf + "T00:00:00").getFullYear() === activeYear
+    );
+  }, [weeks, activeYear]);
+
+  // Group filtered weeks by bi-monthly workbook period
   const groups = useMemo(() => {
     const map = new Map<string, { key: string; label: string; weeks: Week[] }>();
-    for (const w of weeks) {
+    for (const w of filteredWeeks) {
       const { key, label } = workbookPeriod(w.weekOf);
       if (!map.has(key)) map.set(key, { key, label, weeks: [] });
       map.get(key)!.weeks.push(w);
     }
     return [...map.values()];
-  }, [weeks]);
+  }, [filteredWeeks]);
 
   // Which group does the selected week belong to?
   const selectedGroupKey = useMemo(() => {
@@ -364,48 +394,82 @@ function WeekListGrouped({
     return w ? workbookPeriod(w.weekOf).key : null;
   }, [selectedId, weeks]);
 
-  // Default: expand the current/future period and any period containing the
-  // selected week. Collapse everything in the past.
-  const defaultOpen = useMemo(() => {
-    const open = new Set<string>();
+  // Accordion: only one group open at a time.
+  // Default to the current/future period, or the group of the selected week.
+  const defaultOpenKey = useMemo(() => {
+    if (selectedGroupKey && groups.some((g) => g.key === selectedGroupKey)) {
+      return selectedGroupKey;
+    }
+    // Find the first current/future group
     for (const g of groups) {
-      if (g.key >= todayKey) open.add(g.key);
+      if (g.key >= todayKey) return g.key;
     }
-    if (selectedGroupKey) open.add(selectedGroupKey);
-    // If nothing qualified (all weeks are in the past), open the latest one.
-    if (open.size === 0 && groups.length > 0) {
-      open.add(groups[groups.length - 1].key);
-    }
-    return open;
+    // Fall back to the last group
+    return groups.length > 0 ? groups[groups.length - 1].key : null;
   }, [groups, todayKey, selectedGroupKey]);
 
-  const [openGroups, setOpenGroups] = useState<Set<string>>(defaultOpen);
+  const [openGroup, setOpenGroup] = useState<string | null>(defaultOpenKey);
 
-  // If the selected week changes to a collapsed group, auto-expand it.
+  // If the selected week changes to a different group, switch to it.
   useEffect(() => {
     if (selectedGroupKey) {
-      setOpenGroups((prev) => {
-        if (prev.has(selectedGroupKey)) return prev;
-        const next = new Set(prev);
-        next.add(selectedGroupKey);
-        return next;
-      });
+      setOpenGroup(selectedGroupKey);
     }
   }, [selectedGroupKey]);
 
+  // When year changes, auto-open the first relevant group.
+  useEffect(() => {
+    if (groups.length > 0) {
+      const current = groups.find((g) => g.key >= todayKey);
+      setOpenGroup(current ? current.key : groups[groups.length - 1].key);
+    } else {
+      setOpenGroup(null);
+    }
+  }, [activeYear]);
+
   function toggleGroup(key: string) {
-    setOpenGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+    setOpenGroup((prev) => (prev === key ? null : key));
   }
 
   return (
     <div>
+      {/* ── Year selector ── */}
+      {availableYears.length > 1 && (
+        <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
+          <button
+            className="text-slate-400 hover:text-slate-600 text-xs font-bold px-1"
+            onClick={() => {
+              const idx = availableYears.indexOf(activeYear);
+              if (idx < availableYears.length - 1) setActiveYear(availableYears[idx + 1]);
+            }}
+            disabled={availableYears.indexOf(activeYear) === availableYears.length - 1}
+            title="Previous year"
+          >
+            ◀
+          </button>
+          <span className="flex-1 text-center text-sm font-semibold text-slate-700 tabular-nums">
+            {activeYear}
+          </span>
+          <button
+            className="text-slate-400 hover:text-slate-600 text-xs font-bold px-1"
+            onClick={() => {
+              const idx = availableYears.indexOf(activeYear);
+              if (idx > 0) setActiveYear(availableYears[idx - 1]);
+            }}
+            disabled={availableYears.indexOf(activeYear) === 0}
+            title="Next year"
+          >
+            ▶
+          </button>
+        </div>
+      )}
+
+      {/* ── Groups ── */}
+      {groups.length === 0 && (
+        <p className="p-3 text-sm text-slate-500">No weeks in {activeYear}.</p>
+      )}
       {groups.map((group) => {
-        const isOpen = openGroups.has(group.key);
+        const isOpen = openGroup === group.key;
         const isPast = group.key < todayKey;
 
         // Period-level fill stats
@@ -434,14 +498,14 @@ function WeekListGrouped({
                 >
                   ▶
                 </span>
-                {/* Label */}
+                {/* Label — strip the year since the year selector handles it */}
                 <span
                   className={
                     "flex-1 text-[11px] font-semibold uppercase tracking-widest " +
                     (isPast ? "text-slate-400" : "text-slate-600")
                   }
                 >
-                  {group.label}
+                  {group.label.replace(/ \d{4}$/, "")}
                 </span>
                 {/* Fill fraction badge */}
                 <span
