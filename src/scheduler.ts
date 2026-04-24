@@ -17,6 +17,7 @@ export interface AssigneeStats {
   /** Assistant (secondary) assignment history — tracked separately. */
   totalAssistant: number;
   lastWeekAssistant?: string; // ISO date, undefined if never served as assistant
+  lastWeekChairman?: string; // Specific history for the Chairman role
 }
 
 /** Compute per-assignee assignment history from weeks. */
@@ -31,6 +32,7 @@ export function buildStats(
       totalMain: 0,
       bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
       totalAssistant: 0,
+      lastWeekChairman: undefined,
     });
   }
 
@@ -48,6 +50,10 @@ export function buildStats(
           s.bySegmentMain[ass.segment] += 1;
           if (!s.lastWeekMain || w.weekOf > s.lastWeekMain)
             s.lastWeekMain = w.weekOf;
+          if (ass.partType === "Chairman") {
+            if (!s.lastWeekChairman || w.weekOf > s.lastWeekChairman)
+              s.lastWeekChairman = w.weekOf;
+          }
         }
       }
       // Assistant — counts toward assistant history only.
@@ -409,36 +415,35 @@ function pickCandidate(args: PickArgs): Assignee | null {
     }
   }
 
-  const eligible = assignees.filter((a) => {
+  let eligiblePool = assignees.filter((a) => {
     if (used.has(a.id ?? -1)) return false;
     if (genderFilter && a.gender !== genderFilter) return false;
     return isEligible(a, part.partType, role, "auto");
   });
 
-  if (eligible.length === 0) return null;
-
   // Enforce privileged ministry share as a *hard* cap if we're over target.
   if (part.segment === "ministry" && role === "main") {
     const projected = ministryTotal > 0 ? ministryPrivileged / ministryTotal : 0;
     const target = privilegedMinistryShare / 100;
-    const nonPrivileged = eligible.filter((a) => !isPrivileged(a));
+    const nonPrivileged = eligiblePool.filter((a) => !isPrivileged(a));
     if (projected >= target && nonPrivileged.length > 0) {
-      return rankAndPick(
-        nonPrivileged,
-        part,
-        weekOf,
-        stats,
-        seed,
-        privilegedMinistryShare,
-        talkSplit,
-        role,
-        isMinorMain
-      );
+      eligiblePool = nonPrivileged;
     }
   }
 
+  // Chairman Hard Constraint: No Chairman assignments in the last 25 days (~3 weeks)
+  if (part.partType === "Chairman") {
+    eligiblePool = eligiblePool.filter((a) => {
+      const s = stats.get(a.id!) || { lastWeekChairman: undefined };
+      if (!s.lastWeekChairman) return true;
+      return daysBetween(s.lastWeekChairman, weekOf) > 25;
+    });
+  }
+
+  if (eligiblePool.length === 0) return null;
+
   return rankAndPick(
-    eligible,
+    eligiblePool,
     part,
     weekOf,
     stats,
