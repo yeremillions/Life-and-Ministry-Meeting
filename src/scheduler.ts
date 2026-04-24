@@ -132,22 +132,31 @@ function scoreCandidate(
 
   if (role === "main") {
     if (stats.lastWeekMain) {
-      score += daysBetween(stats.lastWeekMain, weekOf);
+      const gap = daysBetween(stats.lastWeekMain, weekOf);
+      // Recency penalty: strongly discourage back-to-back assignments within a 4-week window.
+      if (gap < 28) {
+        score -= (28 - gap) * 25;
+      }
+      // Neglect bonus: favor those overlooked, but cap at ~6 months to avoid monopolisation.
+      score += Math.min(gap, 180);
     } else {
-      score += 365; // never assigned as main — strongly prefer
+      score += 180; // never assigned as main
     }
-    score -= stats.totalMain * 7;
+    score -= stats.totalMain * 10; // slightly increased penalty for volume
     // Segment balancing — penalise heavy use in this segment.
-    score -= stats.bySegmentMain[part.segment] * 3;
+    score -= stats.bySegmentMain[part.segment] * 5;
   } else {
     // Assistant role — use assistant-only history.
     if (stats.lastWeekAssistant) {
-      score += daysBetween(stats.lastWeekAssistant, weekOf);
+      const gap = daysBetween(stats.lastWeekAssistant, weekOf);
+      if (gap < 21) { // 3-week window for assistants
+        score -= (21 - gap) * 15;
+      }
+      score += Math.min(gap, 180);
     } else {
-      score += 365;
+      score += 180;
     }
-    score -= stats.totalAssistant * 7;
-    // No segment-balance penalty for assistants.
+    score -= stats.totalAssistant * 10;
   }
 
   // Privilege preferences only apply to main roles.
