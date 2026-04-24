@@ -148,7 +148,8 @@ function scoreCandidate(
     } else {
       score += 180; // never assigned as main
     }
-    score -= stats.totalMain * 10; // slightly increased penalty for volume
+    // Workload penalty: spread the total lifetime burden.
+    score -= stats.totalMain * 20;
     // Segment balancing — penalise heavy use in this segment.
     score -= stats.bySegmentMain[part.segment] * 5;
   } else {
@@ -225,8 +226,8 @@ function scoreCandidate(
   }
 
   // Deterministic tiny jitter for reproducible tie-breaking per week.
-  const jitter = ((a.id ?? 0) * 1315423911 + seed) % 97;
-  score += jitter / 1000;
+  const jitter = ((a.id ?? 0) * 1315423911 + seed) % 100;
+  score += jitter / 10;
 
   return score;
 }
@@ -431,13 +432,18 @@ function pickCandidate(args: PickArgs): Assignee | null {
     }
   }
 
-  // Chairman Hard Constraint: No Chairman assignments in the last 25 days (~3 weeks)
+  // Chairman Constraint: No Chairman assignments in the last 25 days (~3 weeks)
   if (part.partType === "Chairman") {
-    eligiblePool = eligiblePool.filter((a) => {
+    const freshCandidates = eligiblePool.filter((a) => {
       const s = stats.get(a.id!) || { lastWeekChairman: undefined };
       if (!s.lastWeekChairman) return true;
       return daysBetween(s.lastWeekChairman, weekOf) > 25;
     });
+    // Fallback: if the 3-week gap would leave us with no one, ignore it
+    // so that SOMEONE is assigned (the scoring will still prioritize the least recent).
+    if (freshCandidates.length > 0) {
+      eligiblePool = freshCandidates;
+    }
   }
 
   if (eligiblePool.length === 0) return null;
