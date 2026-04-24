@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { db } from "../db";
 import type { Assignee, Assignment, Week } from "../types";
-import { segmentOf } from "../meeting";
+import { segmentOf, ensureRequiredParts } from "../meeting";
 import { uid } from "../utils";
 import {
   parseS140Docx,
@@ -208,7 +208,7 @@ export default function S140ImportModal({
         const { source } = rw;
 
         // Build assignments, resolving names via override → auto-match.
-        const assignments: Assignment[] = rw.parts.map((p) => {
+        const rawAssignments: Assignment[] = rw.parts.map((p) => {
           const mainKey  = `${source.weekOf}:${p.number}:main`;
           const assistKey = `${source.weekOf}:${p.number}:assistant`;
 
@@ -218,8 +218,8 @@ export default function S140ImportModal({
           const assistantId =
             p.assistant || p.assistantMatch
               ? overrides.has(assistKey)
-                ? overrides.get(assistKey)
-                : p.assistantMatch?.assigneeId
+              ? overrides.get(assistKey)
+              : p.assistantMatch?.assigneeId
               : undefined;
 
           return {
@@ -232,6 +232,8 @@ export default function S140ImportModal({
             assistantId,
           };
         });
+
+        const assignments = ensureRequiredParts(rawAssignments, uid);
 
         const weekData: Omit<Week, "id"> = {
           weekOf: source.weekOf,

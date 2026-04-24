@@ -5,6 +5,7 @@ import type { Assignment, PartType, SegmentId, Week } from "../types";
 
 import { autoAssignWeek } from "../scheduler";
 import { nextMondayIso, uid, weekRangeLabel, workbookPeriod } from "../utils";
+import { ensureRequiredParts, byOrder } from "../meeting";
 import WeekEditor from "../components/WeekEditor";
 import WorkbookImportModal from "../components/WorkbookImportModal";
 import S140ImportModal from "../components/S140ImportModal";
@@ -13,94 +14,15 @@ import { ensureSettings as getSettings } from "../db";
 
 function buildEmptyWeek(weekOf: string): Week {
   const now = Date.now();
-  const defaults: Assignment[] = [
-    // Opening — Chairman for the whole programme
-    {
-      uid: uid(),
-      segment: "opening",
-      order: 0,
-      partType: "Chairman",
-      title: "",
-    },
-    // Opening prayer
-    {
-      uid: uid(),
-      segment: "opening",
-      order: 1,
-      partType: "Opening Prayer",
-      title: "",
-    },
-    // Treasures (fixed order 1-3)
-    {
-      uid: uid(),
-      segment: "treasures",
-      order: 1,
-      partType: "Talk",
-      title: "",
-    },
-    {
-      uid: uid(),
-      segment: "treasures",
-      order: 2,
-      partType: "Spiritual Gems",
-      title: "",
-    },
-    {
-      uid: uid(),
-      segment: "treasures",
-      order: 3,
-      partType: "Bible Reading",
-      title: "",
-    },
-    // Ministry (start with the three commonest parts; user can add more)
-    {
-      uid: uid(),
-      segment: "ministry",
-      order: 4,
-      partType: "Starting a Conversation",
-      title: "",
-    },
-    {
-      uid: uid(),
-      segment: "ministry",
-      order: 5,
-      partType: "Following Up",
-      title: "",
-    },
-    {
-      uid: uid(),
-      segment: "ministry",
-      order: 6,
-      partType: "Making Disciples",
-      title: "",
-    },
-    // Living-as-Christians (min two; last = Congregation Bible Study)
-    {
-      uid: uid(),
-      segment: "living",
-      order: 7,
-      partType: "Living Part",
-      title: "",
-    },
-    {
-      uid: uid(),
-      segment: "living",
-      order: 8,
-      partType: "Congregation Bible Study",
-      title: "",
-    },
-    // Closing prayer
-    {
-      uid: uid(),
-      segment: "living",
-      order: 9,
-      partType: "Closing Prayer",
-      title: "",
-    },
+  // Start with common defaults for ministry demos
+  const ministryDefaults: Assignment[] = [
+    { uid: uid(), segment: "ministry", order: 4, partType: "Starting a Conversation", title: "" },
+    { uid: uid(), segment: "ministry", order: 5, partType: "Following Up", title: "" },
+    { uid: uid(), segment: "ministry", order: 6, partType: "Making Disciples", title: "" },
   ];
   return {
     weekOf,
-    assignments: defaults,
+    assignments: ensureRequiredParts(ministryDefaults, uid),
     createdAt: now,
     updatedAt: now,
   };
@@ -362,13 +284,6 @@ export default function SchedulePage({
   );
 }
 
-function byOrder(a: Assignment, b: Assignment) {
-  const SEG_ORDER: SegmentId[] = ["opening", "treasures", "ministry", "living"];
-  const seg = (s: SegmentId) => SEG_ORDER.indexOf(s);
-  const sd = seg(a.segment) - seg(b.segment);
-  if (sd !== 0) return sd;
-  return a.order - b.order;
-}
 
 function NewWeekModal({
   onClose,

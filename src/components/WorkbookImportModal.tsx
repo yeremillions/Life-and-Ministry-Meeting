@@ -7,6 +7,7 @@ import {
   parseWorkbookText,
   type ParsedMeeting,
 } from "../workbookParser";
+import { ensureRequiredParts } from "../meeting";
 
 /**
  * Modal for importing a Life and Ministry Meeting workbook PDF.
@@ -85,13 +86,14 @@ export default function WorkbookImportModal({
           .where("weekOf")
           .equals(meeting.weekOf)
           .first();
-        const assignments: Assignment[] = meeting.parts.map((p) => ({
+        const parsedAssignments: Assignment[] = meeting.parts.map((p) => ({
           uid: uid(),
           segment: p.segment,
           order: p.number,
           partType: p.partType,
           title: p.title,
         }));
+        const assignments = ensureRequiredParts(parsedAssignments, uid);
         const week: Omit<Week, "id"> = {
           weekOf: meeting.weekOf,
           weeklyBibleReading: meeting.bibleReading,

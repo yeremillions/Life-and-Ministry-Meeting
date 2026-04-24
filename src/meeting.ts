@@ -1,5 +1,6 @@
 import type {
   Assignee,
+  Assignment,
   PartType,
   Privilege,
   SegmentId,
@@ -239,4 +240,115 @@ export function privilegeLabel(a: Assignee): string | null {
   if (a.privileges.includes("RP")) return "RP";
   if (a.privileges.includes("CBSR")) return "CBSR";
   return null;
+}
+
+/**
+ * Sort assignments by segment (Opening -> Treasures -> Ministry -> Living)
+ * and then by their relative order within the segment.
+ */
+export function byOrder(a: { segment: SegmentId; order: number }, b: { segment: SegmentId; order: number }) {
+  const SEG_ORDER: SegmentId[] = ["opening", "treasures", "ministry", "living"];
+  const seg = (s: SegmentId) => SEG_ORDER.indexOf(s);
+  const sd = seg(a.segment) - seg(b.segment);
+  if (sd !== 0) return sd;
+  return a.order - b.order;
+}
+
+/**
+ * Ensure a week's assignments include the standard "fixed" parts.
+ * If they are missing (e.g. after a partial workbook parse), they are added.
+ */
+export function ensureRequiredParts(
+  assignments: Assignment[],
+  generateUid: () => string
+): Assignment[] {
+  const result = [...assignments];
+  const has = (seg: SegmentId, type: PartType) =>
+    result.some((a) => a.segment === seg && a.partType === type);
+
+  // Opening Segment
+  if (!has("opening", "Chairman")) {
+    result.push({
+      uid: generateUid(),
+      segment: "opening",
+      order: -2,
+      partType: "Chairman",
+      title: "",
+    });
+  }
+  if (!has("opening", "Opening Prayer")) {
+    result.push({
+      uid: generateUid(),
+      segment: "opening",
+      order: -1,
+      partType: "Opening Prayer",
+      title: "",
+    });
+  }
+
+  // Treasures Segment
+  if (!has("treasures", "Talk")) {
+    result.push({
+      uid: generateUid(),
+      segment: "treasures",
+      order: 1,
+      partType: "Talk",
+      title: "",
+    });
+  }
+  if (!has("treasures", "Spiritual Gems")) {
+    result.push({
+      uid: generateUid(),
+      segment: "treasures",
+      order: 2,
+      partType: "Spiritual Gems",
+      title: "",
+    });
+  }
+  if (!has("treasures", "Bible Reading")) {
+    result.push({
+      uid: generateUid(),
+      segment: "treasures",
+      order: 3,
+      partType: "Bible Reading",
+      title: "",
+    });
+  }
+
+  // Living Segment
+  const talks = result.filter(
+    (a) =>
+      a.segment === "living" &&
+      ["Living Part", "Local Needs", "Governing Body Update"].includes(a.partType)
+  );
+  if (talks.length === 0) {
+    result.push({
+      uid: generateUid(),
+      segment: "living",
+      order: 10,
+      partType: "Living Part",
+      title: "",
+    });
+  }
+  if (!has("living", "Congregation Bible Study")) {
+    result.push({
+      uid: generateUid(),
+      segment: "living",
+      order: 98,
+      partType: "Congregation Bible Study",
+      title: "",
+    });
+  }
+  if (!has("living", "Closing Prayer")) {
+    result.push({
+      uid: generateUid(),
+      segment: "living",
+      order: 99,
+      partType: "Closing Prayer",
+      title: "",
+    });
+  }
+
+  // Final sort and canonical integer ordering
+  return result.sort(byOrder).map((a, i) => ({ ...a, order: i }));
 }
