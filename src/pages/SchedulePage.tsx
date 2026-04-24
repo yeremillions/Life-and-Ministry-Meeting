@@ -420,52 +420,171 @@ function WeekListGrouped({
   selectedId: number | null;
   onSelect: (id: number | null) => void;
 }) {
+  const todayKey = workbookPeriod(
+    new Date().toISOString().slice(0, 10)
+  ).key;
+
   // Group weeks by bi-monthly workbook period, preserving sort order.
   const groups = useMemo(() => {
-    const map = new Map<string, { label: string; weeks: Week[] }>();
+    const map = new Map<string, { key: string; label: string; weeks: Week[] }>();
     for (const w of weeks) {
       const { key, label } = workbookPeriod(w.weekOf);
-      if (!map.has(key)) map.set(key, { label, weeks: [] });
+      if (!map.has(key)) map.set(key, { key, label, weeks: [] });
       map.get(key)!.weeks.push(w);
     }
     return [...map.values()];
   }, [weeks]);
 
+  // Which group does the selected week belong to?
+  const selectedGroupKey = useMemo(() => {
+    if (selectedId == null) return null;
+    const w = weeks.find((x) => x.id === selectedId);
+    return w ? workbookPeriod(w.weekOf).key : null;
+  }, [selectedId, weeks]);
+
+  // Default: expand the current/future period and any period containing the
+  // selected week. Collapse everything in the past.
+  const defaultOpen = useMemo(() => {
+    const open = new Set<string>();
+    for (const g of groups) {
+      if (g.key >= todayKey) open.add(g.key);
+    }
+    if (selectedGroupKey) open.add(selectedGroupKey);
+    // If nothing qualified (all weeks are in the past), open the latest one.
+    if (open.size === 0 && groups.length > 0) {
+      open.add(groups[groups.length - 1].key);
+    }
+    return open;
+  }, [groups, todayKey, selectedGroupKey]);
+
+  const [openGroups, setOpenGroups] = useState<Set<string>>(defaultOpen);
+
+  // If the selected week changes to a collapsed group, auto-expand it.
+  useEffect(() => {
+    if (selectedGroupKey) {
+      setOpenGroups((prev) => {
+        if (prev.has(selectedGroupKey)) return prev;
+        const next = new Set(prev);
+        next.add(selectedGroupKey);
+        return next;
+      });
+    }
+  }, [selectedGroupKey]);
+
+  function toggleGroup(key: string) {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   return (
     <div>
-      {groups.map((group) => (
-        <div key={group.label}>
-          {/* Period heading */}
-          <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400 bg-slate-50 border-b border-slate-100">
-            {group.label}
-          </div>
-          {/* Weeks within this period */}
-          <ul>
-            {group.weeks.map((w) => {
-              const filled = w.assignments.filter((a) => a.assigneeId).length;
-              const total  = w.assignments.length;
-              const active = selectedId === w.id;
-              return (
-                <li
-                  key={w.id}
-                  className={
-                    "px-3 py-2 border-b border-slate-100 cursor-pointer hover:bg-slate-50 " +
-                    (active ? "bg-indigo-50 border-l-2 border-l-indigo-400" : "")
-                  }
-                  onClick={() => onSelect(w.id ?? null)}
+      {groups.map((group) => {
+        const isOpen = openGroups.has(group.key);
+        const isPast = group.key < todayKey;
+
+        // Period-level fill stats
+        const totalParts = group.weeks.reduce(
+          (s, w) => s + w.assignments.length, 0
+        );
+        const filledParts = group.weeks.reduce(
+          (s, w) => s + w.assignments.filter((a) => a.assigneeId).length, 0
+        );
+        const fillPct = totalParts > 0 ? (filledParts / totalParts) * 100 : 0;
+        const allFilled = totalParts > 0 && filledParts === totalParts;
+
+        return (
+          <div key={group.key}>
+            {/* ── Period heading (collapsible) ── */}
+            <button
+              onClick={() => toggleGroup(group.key)}
+              className="w-full text-left px-3 py-2 bg-slate-50 border-b border-slate-100 hover:bg-slate-100 transition-colors"
+              aria-expanded={isOpen}
+            >
+              <div className="flex items-center gap-1.5">
+                {/* Chevron */}
+                <span
+                  className="text-slate-400 text-[10px] transition-transform duration-150"
+                  style={{ transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}
                 >
-                  <div className="text-sm font-medium">
-                    {weekRangeLabel(w.weekOf)}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    {filled}/{total} filled
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
+                  ▶
+                </span>
+                {/* Label */}
+                <span
+                  className={
+                    "flex-1 text-[11px] font-semibold uppercase tracking-widest " +
+                    (isPast ? "text-slate-400" : "text-slate-600")
+                  }
+                >
+                  {group.label}
+                </span>
+                {/* Fill fraction badge */}
+                <span
+                  className={
+                    "text-[10px] font-medium tabular-nums " +
+                    (allFilled ? "text-emerald-600" : "text-slate-400")
+                  }
+                  title={`${filledParts} of ${totalParts} parts filled`}
+                >
+                  {filledParts}/{totalParts}
+                </span>
+              </div>
+              {/* Progress bar */}
+              <div className="mt-1.5 h-1 rounded-full bg-slate-200 overflow-hidden">
+                <div
+                  className={
+                    "h-full rounded-full transition-all duration-300 " +
+                    (allFilled ? "bg-emerald-400" : "bg-indigo-400")
+                  }
+                  style={{ width: `${fillPct}%` }}
+                />
+              </div>
+            </button>
+
+            {/* ── Weeks within this period ── */}
+            {isOpen && (
+              <ul>
+                {group.weeks.map((w) => {
+                  const filled = w.assignments.filter((a) => a.assigneeId).length;
+                  const total  = w.assignments.length;
+                  const complete = filled === total && total > 0;
+                  const active   = selectedId === w.id;
+                  return (
+                    <li
+                      key={w.id}
+                      className={
+                        "px-3 py-1.5 border-b border-slate-100 cursor-pointer hover:bg-slate-50 " +
+                        (active ? "bg-indigo-50 border-l-2 border-l-indigo-400" : "")
+                      }
+                      onClick={() => onSelect(w.id ?? null)}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium flex-1">
+                          {weekRangeLabel(w.weekOf)}
+                        </span>
+                        {/* Only show fraction when incomplete */}
+                        {!complete && (
+                          <span className="text-[10px] text-slate-400 tabular-nums shrink-0">
+                            {filled}/{total}
+                          </span>
+                        )}
+                        {complete && (
+                          <span className="text-[10px] text-emerald-500 shrink-0" title="Fully assigned">
+                            ✓
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
