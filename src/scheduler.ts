@@ -157,6 +157,10 @@ function scoreCandidate(
       if (isPrivileged(a)) {
         score -= (100 - privilegedMinistryShare) / 5; // default ~18
       }
+      // Talk (Ministry): strongly prefer baptised brothers when auto-filling.
+      if (part.partType === "Talk (Ministry)" && !a.baptised) {
+        score -= 50;
+      }
     } else if (part.segment === "living") {
       if (part.partType === "Living Part") {
         if (isPrivileged(a)) score -= 10;

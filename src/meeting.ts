@@ -191,7 +191,10 @@ export function isEligible(
       return a.gender === "M";
 
     case "Talk (Ministry)":
-      return a.gender === "M" && a.baptised;
+      // Any active male may give a ministry talk — baptism is not required
+      // (unbaptised brothers can be assigned manually; the auto-assigner
+      // will still prefer baptised brothers via a scoring penalty).
+      return a.gender === "M";
 
     case "Living Part":
     case "Local Needs":
