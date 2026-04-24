@@ -403,7 +403,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
   const eligible = assignees.filter((a) => {
     if (used.has(a.id ?? -1)) return false;
     if (genderFilter && a.gender !== genderFilter) return false;
-    return isEligible(a, part.partType, role);
+    return isEligible(a, part.partType, role, "auto");
   });
 
   if (eligible.length === 0) return null;

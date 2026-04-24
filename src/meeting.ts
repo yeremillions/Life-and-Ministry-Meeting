@@ -154,7 +154,8 @@ export function isBrothersPart(partType: PartType): boolean {
 export function isEligible(
   a: Assignee,
   partType: PartType,
-  role: "main" | "assistant" = "main"
+  role: "main" | "assistant" = "main",
+  purpose: "auto" | "manual" = "manual"
 ): boolean {
   if (!a.active) return false;
 
@@ -167,17 +168,14 @@ export function isEligible(
       return a.gender === "M" && a.privileges.includes("QE");
 
     case "Opening Prayer":
-      // Opening prayer — appointed/privileged brothers (E, QE, MS, QMS, RP).
-      // The Chairman (QE) already satisfies this, so he remains eligible.
-      return (
-        a.gender === "M" &&
-        a.baptised &&
-        (isMSorAbove(a) || a.privileges.includes("RP"))
-      );
-
     case "Closing Prayer":
-      // Closing prayer — any active baptised brother.
-      return a.gender === "M" && a.baptised;
+      // Manual selection: any baptised brother.
+      // Auto-assignment: MS/E/CBSR only.
+      if (a.gender !== "M" || !a.baptised) return false;
+      if (purpose === "auto") {
+        return isMSorAbove(a) || a.privileges.includes("CBSR");
+      }
+      return true;
 
     case "Talk": // Treasures opening talk — elders (sometimes MS)
       return a.gender === "M" && isMSorAbove(a) && a.baptised;
@@ -199,8 +197,8 @@ export function isEligible(
     case "Living Part":
     case "Local Needs":
     case "Governing Body Update":
-      // Usually given to elders / MS, but any baptised brother can fill in.
-      return a.gender === "M" && a.baptised;
+      // Restricted to appointed brothers (E, QE, MS, QMS).
+      return a.gender === "M" && a.baptised && isMSorAbove(a);
 
     case "Congregation Bible Study":
       if (role === "main") {

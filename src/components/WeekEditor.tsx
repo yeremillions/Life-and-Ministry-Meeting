@@ -162,9 +162,28 @@ function SegmentCard({
   onUpdateAssignment: (a: Assignment) => void;
   onNavigateToProfile: (id: number) => void;
 }) {
+  const [isOver, setIsOver] = useState(false);
   const [pickerType, setPickerType] = useState<PartType>(
     SEGMENT_PART_TYPES[segment][0]
   );
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsOver(false);
+    const uid = e.dataTransfer.getData("partUid");
+    if (!uid) return;
+
+    // Check if it's already here
+    if (assignments.find((a) => a.uid === uid)) return;
+
+    // Find the actual assignment object from the full week
+    const target = week.assignments.find((a) => a.uid === uid);
+    if (target) {
+      // Put it at the end of the new segment
+      const maxOrder = assignments.reduce((max, a) => Math.max(max, a.order), 0);
+      onUpdateAssignment({ ...target, segment, order: maxOrder + 1 });
+    }
+  }
 
   const minGuard =
     segment === "ministry"
@@ -174,7 +193,15 @@ function SegmentCard({
       : false;
 
   return (
-    <section className="card">
+    <section 
+      className={`card transition-all duration-200 ${isOver ? "border-indigo-400 bg-indigo-50/30 ring-2 ring-indigo-400/20" : ""}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsOver(true);
+      }}
+      onDragLeave={() => setIsOver(false)}
+      onDrop={handleDrop}
+    >
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold flex items-center gap-2">
           <span
@@ -282,7 +309,12 @@ function PartRow({
 
   return (
     <li
-      className="border border-slate-200 rounded-md p-3"
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("partUid", assignment.uid);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      className="border border-slate-200 rounded-md p-3 bg-white cursor-grab active:cursor-grabbing hover:border-slate-300 hover:shadow-sm transition-all"
       style={{ borderLeft: `4px solid ${seg.color}` }}
     >
       <div className="flex flex-wrap gap-2 items-start">
