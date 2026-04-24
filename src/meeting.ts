@@ -16,25 +16,25 @@ export const SEGMENTS: {
   {
     id: "opening",
     label: "Opening",
-    color: "#64748b",
+    color: "#546e7a",
     accent: "opening",
   },
   {
     id: "treasures",
     label: "Treasures From God's Word",
-    color: "#424242",
+    color: "#006064",
     accent: "treasures",
   },
   {
     id: "ministry",
     label: "Apply Yourself to the Field Ministry",
-    color: "#b4731e",
+    color: "#c4952a",
     accent: "ministry",
   },
   {
     id: "living",
     label: "Living as Christians",
-    color: "#781428",
+    color: "#7b1928",
     accent: "living",
   },
 ];
