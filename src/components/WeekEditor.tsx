@@ -117,6 +117,23 @@ export default function WeekEditor(props: WeekEditorProps) {
         onRemovePart={props.onRemovePart}
         onUpdateAssignment={props.onUpdateAssignment}
         onNavigateToProfile={props.onNavigateToProfile}
+        onReorder={(dragged, onto) => {
+          const d = week.assignments.find(a => a.uid === dragged);
+          if (!d) return;
+          const remaining = week.assignments.filter(a => a.uid !== dragged);
+          const others = remaining.filter(a => a.segment !== "opening");
+          const thisSeg = remaining.filter(a => a.segment === "opening").sort((a,b) => a.order - b.order);
+          
+          let next: Assignment[];
+          if (onto) {
+            const idx = thisSeg.findIndex(a => a.uid === onto);
+            next = [...thisSeg];
+            next.splice(idx, 0, { ...d, segment: "opening" });
+          } else {
+            next = [...thisSeg, { ...d, segment: "opening" }];
+          }
+          props.onSave({ ...week, assignments: [...others, ...next.map((a,i) => ({...a, order: i+1}))] });
+        }}
       />
       {SEGMENTS.filter((s) => s.id !== "opening").map((seg) => (
         <SegmentCard
@@ -132,6 +149,23 @@ export default function WeekEditor(props: WeekEditorProps) {
           onRemovePart={props.onRemovePart}
           onUpdateAssignment={props.onUpdateAssignment}
           onNavigateToProfile={props.onNavigateToProfile}
+          onReorder={(dragged, onto) => {
+            const d = week.assignments.find(a => a.uid === dragged);
+            if (!d) return;
+            const remaining = week.assignments.filter(a => a.uid !== dragged);
+            const others = remaining.filter(a => a.segment !== seg.id);
+            const thisSeg = remaining.filter(a => a.segment === seg.id).sort((a,b) => a.order - b.order);
+            
+            let next: Assignment[];
+            if (onto) {
+              const idx = thisSeg.findIndex(a => a.uid === onto);
+              next = [...thisSeg];
+              next.splice(idx, 0, { ...d, segment: seg.id });
+            } else {
+              next = [...thisSeg, { ...d, segment: seg.id }];
+            }
+            props.onSave({ ...week, assignments: [...others, ...next.map((a,i) => ({...a, order: i+1}))] });
+          }}
         />
       ))}
     </div>
@@ -150,6 +184,7 @@ function SegmentCard({
   onRemovePart,
   onUpdateAssignment,
   onNavigateToProfile,
+  onReorder,
 }: {
   segment: SegmentId;
   title: string;
@@ -162,6 +197,7 @@ function SegmentCard({
   onRemovePart: (uid: string) => void;
   onUpdateAssignment: (a: Assignment) => void;
   onNavigateToProfile: (id: number) => void;
+  onReorder: (draggedUid: string, ontoUid?: string) => void;
 }) {
   const [isOver, setIsOver] = useState(false);
   const [pickerType, setPickerType] = useState<PartType>(
@@ -173,17 +209,7 @@ function SegmentCard({
     setIsOver(false);
     const uid = e.dataTransfer.getData("partUid");
     if (!uid) return;
-
-    // Check if it's already here
-    if (assignments.find((a) => a.uid === uid)) return;
-
-    // Find the actual assignment object from the full week
-    const target = week.assignments.find((a) => a.uid === uid);
-    if (target) {
-      // Put it at the end of the new segment
-      const maxOrder = assignments.reduce((max, a) => Math.max(max, a.order), 0);
-      onUpdateAssignment({ ...target, segment, order: maxOrder + 1 });
-    }
+    onReorder(uid);
   }
 
   const minGuard =
@@ -252,6 +278,7 @@ function SegmentCard({
               onRemove={() => onRemovePart(a.uid)}
               onUpdate={onUpdateAssignment}
               onNavigateToProfile={onNavigateToProfile}
+              onDropOnto={(dragged) => onReorder(dragged, a.uid)}
             />
           ))}
         </ul>
@@ -268,6 +295,7 @@ function PartRow({
   onRemove,
   onUpdate,
   onNavigateToProfile,
+  onDropOnto,
 }: {
   assignment: Assignment;
   assignees: Assignee[];
@@ -276,6 +304,7 @@ function PartRow({
   onRemove: () => void;
   onUpdate: (a: Assignment) => void;
   onNavigateToProfile: (id: number) => void;
+  onDropOnto: (draggedUid: string) => void;
 }) {
   const eligibleMain = useMemo(
     () => assignees.filter((a) => isEligible(a, assignment.partType, "main")),
@@ -315,6 +344,22 @@ function PartRow({
       onDragStart={(e) => {
         e.dataTransfer.setData("partUid", assignment.uid);
         e.dataTransfer.effectAllowed = "move";
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.currentTarget.style.borderTop = "4px solid #6366f1";
+      }}
+      onDragLeave={(e) => {
+        e.currentTarget.style.borderTop = "";
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.style.borderTop = "";
+        const draggedUid = e.dataTransfer.getData("partUid");
+        if (draggedUid && draggedUid !== assignment.uid) {
+          onDropOnto(draggedUid);
+        }
       }}
       className="border border-slate-200 rounded-md p-3 bg-white cursor-grab active:cursor-grabbing hover:border-slate-300 hover:shadow-sm transition-all"
       style={{ borderLeft: `4px solid ${seg.color}` }}
