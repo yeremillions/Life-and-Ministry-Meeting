@@ -109,10 +109,12 @@ function buildEmptyWeek(weekOf: string): Week {
 export default function SchedulePage({
   initialWeekId,
   onConsumeInitialWeek,
+  onNavigateToProfile,
 }: {
   initialWeekId?: number | null;
   onConsumeInitialWeek?: () => void;
-} = {}) {
+  onNavigateToProfile: (id: number) => void;
+} = {} as any) {
   const weeks =
     useLiveQuery(() => db.weeks.orderBy("weekOf").reverse().toArray(), []) ??
     [];
@@ -311,6 +313,7 @@ export default function SchedulePage({
             onAddPart={(segment, partType) => addPart(selected, segment, partType)}
             onRemovePart={(uid) => removePart(selected, uid)}
             onUpdateAssignment={(a) => updateAssignment(selected, a)}
+            onNavigateToProfile={onNavigateToProfile}
           />
         ) : (
           <div className="card">

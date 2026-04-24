@@ -27,6 +27,7 @@ export interface WeekEditorProps {
   onAddPart: (segment: SegmentId, partType: PartType) => void;
   onRemovePart: (uid: string) => void;
   onUpdateAssignment: (a: Assignment) => void;
+  onNavigateToProfile: (id: number) => void;
 }
 
 export default function WeekEditor(props: WeekEditorProps) {
@@ -115,6 +116,7 @@ export default function WeekEditor(props: WeekEditorProps) {
         onAddPart={(t) => props.onAddPart("opening", t)}
         onRemovePart={props.onRemovePart}
         onUpdateAssignment={props.onUpdateAssignment}
+        onNavigateToProfile={props.onNavigateToProfile}
       />
       {SEGMENTS.filter((s) => s.id !== "opening").map((seg) => (
         <SegmentCard
@@ -129,6 +131,7 @@ export default function WeekEditor(props: WeekEditorProps) {
           onAddPart={(t) => props.onAddPart(seg.id, t)}
           onRemovePart={props.onRemovePart}
           onUpdateAssignment={props.onUpdateAssignment}
+          onNavigateToProfile={props.onNavigateToProfile}
         />
       ))}
     </div>
@@ -157,6 +160,7 @@ function SegmentCard({
   onAddPart: (t: PartType) => void;
   onRemovePart: (uid: string) => void;
   onUpdateAssignment: (a: Assignment) => void;
+  onNavigateToProfile: (id: number) => void;
 }) {
   const [pickerType, setPickerType] = useState<PartType>(
     SEGMENT_PART_TYPES[segment][0]
@@ -219,6 +223,7 @@ function SegmentCard({
               week={week}
               onRemove={() => onRemovePart(a.uid)}
               onUpdate={onUpdateAssignment}
+              onNavigateToProfile={onNavigateToProfile}
             />
           ))}
         </ul>
@@ -241,6 +246,7 @@ function PartRow({
   week: Week;
   onRemove: () => void;
   onUpdate: (a: Assignment) => void;
+  onNavigateToProfile: (id: number) => void;
 }) {
   const eligibleMain = useMemo(
     () => assignees.filter((a) => isEligible(a, assignment.partType, "main")),
@@ -335,6 +341,7 @@ function PartRow({
               options={eligibleMain}
               usedIds={usedIds}
               onChange={(id) => onUpdate({ ...assignment, assigneeId: id })}
+              onNavigateToProfile={onNavigateToProfile}
             />
             {showAssistant && (
               <AssigneePicker
@@ -375,6 +382,7 @@ function PartRow({
                 usedIds={usedIds}
                 householdIds={mainHousehold?.memberIds}
                 onChange={(id) => onUpdate({ ...assignment, assistantId: id })}
+                onNavigateToProfile={onNavigateToProfile}
               />
             )}
           </>
@@ -409,6 +417,7 @@ function AssigneePicker({
   /** IDs that belong to the main person's household — shown with a 🏠 tag. */
   householdIds?: number[];
   onChange: (id: number | undefined) => void;
+  onNavigateToProfile: (id: number) => void;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -476,20 +485,41 @@ function AssigneePicker({
           }}
           autoComplete="off"
         />
-        {/* Chevron icon */}
-        <span
+        {/* Chevron and Profile icons */}
+        <div 
           style={{
             position: "absolute",
             right: "0.5rem",
             top: "50%",
             transform: "translateY(-50%)",
-            pointerEvents: "none",
-            color: "#94a3b8",
-            fontSize: "0.75rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.25rem"
           }}
         >
-          ▾
-        </span>
+          {value && !open && (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onNavigateToProfile(value);
+              }}
+              className="p-1 hover:bg-slate-100 rounded text-indigo-500 transition-colors"
+              title="View Profile"
+            >
+              👤
+            </button>
+          )}
+          <span
+            style={{
+              pointerEvents: "none",
+              color: "#94a3b8",
+              fontSize: "0.75rem",
+            }}
+          >
+            ▾
+          </span>
+        </div>
       </div>
 
       {/* Dropdown list */}

@@ -6,8 +6,10 @@ import { todayIso, weekRangeLabel } from "../utils";
 
 export default function Dashboard({
   onNavigate,
+  onNavigateToProfile,
 }: {
   onNavigate: (t: "enrollees" | "schedule" | "reports", weekId?: number) => void;
+  onNavigateToProfile: (id: number) => void;
 }) {
   const assignees =
     useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
@@ -107,7 +109,12 @@ export default function Dashboard({
                   key={assignee.id}
                   className="py-2 flex items-center justify-between text-sm px-2 -mx-2 even:bg-slate-50/50 rounded"
                 >
-                  <span className="font-medium">{assignee.name}</span>
+                  <button 
+                    onClick={() => onNavigateToProfile(assignee.id!)}
+                    className="font-medium hover:text-indigo-600 hover:underline transition-colors"
+                  >
+                    {assignee.name}
+                  </button>
                   <span className="text-xs text-slate-500">
                     {stats.totalMain} past •{" "}
                     {stats.lastWeekMain ? `last ${stats.lastWeekMain}` : "never"}
@@ -137,13 +144,19 @@ export default function Dashboard({
                     );
                     const seg = segmentOf(a.segment);
                     return (
-                      <span
+                      <button
                         key={a.uid}
-                        className="pill text-white"
+                        className="pill text-white hover:brightness-110 transition-all text-left"
                         style={{ backgroundColor: seg.color }}
+                        onClick={(e) => {
+                            if (person?.id) {
+                                e.stopPropagation();
+                                onNavigateToProfile(person.id);
+                            }
+                        }}
                       >
                         {a.partType}: {person?.name ?? "—"}
-                      </span>
+                      </button>
                     );
                   })}
                   {w.assignments.length > 6 && (

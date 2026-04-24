@@ -5,8 +5,9 @@ import EnrolleesPage from "./pages/EnrolleesPage";
 import SchedulePage from "./pages/SchedulePage";
 import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
+import EnrolleeProfile from "./pages/EnrolleeProfile";
 
-type Tab = "dashboard" | "enrollees" | "schedule" | "reports" | "settings";
+type Tab = "dashboard" | "enrollees" | "schedule" | "reports" | "settings" | "profile";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
@@ -19,6 +20,7 @@ const TABS: { id: Tab; label: string }[] = [
 export default function App() {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [scheduleWeekId, setScheduleWeekId] = useState<number | null>(null);
+  const [profileEnrolleeId, setProfileEnrolleeId] = useState<number | null>(null);
 
   useEffect(() => {
     ensureSettings().catch((e) => console.error("settings init", e));
@@ -29,6 +31,11 @@ export default function App() {
     if (t === "schedule" && weekId != null) {
       setScheduleWeekId(weekId);
     }
+  }
+
+  function navigateToProfile(id: number) {
+    setProfileEnrolleeId(id);
+    setTab("profile");
   }
 
   return (
@@ -65,16 +72,28 @@ export default function App() {
         </div>
       </header>
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-6">
-        {tab === "dashboard" && <Dashboard onNavigate={navigate} />}
-        {tab === "enrollees" && <EnrolleesPage />}
+        {tab === "dashboard" && (
+          <Dashboard onNavigate={navigate} onNavigateToProfile={navigateToProfile} />
+        )}
+        {tab === "enrollees" && (
+          <EnrolleesPage onNavigateToProfile={navigateToProfile} />
+        )}
         {tab === "schedule" && (
           <SchedulePage
             initialWeekId={scheduleWeekId}
             onConsumeInitialWeek={() => setScheduleWeekId(null)}
+            onNavigateToProfile={navigateToProfile}
           />
         )}
-        {tab === "reports" && <ReportsPage />}
+        {tab === "reports" && <ReportsPage onNavigateToProfile={navigateToProfile} />}
         {tab === "settings" && <SettingsPage />}
+        {tab === "profile" && profileEnrolleeId !== null && (
+          <EnrolleeProfile 
+            id={profileEnrolleeId} 
+            onBack={() => setTab("enrollees")} 
+            onNavigateToProfile={navigateToProfile}
+          />
+        )}
       </main>
       <footer className="text-center text-xs text-slate-400 pb-4">
         All data is stored locally in your browser (IndexedDB).

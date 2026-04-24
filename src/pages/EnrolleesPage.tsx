@@ -17,7 +17,11 @@ const PRIV_LABELS: Record<Privilege, string> = {
   CBSR: "CBS Reader (CBSR)",
 };
 
-export default function EnrolleesPage() {
+export default function EnrolleesPage({
+  onNavigateToProfile,
+}: {
+  onNavigateToProfile: (id: number) => void;
+}) {
   const assignees =
     useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
   const households =
@@ -527,7 +531,14 @@ export default function EnrolleesPage() {
                           onChange={() => a.id != null && toggleOne(a.id)}
                         />
                       </td>
-                      <td className="py-2 pr-3 font-medium">{a.name}</td>
+                      <td className="py-2 pr-3 font-medium">
+                        <button
+                          onClick={() => onNavigateToProfile(a.id!)}
+                          className="hover:text-indigo-600 hover:underline transition-colors text-left"
+                        >
+                          {a.name}
+                        </button>
+                      </td>
                       <td className="py-2 pr-3">
                         {a.gender === "M" ? "Brother" : "Sister"}
                       </td>
@@ -632,17 +643,18 @@ export default function EnrolleesPage() {
                             <span className="text-xs text-slate-400">No members</span>
                           ) : (
                             members.map((a) => (
-                              <span
+                              <button
                                 key={a.id}
+                                onClick={() => onNavigateToProfile(a.id!)}
                                 className={
-                                  "pill " +
+                                  "pill hover:brightness-110 transition-all " +
                                   (a.gender === "M"
                                     ? "bg-blue-100 text-blue-800"
                                     : "bg-rose-100 text-rose-800")
                                 }
                               >
                                 {a.name}
-                              </span>
+                              </button>
                             ))
                           )}
                         </div>

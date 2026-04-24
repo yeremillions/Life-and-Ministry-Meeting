@@ -7,7 +7,11 @@ import type { Assignment, Week } from "../types";
 
 type SortBy = "name" | "total" | "last";
 
-export default function ReportsPage() {
+export default function ReportsPage({
+  onNavigateToProfile,
+}: {
+  onNavigateToProfile: (id: number) => void;
+}) {
   const assignees =
     useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
   const weeks =
@@ -189,7 +193,12 @@ export default function ReportsPage() {
           <div className="flex flex-col gap-1 mt-1">
             {insights.longestGaps.map((r) => (
               <div key={r.assignee.id} className="text-sm flex justify-between">
-                <span>{r.assignee.name}</span>
+                <button 
+                    onClick={() => onNavigateToProfile(r.assignee.id!)}
+                    className="hover:text-indigo-200 transition-colors"
+                >
+                    {r.assignee.name}
+                </button>
                 <span className="text-slate-400 font-mono">
                   {r.stats.lastWeekMain}
                 </span>
@@ -259,7 +268,12 @@ export default function ReportsPage() {
                     }
                   >
                     <td className="py-3 px-4 font-semibold text-slate-800">
-                      {r.assignee.name}
+                        <button
+                          onClick={() => onNavigateToProfile(r.assignee.id!)}
+                          className="hover:text-indigo-600 hover:underline transition-colors text-left"
+                        >
+                          {r.assignee.name}
+                        </button>
                     </td>
                     <td className="py-3 px-4">
                       {privilegeLabel(r.assignee) ?? (
