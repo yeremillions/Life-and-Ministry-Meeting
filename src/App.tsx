@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ensureSettings } from "./db";
+import { sendHeartbeat } from "./telemetry";
 import Dashboard from "./pages/Dashboard";
 import EnrolleesPage from "./pages/EnrolleesPage";
 import SchedulePage from "./pages/SchedulePage";
@@ -7,8 +8,9 @@ import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
 import EnrolleeProfile from "./pages/EnrolleeProfile";
 import HelpPage from "./pages/HelpPage";
+import AdminPage from "./pages/AdminPage";
 
-type Tab = "dashboard" | "enrollees" | "schedule" | "reports" | "settings" | "help" | "profile";
+type Tab = "dashboard" | "enrollees" | "schedule" | "reports" | "settings" | "help" | "admin" | "profile";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
@@ -26,6 +28,8 @@ export default function App() {
 
   useEffect(() => {
     ensureSettings().catch((e) => console.error("settings init", e));
+    // Fire telemetry heartbeat (no-ops if Supabase is not configured)
+    sendHeartbeat();
   }, []);
 
   function navigate(t: Tab, weekId?: number) {
@@ -104,8 +108,9 @@ export default function App() {
           />
         )}
         {tab === "reports" && <ReportsPage onNavigateToProfile={navigateToProfile} />}
-        {tab === "settings" && <SettingsPage />}
+        {tab === "settings" && <SettingsPage onNavigateToAdmin={() => setTab("admin")} />}
         {tab === "help" && <HelpPage />}
+        {tab === "admin" && <AdminPage />}
         {tab === "profile" && profileEnrolleeId !== null && (
           <EnrolleeProfile 
             id={profileEnrolleeId} 

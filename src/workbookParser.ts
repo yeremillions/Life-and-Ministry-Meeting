@@ -122,7 +122,6 @@ export async function extractPdfText(file: File): Promise<string> {
   // Dynamic imports so pdf.js isn't in the main bundle until the user
   // actually opens the importer.
   const pdfjsLib = await import("pdfjs-dist");
-  // @ts-expect-error Vite URL import for the worker file.
   const workerUrl = (await import("pdfjs-dist/build/pdf.worker.mjs?url"))
     .default;
   (pdfjsLib as unknown as { GlobalWorkerOptions: { workerSrc: string } })

@@ -3,7 +3,11 @@ import { useEffect, useState } from "react";
 import { db, ensureSettings } from "../db";
 import type { AppSettings } from "../types";
 
-export default function SettingsPage() {
+export default function SettingsPage({
+  onNavigateToAdmin,
+}: {
+  onNavigateToAdmin?: () => void;
+}) {
   const settings = useLiveQuery(() => db.settings.get("app"), []);
   const [draft, setDraft] = useState<AppSettings | null>(null);
 
@@ -258,6 +262,17 @@ export default function SettingsPage() {
           </button>
         </div>
       </div>
+
+      {onNavigateToAdmin && (
+        <div className="text-right">
+          <button
+            className="text-xs text-gray-400 hover:text-gray-600 hover:underline transition-colors"
+            onClick={onNavigateToAdmin}
+          >
+            Admin
+          </button>
+        </div>
+      )}
     </div>
   );
 }
