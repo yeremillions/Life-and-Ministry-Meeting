@@ -6,8 +6,9 @@ import SchedulePage from "./pages/SchedulePage";
 import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
 import EnrolleeProfile from "./pages/EnrolleeProfile";
+import HelpPage from "./pages/HelpPage";
 
-type Tab = "dashboard" | "enrollees" | "schedule" | "reports" | "settings" | "profile";
+type Tab = "dashboard" | "enrollees" | "schedule" | "reports" | "settings" | "help" | "profile";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
@@ -15,6 +16,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "schedule", label: "Schedule" },
   { id: "reports", label: "Reports" },
   { id: "settings", label: "Settings" },
+  { id: "help", label: "Help" },
 ];
 
 export default function App() {
@@ -103,6 +105,7 @@ export default function App() {
         )}
         {tab === "reports" && <ReportsPage onNavigateToProfile={navigateToProfile} />}
         {tab === "settings" && <SettingsPage />}
+        {tab === "help" && <HelpPage />}
         {tab === "profile" && profileEnrolleeId !== null && (
           <EnrolleeProfile 
             id={profileEnrolleeId} 
