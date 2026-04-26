@@ -10,6 +10,7 @@ export default function SettingsPage({
 }) {
   const settings = useLiveQuery(() => db.settings.get("app"), []);
   const [draft, setDraft] = useState<AppSettings | null>(null);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     ensureSettings().then((s) => setDraft(s));
@@ -22,6 +23,8 @@ export default function SettingsPage({
   async function save() {
     if (!draft) return;
     await db.settings.put(draft);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
   }
 
   async function wipeAll() {
@@ -232,6 +235,14 @@ export default function SettingsPage({
           <button className="btn" onClick={save}>
             Save settings
           </button>
+          {saved && (
+            <span
+              className="inline-flex items-center gap-1 text-sm font-medium ml-3 animate-fade-in"
+              style={{ color: 'var(--treasures)' }}
+            >
+              ✓ Settings saved
+            </span>
+          )}
         </div>
       </div>
 

@@ -166,8 +166,32 @@ function scoreCandidate(
       const neglectBonus = Math.min(gap, neglectCap);
       score += neglectBonus * (0.5 + catchUp * 0.3); // 0.8..2.0 multiplier
     } else {
-      // Never assigned — give a moderate boost proportional to catch-up.
-      score += (80 + catchUp * 32) * (0.5 + catchUp * 0.3);
+      // Never assigned as main. Distinguish between:
+      //   (a) a genuine newcomer who just enrolled (ease them in), and
+      //   (b) someone who has been enrolled a long time but was overlooked.
+      const enrolledDays = Math.max(
+        0,
+        Math.round(
+          (new Date(weekOf + "T00:00:00").getTime() - a.createdAt) /
+            (1000 * 60 * 60 * 24)
+        )
+      );
+
+      // Ramp-up period: newcomers get a reduced score that grows
+      // linearly over ~8 weeks (56 days) until it matches the full
+      // neglect bonus.  After the ramp-up, they are treated the same
+      // as any other overlooked person.
+      const RAMP_DAYS = 56;
+      const fullBonus = (80 + catchUp * 32) * (0.5 + catchUp * 0.3);
+
+      if (enrolledDays < RAMP_DAYS) {
+        // Newcomer — start at 30% of full bonus, ramp to 100%.
+        const ramp = 0.3 + 0.7 * (enrolledDays / RAMP_DAYS);
+        score += fullBonus * ramp;
+      } else {
+        // Enrolled long enough — treat as fully overlooked.
+        score += fullBonus;
+      }
     }
 
     // Workload penalty: spread the total lifetime burden.
@@ -581,6 +605,9 @@ export function dueSoon(
   limit = 10
 ): { assignee: Assignee; stats: AssigneeStats; neglect: number }[] {
   const stats = buildStats(assignees, weeks);
+  const todayMs = new Date(today + "T00:00:00").getTime();
+  const RAMP_DAYS = 56; // Same ramp-up period as the scorer
+
   return assignees
     .filter((a) => a.active)
     .map((a) => {
@@ -590,9 +617,27 @@ export function dueSoon(
         totalAssistant: 0,
         recentMainDates: [],
       };
-      const neglect =
-        (s.lastWeekMain ? daysBetween(s.lastWeekMain, today) : 999) -
-        s.totalMain * 7;
+
+      let neglect: number;
+      if (s.lastWeekMain) {
+        // Has been assigned before — gap-based neglect.
+        neglect = daysBetween(s.lastWeekMain, today) - s.totalMain * 7;
+      } else {
+        // Never assigned. Check how long they've been enrolled.
+        const enrolledDays = Math.max(
+          0,
+          Math.round((todayMs - a.createdAt) / (1000 * 60 * 60 * 24))
+        );
+        if (enrolledDays < RAMP_DAYS) {
+          // Newcomer — reduced neglect so they don't jump ahead of
+          // genuinely overlooked long-term members.
+          neglect = Math.round(enrolledDays * 0.5);
+        } else {
+          // Enrolled a long time with zero assignments — truly overlooked.
+          neglect = 999;
+        }
+      }
+
       return { assignee: a, stats: s, neglect };
     })
     .sort((a, b) => b.neglect - a.neglect)
