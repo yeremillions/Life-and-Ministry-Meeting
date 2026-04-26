@@ -342,14 +342,19 @@ function WeekListGrouped({
   selectedId: number | null;
   onSelect: (id: number | null) => void;
 }) {
-  const todayKey = workbookPeriod(
-    new Date().toISOString().slice(0, 10)
-  ).key;
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayKey = workbookPeriod(todayIso).key;
 
   // ── Year selector ────────────────────────────────────────────────────
   const availableYears = useMemo(() => {
     const years = new Set<number>();
     for (const w of weeks) {
+      // Use the year from the workbook period key (not raw weekOf),
+      // so a late-December week that belongs to a Jan–Feb workbook
+      // goes into the correct bucket.
+      const periodYear = parseInt(workbookPeriod(w.weekOf).key.slice(0, 4), 10);
+      years.add(periodYear);
+      // Also add the calendar year of weekOf in case it differs
       years.add(new Date(w.weekOf + "T00:00:00").getFullYear());
     }
     return [...years].sort((a, b) => b - a); // newest first
@@ -369,11 +374,13 @@ function WeekListGrouped({
     }
   }, [availableYears]);
 
-  // Filter weeks to the active year
+  // Filter weeks to the active year using the workbook period's year,
+  // which is the canonical year for grouping (handles year-boundary weeks).
   const filteredWeeks = useMemo(() => {
-    return weeks.filter(
-      (w) => new Date(w.weekOf + "T00:00:00").getFullYear() === activeYear
-    );
+    return weeks.filter((w) => {
+      const periodYear = parseInt(workbookPeriod(w.weekOf).key.slice(0, 4), 10);
+      return periodYear === activeYear;
+    });
   }, [weeks, activeYear]);
 
   // Group filtered weeks by bi-monthly workbook period
@@ -395,20 +402,31 @@ function WeekListGrouped({
   }, [selectedId, weeks]);
 
   // Accordion: only one group open at a time.
-  // Default to the current/future period, or the group of the selected week.
+  // Default: open the group containing the CURRENT calendar month.
   const defaultOpenKey = useMemo(() => {
+    // If a week is already selected, open its group.
     if (selectedGroupKey && groups.some((g) => g.key === selectedGroupKey)) {
       return selectedGroupKey;
     }
-    // Find the first current/future group
+    // Open the group that contains today's date.
+    const todayGroup = groups.find((g) => g.key === todayKey);
+    if (todayGroup) return todayGroup.key;
+    // Fall back to the first current/future group.
     for (const g of groups) {
       if (g.key >= todayKey) return g.key;
     }
-    // Fall back to the last group
+    // Last resort: last group in the list.
     return groups.length > 0 ? groups[groups.length - 1].key : null;
   }, [groups, todayKey, selectedGroupKey]);
 
   const [openGroup, setOpenGroup] = useState<string | null>(defaultOpenKey);
+
+  // Sync openGroup when defaultOpenKey changes (e.g. on first load).
+  useEffect(() => {
+    if (openGroup == null && defaultOpenKey != null) {
+      setOpenGroup(defaultOpenKey);
+    }
+  }, [defaultOpenKey]);
 
   // If the selected week changes to a different group, switch to it.
   useEffect(() => {
@@ -417,15 +435,21 @@ function WeekListGrouped({
     }
   }, [selectedGroupKey]);
 
-  // When year changes, auto-open the first relevant group.
+  // When year changes, auto-open the best group for that year.
   useEffect(() => {
     if (groups.length > 0) {
-      const current = groups.find((g) => g.key >= todayKey);
-      setOpenGroup(current ? current.key : groups[groups.length - 1].key);
+      // If viewing the current year, open the current period.
+      if (activeYear === currentYear) {
+        const current = groups.find((g) => g.key === todayKey);
+        setOpenGroup(current ? current.key : groups[0].key);
+      } else {
+        // For other years, open the first group.
+        setOpenGroup(groups[0].key);
+      }
     } else {
       setOpenGroup(null);
     }
-  }, [activeYear]);
+  }, [activeYear, groups.length]);
 
   function toggleGroup(key: string) {
     setOpenGroup((prev) => (prev === key ? null : key));
