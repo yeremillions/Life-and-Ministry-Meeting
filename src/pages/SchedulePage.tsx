@@ -451,6 +451,43 @@ function WeekListGrouped({
     }
   }, [activeYear, groups.length]);
 
+  async function moveGroupToYear(group: { key: string; label: string; weeks: Week[] }) {
+    const currentYear = group.key.slice(0, 4);
+    const targetYear = window.prompt(
+      `Move "${group.label}" to a different year?\n\n` +
+      `Currently assigned to: ${currentYear}\n` +
+      `This will update all weeks in this period to the year you enter below.`,
+      currentYear
+    );
+
+    if (!targetYear || targetYear === currentYear) return;
+    const yearNum = parseInt(targetYear, 10);
+    if (isNaN(yearNum) || yearNum < 2000 || yearNum > 2100) {
+      alert("Please enter a valid 4-digit year.");
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to move these ${group.weeks.length} weeks to ${targetYear}?`)) {
+      return;
+    }
+
+    try {
+      for (const w of group.weeks) {
+        // Construct new date string by replacing the year part
+        const newWeekOf = targetYear + w.weekOf.slice(4);
+        // Note: we don't strictly re-snap to Monday here because we assume
+        // the relative month/day structure of the workbook is what matters,
+        // and replacing the year is the most direct "fix" for a wrong-year import.
+        await db.weeks.update(w.id!, { weekOf: newWeekOf });
+      }
+      // Refreshing the page is the simplest way to reload the complex grouped state
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to move weeks. See console for details.");
+    }
+  }
+
   function toggleGroup(key: string) {
     setOpenGroup((prev) => (prev === key ? null : key));
   }
@@ -531,6 +568,21 @@ function WeekListGrouped({
                 >
                   {group.label.replace(/ \d{4}$/, "")}
                 </span>
+
+                {/* Fix Year action (only shown if group is open) */}
+                {isOpen && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveGroupToYear(group);
+                    }}
+                    className="px-1.5 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 border border-indigo-200 rounded uppercase tracking-tighter"
+                    title="Change year for this period"
+                  >
+                    Move
+                  </button>
+                )}
+
                 {/* Fill fraction badge */}
                 <span
                   className={
