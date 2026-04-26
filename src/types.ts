@@ -134,8 +134,11 @@ export interface AppSettings {
   chairmanGapWeeks?: number;
 
   /**
-   * How gently to reintroduce neglected publishers (1 = very gradual,
-   * 5 = aggressive catch-up). Default 3.
+   * How aggressively to prioritise neglected publishers.
+   * 1 = equal rotation (default — no special treatment, they simply
+   *     join the normal pool alongside everyone else).
+   * 3 = moderate catch-up (gives them a noticeable boost).
+   * 5 = aggressive catch-up (fast-tracks them to the front).
    */
   catchUpIntensity?: number;
 
@@ -152,6 +155,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   congregationName: "",
   minGapWeeks: 2,
   chairmanGapWeeks: 3,
-  catchUpIntensity: 3,
+  catchUpIntensity: 1,
   maxAssignmentsPerMonth: 2,
 };

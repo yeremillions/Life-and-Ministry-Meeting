@@ -183,14 +183,14 @@ export default function SettingsPage({
           </div>
 
           <div>
-            <label className="label">Catch-up intensity</label>
+            <label className="label">Catch-up priority for overlooked publishers</label>
             <div className="flex items-center gap-3">
               <input
                 type="range"
                 min={1}
                 max={5}
                 className="flex-1"
-                value={draft.catchUpIntensity ?? 3}
+                value={draft.catchUpIntensity ?? 1}
                 onChange={(e) =>
                   setDraft({
                     ...draft,
@@ -199,13 +199,18 @@ export default function SettingsPage({
                 }
               />
               <span className="text-sm font-mono w-6 text-center">
-                {draft.catchUpIntensity ?? 3}
+                {draft.catchUpIntensity ?? 1}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              How quickly neglected publishers are brought back.
-              1 = very gradual (spreads them over many weeks),
-              5 = aggressive (prioritises them immediately).
+              <strong>1 = equal rotation</strong> (default) — overlooked
+              publishers simply join the normal pool alongside everyone
+              else.{" "}
+              <strong>3 = moderate</strong> — gives them a noticeable
+              boost.{" "}
+              <strong>5 = aggressive</strong> — fast-tracks them to the
+              front of the queue. Increase only if you deliberately want
+              to prioritise members who haven't had a part in a while.
             </p>
           </div>
 

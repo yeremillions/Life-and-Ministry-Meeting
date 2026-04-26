@@ -267,8 +267,8 @@ function SettingsSection() {
         desc="How many weeks before the same elder can serve as chairman again. Default: 3 weeks."
       />
       <KeyValue
-        label="Catch-up intensity (1–5)"
-        desc="How quickly brothers/sisters who haven't had assignments recently are prioritised. 1 = very gradual, 5 = immediate. Default: 3."
+        label="Catch-up priority (1–5)"
+        desc="How aggressively to prioritise overlooked publishers. 1 = equal rotation (default, no special treatment). Higher values deliberately boost neglected members. Default: 1."
       />
       <KeyValue
         label="Max assignments per month"
@@ -567,8 +567,8 @@ function TipsSection() {
           congregation may have natural gaps.
         </li>
         <li>
-          Adjust the "Catch-up intensity" setting if neglected publishers are being brought back
-          too quickly or too slowly.
+          Adjust the "Catch-up priority" setting if you deliberately want to prioritise
+          members who haven't had a part in a while. The default (1) treats everyone equally.
         </li>
       </ul>
 

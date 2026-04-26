@@ -146,9 +146,16 @@ function scoreCandidate(
 
   // ── Gap-based scoring ────────────────────────────────────────────────
   const minGapDays = (opts.minGapWeeks ?? 2) * 7;
-  // Catch-up intensity: 1 (very gradual) to 5 (aggressive).
-  // Controls how much bonus a neglected person gets.
-  const catchUp = Math.max(1, Math.min(5, opts.catchUpIntensity ?? 3));
+  // Catch-up intensity: 1–5.
+  //   1 = equal rotation (no prioritisation, simply include them)
+  //   3 = moderate boost for neglected members
+  //   5 = aggressive fast-tracking
+  const catchUp = Math.max(1, Math.min(5, opts.catchUpIntensity ?? 1));
+
+  // The prioritisation multiplier is zero-based at intensity 1,
+  // meaning overlooked people get NO special bonus — they're just
+  // part of the normal pool.  Each step above 1 adds real priority.
+  const priorityMul = (catchUp - 1) * 0.4; // 0.0 .. 1.6
 
   if (role === "main") {
     if (stats.lastWeekMain) {
@@ -159,12 +166,22 @@ function scoreCandidate(
         score -= (minGapDays - gap) * 30;
       }
 
-      // Neglect bonus: favor those overlooked, scaled by catch-up intensity.
-      // Cap at 120 days to prevent monopolisation when catch-up is low,
-      // up to 240 days when catch-up is high.
-      const neglectCap = 80 + catchUp * 32; // 112..240
-      const neglectBonus = Math.min(gap, neglectCap);
-      score += neglectBonus * (0.5 + catchUp * 0.3); // 0.8..2.0 multiplier
+      // Base gap score: everyone gets a small time-since-last bonus
+      // to naturally spread assignments around.  This is the "equal
+      // rotation" component — it runs at all intensity levels.
+      // Capped at 60 days (~2 workbook periods) so only recent
+      // history matters; older gaps produce no additional benefit.
+      const DECAY_DAYS = 60;
+      score += Math.min(gap, DECAY_DAYS) * 0.6;
+
+      // Catch-up bonus: only active at intensity > 1.  Grows with
+      // the gap AND the intensity, giving overlooked people extra
+      // priority when the overseer explicitly asks for it.
+      if (priorityMul > 0) {
+        const neglectCap = 80 + catchUp * 32; // 112..240
+        const neglectBonus = Math.min(gap, neglectCap);
+        score += neglectBonus * priorityMul;
+      }
     } else {
       // Never assigned as main. Distinguish between:
       //   (a) a genuine newcomer who just enrolled (ease them in), and
@@ -177,20 +194,25 @@ function scoreCandidate(
         )
       );
 
-      // Ramp-up period: newcomers get a reduced score that grows
-      // linearly over ~8 weeks (56 days) until it matches the full
-      // neglect bonus.  After the ramp-up, they are treated the same
-      // as any other overlooked person.
       const RAMP_DAYS = 56;
-      const fullBonus = (80 + catchUp * 32) * (0.5 + catchUp * 0.3);
+
+      // Base score — treat them roughly like someone whose last
+      // assignment was `enrolledDays` ago, capped at the same
+      // 60-day decay window used for everyone else.
+      const DECAY_DAYS = 60;
+      const baseScore = Math.min(enrolledDays, DECAY_DAYS) * 0.6;
+
+      // Catch-up addition — only meaningful at intensity > 1.
+      const catchUpBonus = priorityMul > 0
+        ? Math.min(enrolledDays, 80 + catchUp * 32) * priorityMul
+        : 0;
 
       if (enrolledDays < RAMP_DAYS) {
-        // Newcomer — start at 30% of full bonus, ramp to 100%.
+        // Newcomer — ramp in gradually over ~8 weeks.
         const ramp = 0.3 + 0.7 * (enrolledDays / RAMP_DAYS);
-        score += fullBonus * ramp;
+        score += (baseScore + catchUpBonus) * ramp;
       } else {
-        // Enrolled long enough — treat as fully overlooked.
-        score += fullBonus;
+        score += baseScore + catchUpBonus;
       }
     }
 

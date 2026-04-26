@@ -110,7 +110,7 @@ export default function SchedulePage({
       preserveExisting,
       minGapWeeks: settings.minGapWeeks ?? 2,
       chairmanGapWeeks: settings.chairmanGapWeeks ?? 3,
-      catchUpIntensity: settings.catchUpIntensity ?? 3,
+      catchUpIntensity: settings.catchUpIntensity ?? 1,
       maxAssignmentsPerMonth: settings.maxAssignmentsPerMonth ?? 2,
     });
     await saveWeek(updated);
