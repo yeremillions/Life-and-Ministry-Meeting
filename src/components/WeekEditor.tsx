@@ -156,6 +156,7 @@ export default function WeekEditor(props: WeekEditorProps) {
         stats={stats}
         talkSplit={talkSplit}
         settings={props.settings}
+        allWeeks={props.allWeeks}
       />
       {SEGMENTS.filter((s) => s.id !== "opening").map((seg) => (
         <SegmentCard
@@ -191,6 +192,7 @@ export default function WeekEditor(props: WeekEditorProps) {
           stats={stats}
           talkSplit={talkSplit}
           settings={props.settings}
+          allWeeks={props.allWeeks}
         />
       ))}
     </div>
@@ -213,6 +215,7 @@ function SegmentCard({
   stats,
   talkSplit,
   settings,
+  allWeeks,
 }: {
   segment: SegmentId;
   title: string;
@@ -229,6 +232,7 @@ function SegmentCard({
   stats: Map<number, AssigneeStats>;
   talkSplit: TalkSplit;
   settings: AppSettings;
+  allWeeks: Week[];
 }) {
   const [isOver, setIsOver] = useState(false);
   const [pickerType, setPickerType] = useState<PartType>(
@@ -313,6 +317,7 @@ function SegmentCard({
               stats={stats}
               talkSplit={talkSplit}
               settings={settings}
+              allWeeks={allWeeks}
             />
           ))}
         </ul>
@@ -333,6 +338,7 @@ function PartRow({
   stats,
   talkSplit,
   settings,
+  allWeeks,
 }: {
   assignment: Assignment;
   assignees: Assignee[];
@@ -345,6 +351,7 @@ function PartRow({
   stats: Map<number, AssigneeStats>;
   talkSplit: TalkSplit;
   settings: AppSettings;
+  allWeeks: Week[];
 }) {
   const eligibleMain = useMemo(
     () => assignees.filter((a) => isEligible(a, assignment.partType, "main")),
@@ -467,6 +474,7 @@ function PartRow({
               assignment={assignment}
               role="main"
               weekOf={week.weekOf}
+              allWeeks={allWeeks}
             />
             {showAssistant && (
               <AssigneePicker
@@ -514,6 +522,7 @@ function PartRow({
                 assignment={assignment}
                 role="assistant"
                 weekOf={week.weekOf}
+                allWeeks={allWeeks}
               />
             )}
           </>
@@ -547,6 +556,7 @@ function AssigneePicker({
   assignment,
   role,
   weekOf,
+  allWeeks,
 }: {
   label: string;
   value?: number;
@@ -562,6 +572,7 @@ function AssigneePicker({
   assignment: Assignment;
   role: "main" | "assistant";
   weekOf: string;
+  allWeeks: Week[];
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -611,7 +622,27 @@ function AssigneePicker({
           catchUpIntensity: settings.catchUpIntensity ?? 1,
         }
       );
-      return { a, score };
+
+      // --- Human-readable indicators ---
+      const lastDate = role === "main" ? s.lastWeekMain : s.lastWeekAssistant;
+      let weeksAgo = "Never";
+      if (lastDate) {
+        const days = Math.round((new Date(weekOf + "T00:00:00").getTime() - new Date(lastDate + "T00:00:00").getTime()) / (1000 * 60 * 60 * 24));
+        const wks = Math.floor(days / 7);
+        weeksAgo = wks === 0 ? "This week" : `${wks} wk${wks === 1 ? "" : "s"} ago`;
+      }
+
+      // Check for assignments in [weekOf - 2 weeks, weekOf + 2 weeks] excluding current week
+      const currentT = new Date(weekOf + "T00:00:00").getTime();
+      const windowMs = 15 * 24 * 60 * 60 * 1000; // ~2 weeks
+      const hasNearby = allWeeks.some((w: Week) => {
+        if (w.weekOf === weekOf) return false;
+        const t = new Date(w.weekOf + "T00:00:00").getTime();
+        if (Math.abs(t - currentT) > windowMs) return false;
+        return w.assignments.some((ass: Assignment) => ass.assigneeId === a.id || ass.assistantId === a.id);
+      });
+
+      return { a, score, weeksAgo, hasNearby };
     });
 
     // Sort by score descending (highest score = most due)
@@ -622,7 +653,7 @@ function AssigneePicker({
       item.a.name.toLowerCase().includes(q) ||
       (privilegeLabel(item.a) ?? "").toLowerCase().includes(q)
     );
-  }, [options, query, stats, talkSplit, settings, assignment, weekOf, role]);
+  }, [options, query, stats, talkSplit, settings, assignment, weekOf, role, allWeeks]);
 
   function selectOption(id: number | undefined) {
     onChange(id);
@@ -734,7 +765,7 @@ function AssigneePicker({
               No matches
             </div>
           ) : (
-            filtered.map(({ a, score }) => {
+            filtered.map(({ a, weeksAgo, hasNearby }) => {
               const optLabel = [
                 a.name,
                 privilegeLabel(a) ? `(${privilegeLabel(a)})` : null,
@@ -745,11 +776,6 @@ function AssigneePicker({
               const isSelected = a.id === value;
               const isHousehold = a.id != null && householdIds?.includes(a.id);
               
-              // Normalize score to 0-100 for display?
-              // The raw scores can be very negative (penalty) or high.
-              // Let's just show the raw integer for now as a "Fairness Score".
-              const displayScore = Math.round(score);
-
               return (
                 <div
                   key={a.id}
@@ -780,12 +806,16 @@ function AssigneePicker({
                   <span style={{ color: isSelected ? "#4f46e5" : undefined }} className="flex-1">
                     {optLabel}
                   </span>
-                  <span 
-                    className="text-[10px] font-mono font-bold bg-slate-100 text-slate-500 px-1 rounded"
-                    title="Fairness Score: Higher means more due for assignment"
-                  >
-                    {displayScore}
-                  </span>
+                  <div className="flex flex-col items-end gap-0.5">
+                    <span className="text-[9px] font-medium text-slate-400 leading-none">
+                      {weeksAgo}
+                    </span>
+                    {hasNearby && (
+                      <span className="text-[8px] font-bold text-amber-600 bg-amber-50 px-1 rounded leading-tight border border-amber-100">
+                        NEARBY
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })
