@@ -44,6 +44,7 @@ export default function SchedulePage({
     useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
   const households =
     useLiveQuery(() => db.households.orderBy("name").toArray(), []) ?? [];
+  const settings = useLiveQuery(() => db.settings.get("app"), []) || null;
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [creatingOpen, setCreatingOpen] = useState(false);
   const [importingWorkbook, setImportingWorkbook] = useState(false);
@@ -240,6 +241,8 @@ export default function SchedulePage({
             onRemovePart={(uid) => removePart(selected, uid)}
             onUpdateAssignment={(a) => updateAssignment(selected, a)}
             onNavigateToProfile={onNavigateToProfile}
+            allWeeks={weeks}
+            settings={settings || { id: "app", privilegedMinistryShare: 10, minGapWeeks: 2, catchUpIntensity: 1 }}
           />
         ) : (
           <div className="card">

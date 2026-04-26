@@ -16,6 +16,14 @@ import {
   segmentOf,
 } from "../meeting";
 import { weekRangeLabel } from "../utils";
+import {
+  buildStats,
+  buildTalkSplit,
+  scoreCandidate,
+  type AssigneeStats,
+  type TalkSplit,
+} from "../scheduler";
+import type { AppSettings } from "../types";
 export interface WeekEditorProps {
   week: Week;
   assignees: Assignee[];
@@ -28,6 +36,8 @@ export interface WeekEditorProps {
   onRemovePart: (uid: string) => void;
   onUpdateAssignment: (a: Assignment) => void;
   onNavigateToProfile: (id: number) => void;
+  allWeeks: Week[];
+  settings: AppSettings;
 }
 
 export default function WeekEditor(props: WeekEditorProps) {
@@ -46,6 +56,15 @@ export default function WeekEditor(props: WeekEditorProps) {
     }
     return map;
   }, [week.assignments]);
+
+  // Compute stats and talkSplit based on weeks BEFORE this one.
+  const { stats, talkSplit } = useMemo(() => {
+    const before = props.allWeeks.filter((w) => w.weekOf < week.weekOf);
+    return {
+      stats: buildStats(assignees, before),
+      talkSplit: buildTalkSplit(assignees, before),
+    };
+  }, [props.allWeeks, week.weekOf, assignees]);
 
   return (
     <div className="space-y-5">
@@ -134,6 +153,9 @@ export default function WeekEditor(props: WeekEditorProps) {
           }
           props.onSave({ ...week, assignments: [...others, ...next.map((a,i) => ({...a, order: i+1}))] });
         }}
+        stats={stats}
+        talkSplit={talkSplit}
+        settings={props.settings}
       />
       {SEGMENTS.filter((s) => s.id !== "opening").map((seg) => (
         <SegmentCard
@@ -166,6 +188,9 @@ export default function WeekEditor(props: WeekEditorProps) {
             }
             props.onSave({ ...week, assignments: [...others, ...next.map((a,i) => ({...a, order: i+1}))] });
           }}
+          stats={stats}
+          talkSplit={talkSplit}
+          settings={props.settings}
         />
       ))}
     </div>
@@ -185,6 +210,9 @@ function SegmentCard({
   onUpdateAssignment,
   onNavigateToProfile,
   onReorder,
+  stats,
+  talkSplit,
+  settings,
 }: {
   segment: SegmentId;
   title: string;
@@ -198,6 +226,9 @@ function SegmentCard({
   onUpdateAssignment: (a: Assignment) => void;
   onNavigateToProfile: (id: number) => void;
   onReorder: (draggedUid: string, ontoUid?: string) => void;
+  stats: Map<number, AssigneeStats>;
+  talkSplit: TalkSplit;
+  settings: AppSettings;
 }) {
   const [isOver, setIsOver] = useState(false);
   const [pickerType, setPickerType] = useState<PartType>(
@@ -279,6 +310,9 @@ function SegmentCard({
               onUpdate={onUpdateAssignment}
               onNavigateToProfile={onNavigateToProfile}
               onDropOnto={(dragged) => onReorder(dragged, a.uid)}
+              stats={stats}
+              talkSplit={talkSplit}
+              settings={settings}
             />
           ))}
         </ul>
@@ -296,6 +330,9 @@ function PartRow({
   onUpdate,
   onNavigateToProfile,
   onDropOnto,
+  stats,
+  talkSplit,
+  settings,
 }: {
   assignment: Assignment;
   assignees: Assignee[];
@@ -305,6 +342,9 @@ function PartRow({
   onUpdate: (a: Assignment) => void;
   onNavigateToProfile: (id: number) => void;
   onDropOnto: (draggedUid: string) => void;
+  stats: Map<number, AssigneeStats>;
+  talkSplit: TalkSplit;
+  settings: AppSettings;
 }) {
   const eligibleMain = useMemo(
     () => assignees.filter((a) => isEligible(a, assignment.partType, "main")),
@@ -421,6 +461,12 @@ function PartRow({
               usedIds={usedIds}
               onChange={(id) => onUpdate({ ...assignment, assigneeId: id })}
               onNavigateToProfile={onNavigateToProfile}
+              stats={stats}
+              talkSplit={talkSplit}
+              settings={settings}
+              assignment={assignment}
+              role="main"
+              weekOf={week.weekOf}
             />
             {showAssistant && (
               <AssigneePicker
@@ -462,6 +508,12 @@ function PartRow({
                 householdIds={mainHousehold?.memberIds}
                 onChange={(id) => onUpdate({ ...assignment, assistantId: id })}
                 onNavigateToProfile={onNavigateToProfile}
+                stats={stats}
+                talkSplit={talkSplit}
+                settings={settings}
+                assignment={assignment}
+                role="assistant"
+                weekOf={week.weekOf}
               />
             )}
           </>
@@ -489,6 +541,12 @@ function AssigneePicker({
   householdIds,
   onChange,
   onNavigateToProfile,
+  stats,
+  talkSplit,
+  settings,
+  assignment,
+  role,
+  weekOf,
 }: {
   label: string;
   value?: number;
@@ -498,6 +556,12 @@ function AssigneePicker({
   householdIds?: number[];
   onChange: (id: number | undefined) => void;
   onNavigateToProfile: (id: number) => void;
+  stats: Map<number, AssigneeStats>;
+  talkSplit: TalkSplit;
+  settings: AppSettings;
+  assignment: Assignment;
+  role: "main" | "assistant";
+  weekOf: string;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -525,12 +589,40 @@ function AssigneePicker({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter((a) =>
-      a.name.toLowerCase().includes(q) ||
-      (privilegeLabel(a) ?? "").toLowerCase().includes(q)
+    // Pre-calculate scores for all options
+    const scored = options.map((a) => {
+      const s = stats.get(a.id!) || {
+        totalMain: 0,
+        bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
+        totalAssistant: 0,
+        recentMainDates: [],
+      };
+      const score = scoreCandidate(
+        a,
+        assignment,
+        weekOf,
+        s,
+        0, // seed
+        settings.privilegedMinistryShare,
+        talkSplit,
+        role,
+        {
+          minGapWeeks: settings.minGapWeeks ?? 2,
+          catchUpIntensity: settings.catchUpIntensity ?? 1,
+        }
+      );
+      return { a, score };
+    });
+
+    // Sort by score descending (highest score = most due)
+    scored.sort((a, b) => b.score - a.score);
+
+    if (!q) return scored;
+    return scored.filter((item) =>
+      item.a.name.toLowerCase().includes(q) ||
+      (privilegeLabel(item.a) ?? "").toLowerCase().includes(q)
     );
-  }, [options, query]);
+  }, [options, query, stats, talkSplit, settings, assignment, weekOf, role]);
 
   function selectOption(id: number | undefined) {
     onChange(id);
@@ -560,7 +652,7 @@ function AssigneePicker({
           onKeyDown={(e) => {
             if (e.key === "Escape") { setOpen(false); setQuery(""); }
             if (e.key === "Enter" && filtered.length === 1) {
-              selectOption(filtered[0].id);
+              selectOption(filtered[0].a.id);
             }
           }}
           autoComplete="off"
@@ -642,7 +734,7 @@ function AssigneePicker({
               No matches
             </div>
           ) : (
-            filtered.map((a) => {
+            filtered.map(({ a, score }) => {
               const optLabel = [
                 a.name,
                 privilegeLabel(a) ? `(${privilegeLabel(a)})` : null,
@@ -652,6 +744,12 @@ function AssigneePicker({
               const alreadyUsed = a.id != null && usedIds.has(a.id);
               const isSelected = a.id === value;
               const isHousehold = a.id != null && householdIds?.includes(a.id);
+              
+              // Normalize score to 0-100 for display?
+              // The raw scores can be very negative (penalty) or high.
+              // Let's just show the raw integer for now as a "Fairness Score".
+              const displayScore = Math.round(score);
+
               return (
                 <div
                   key={a.id}
@@ -679,7 +777,15 @@ function AssigneePicker({
                       🏠
                     </span>
                   )}
-                  <span style={{ color: isSelected ? "#4f46e5" : undefined }}>{optLabel}</span>
+                  <span style={{ color: isSelected ? "#4f46e5" : undefined }} className="flex-1">
+                    {optLabel}
+                  </span>
+                  <span 
+                    className="text-[10px] font-mono font-bold bg-slate-100 text-slate-500 px-1 rounded"
+                    title="Fairness Score: Higher means more due for assignment"
+                  >
+                    {displayScore}
+                  </span>
                 </div>
               );
             })

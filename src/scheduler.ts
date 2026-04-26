@@ -130,7 +130,7 @@ function tallyTalk(person: Assignee, split: TalkSplit): void {
  * The scoring uses configurable knobs from AutoAssignOptions to give
  * administrators granular control over fairness behavior.
  */
-function scoreCandidate(
+export function scoreCandidate(
   a: Assignee,
   part: Assignment,
   weekOf: string,
