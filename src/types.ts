@@ -248,7 +248,7 @@ export const DEFAULT_ASSIGNMENT_RULES: Record<string, AssignmentRule> = {
   "Talk (Ministry)": {
     allowedGenders: ["M"],
     requiredPrivileges: [],
-    mustBeBaptized: false,
+    mustBeBaptized: true,
   },
   "Living Part": {
     allowedGenders: ["M"],
@@ -257,12 +257,12 @@ export const DEFAULT_ASSIGNMENT_RULES: Record<string, AssignmentRule> = {
   },
   "Local Needs": {
     allowedGenders: ["M"],
-    requiredPrivileges: ["MS", "QMS", "E", "QE"],
+    requiredPrivileges: ["E", "QE"],
     mustBeBaptized: true,
   },
   "Governing Body Update": {
     allowedGenders: ["M"],
-    requiredPrivileges: ["MS", "QMS", "E", "QE"],
+    requiredPrivileges: ["E", "QE"],
     mustBeBaptized: true,
   },
   "Congregation Bible Study": {
@@ -274,11 +274,6 @@ export const DEFAULT_ASSIGNMENT_RULES: Record<string, AssignmentRule> = {
       requiredPrivileges: ["CBSR"],
       mustBeBaptized: true,
     },
-  },
-  Video: {
-    allowedGenders: ["M", "F"],
-    requiredPrivileges: [],
-    mustBeBaptized: false,
   },
 };
 

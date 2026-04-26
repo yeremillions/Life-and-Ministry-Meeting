@@ -370,7 +370,7 @@ function RuleRows({
     update: (fields: Partial<typeof target>) => void
   ) => (
     <tr>
-      <td className="py-2 px-6 font-medium text-slate-700">{label}</td>
+      <td className="py-2 px-6 font-medium text-slate-700">{label === "Talk" ? "Treasures Talk" : label === "Congregation Bible Study-assistant" ? "Congregation Bible Study Reader" : label}</td>
       <td className="py-2 px-6 text-slate-500 italic">
         {label === partType ? "Main" : "Assistant"}
       </td>
