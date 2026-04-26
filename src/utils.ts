@@ -93,3 +93,22 @@ export function workbookPeriod(weekOf: string): { key: string; label: string } {
     `${MONTH_NAMES[blockStart]} \u2013 ${MONTH_NAMES[blockEnd]} ${year}`;
   return { key, label };
 }
+
+/**
+ * Heuristic to detect the year from a text blob and/or a filename.
+ * 1. Checks filename for a 4-digit year (e.g. mwb_E_202601.pdf).
+ * 2. Checks document text for a 4-digit year starting with "20".
+ * 3. Falls back to the current calendar year.
+ */
+export function detectYear(text: string, filename?: string): number {
+  // 1. Try filename first (strong signal)
+  if (filename) {
+    const m = /\b(20\d{2})\b/.exec(filename);
+    if (m) return parseInt(m[1], 10);
+  }
+  // 2. Try document text
+  const m = /\b(20\d{2})\b/.exec(text);
+  if (m) return parseInt(m[1], 10);
+  // 3. Fallback
+  return new Date().getFullYear();
+}

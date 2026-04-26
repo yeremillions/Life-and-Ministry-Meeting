@@ -54,7 +54,8 @@ export default function WorkbookImportModal({
       const yearNum = forcedYear.trim() ? parseInt(forcedYear, 10) : undefined;
       const meetings = parseWorkbookText(
         text,
-        Number.isFinite(yearNum) ? yearNum : undefined
+        Number.isFinite(yearNum) ? yearNum : undefined,
+        file.name
       );
       if (meetings.length === 0) {
         setError(
@@ -206,6 +207,17 @@ export default function WorkbookImportModal({
         {error && (
           <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
             {error}
+          </div>
+        )}
+
+        {parsed && parsed.length > 0 && (
+          <div className="mb-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded text-xs text-blue-700 flex justify-between items-center">
+            <span>
+              Detected Year: <strong>{parsed[0].weekOf.slice(0, 4)}</strong>
+            </span>
+            <span className="opacity-70 italic">
+              If this is wrong, enter the correct year above and click "Read PDF" again.
+            </span>
           </div>
         )}
 

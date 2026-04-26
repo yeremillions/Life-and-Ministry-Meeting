@@ -345,6 +345,17 @@ export default function S140ImportModal({
           </div>
         )}
 
+        {resolved && resolved.length > 0 && (
+          <div className="mb-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded text-xs text-blue-700 flex justify-between items-center">
+            <span>
+              Detected Year: <strong>{resolved[0].source.weekOf.slice(0, 4)}</strong>
+            </span>
+            <span className="opacity-70 italic">
+              If this is wrong, enter the correct year above and click "Read file" again.
+            </span>
+          </div>
+        )}
+
         {/* Preview */}
         <div className="flex-1 overflow-auto border border-slate-200 rounded min-h-0">
           {!resolved ? (

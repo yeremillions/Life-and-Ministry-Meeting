@@ -1,4 +1,5 @@
 import type { PartType, SegmentId } from "./types";
+import { detectYear as inferYear } from "./utils";
 
 /* -------------------------------------------------------------------- *
  * Life and Ministry Meeting Workbook parser.
@@ -215,7 +216,8 @@ function assembleLine(
  */
 export function parseWorkbookText(
   text: string,
-  forcedYear?: number
+  forcedYear?: number,
+  filename?: string
 ): ParsedMeeting[] {
   // Normalise to simplify downstream regexes.
   const normalised = text
@@ -269,7 +271,7 @@ export function parseWorkbookText(
     // digit-pair didn't merge through gap-based extraction.
     .replace(/\b(20)\s(\d{2})\b/g, "$1$2");
 
-  const year = forcedYear ?? detectYear(normalised);
+  const year = forcedYear ?? inferYear(normalised, filename);
 
   // --- Step 1: find all TREASURES headings (one per week, reliable) ---
   const treasuresGlobal = new RegExp(SEGMENT_RE.treasures.source, "gi");
@@ -400,11 +402,6 @@ export function parseWorkbookText(
 
 /* ------------------------- helpers ------------------------- */
 
-function detectYear(text: string): number {
-  const m = /\b(20\d{2})\b/.exec(text);
-  if (m) return parseInt(m[1], 10);
-  return new Date().getFullYear();
-}
 
 function monthNameFromNum(monthNum: number): string {
   const names = [

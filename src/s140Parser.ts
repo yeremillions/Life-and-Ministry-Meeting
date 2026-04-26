@@ -1,6 +1,7 @@
 import mammoth from "mammoth";
 import type { PartType, SegmentId } from "./types";
 import { extractPdfText } from "./workbookParser";
+import { detectYear as inferYear } from "./utils";
 
 /* -------------------------------------------------------------------- *
  * S-140 "Life and Ministry Meeting Schedule" template parser.
@@ -115,7 +116,7 @@ export async function parseS140Docx(
 ): Promise<S140Week[]> {
   const buf = await file.arrayBuffer();
   const { value } = await mammoth.extractRawText({ arrayBuffer: buf });
-  return parseS140Text(value, forcedYear);
+  return parseS140Text(value, forcedYear, file.name);
 }
 
 /** Parse a filled-out S-140 PDF file (uses the existing pdf.js extractor). */
@@ -124,15 +125,19 @@ export async function parseS140Pdf(
   forcedYear?: number
 ): Promise<S140Week[]> {
   const text = await extractPdfText(file);
-  return parseS140Text(text, forcedYear);
+  return parseS140Text(text, forcedYear, file.name);
 }
 
 // ─── Core text parser ─────────────────────────────────────────────────
 
-export function parseS140Text(raw: string, forcedYear?: number): S140Week[] {
+export function parseS140Text(
+  raw: string,
+  forcedYear?: number,
+  filename?: string
+): S140Week[] {
   const text = normalise(raw);
   const lines = text.split("\n");
-  const year = forcedYear ?? detectYear(text);
+  const year = forcedYear ?? inferYear(text, filename);
 
   const result: S140Week[] = [];
   let week: S140Week | null = null;
@@ -276,10 +281,6 @@ function normalise(raw: string): string {
     .replace(/[\u2013\u2014]/g, "-");
 }
 
-function detectYear(text: string): number {
-  const m = /\b(20\d{2})\b/.exec(text);
-  return m ? parseInt(m[1], 10) : new Date().getFullYear();
-}
 
 function toIsoDate(year: number, monthName: string, day: number): string | null {
   const mn = MONTHS[monthName.toUpperCase()];
