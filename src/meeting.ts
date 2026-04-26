@@ -1,9 +1,11 @@
-import type {
+import {
   Assignee,
   Assignment,
   PartType,
   Privilege,
   SegmentId,
+  AssignmentRule,
+  DEFAULT_ASSIGNMENT_RULES,
 } from "./types";
 
 export const SEGMENTS: {
@@ -156,74 +158,40 @@ export function isEligible(
   a: Assignee,
   partType: PartType,
   role: "main" | "assistant" = "main",
-  purpose: "auto" | "manual" = "manual"
+  purpose: "auto" | "manual" = "manual",
+  rules: Record<string, AssignmentRule> = DEFAULT_ASSIGNMENT_RULES
 ): boolean {
   if (!a.active) return false;
 
-  const brothersOnly = isBrothersPart(partType);
-  if (brothersOnly && a.gender !== "M") return false;
+  const rule = rules[partType] || DEFAULT_ASSIGNMENT_RULES[partType];
+  if (!rule) return false;
 
-  switch (partType) {
-    case "Chairman":
-      // Programme moderator — must be a Qualified Elder (QE only).
-      return a.gender === "M" && a.privileges.includes("QE");
+  const target = role === "assistant" && rule.assistant ? rule.assistant : rule;
 
-    case "Opening Prayer":
-    case "Closing Prayer":
-      // Manual selection: any baptised brother.
-      // Auto-assignment: MS/E/CBSR only.
-      if (a.gender !== "M" || !a.baptised) return false;
-      if (purpose === "auto") {
-        return isMSorAbove(a) || a.privileges.includes("CBSR");
-      }
-      return true;
+  // Gender check
+  if (!target.allowedGenders.includes(a.gender)) return false;
 
-    case "Talk": // Treasures opening talk — elders (sometimes MS)
-      return a.gender === "M" && isMSorAbove(a) && a.baptised;
+  // Baptism check
+  if (target.mustBeBaptized && !a.baptised) return false;
 
-    case "Spiritual Gems":
-      return a.gender === "M" && isMSorAbove(a) && a.baptised;
-
-    case "Bible Reading":
-      // Any active male may read — baptism is not required.
-      // Non-privileged brothers are strongly preferred via scoring (−4).
-      return a.gender === "M";
-
-    case "Talk (Ministry)":
-      // Any active male may give a ministry talk — baptism is not required
-      // (unbaptised brothers can be assigned manually; the auto-assigner
-      // will still prefer baptised brothers via a scoring penalty).
-      return a.gender === "M";
-
-    case "Living Part":
-    case "Local Needs":
-    case "Governing Body Update":
-      // Restricted to appointed brothers (E, QE, MS, QMS).
-      return a.gender === "M" && a.baptised && isMSorAbove(a);
-
-    case "Congregation Bible Study":
-      if (role === "main") {
-        // Conductor: Qualified Elder only.
-        return a.gender === "M" && a.privileges.includes("QE");
-      }
-      // Reader: must hold the CBSR privilege.
-      return a.privileges.includes("CBSR");
-
-    case "Starting a Conversation":
-    case "Following Up":
-    case "Making Disciples":
-    case "Explaining Your Beliefs":
-    case "Initial Call":
-      // Demo parts can be taken by anyone baptised or unbaptised who is
-      // enrolled as a publisher. We don't gate on baptism here because
-      // unbaptised publishers may take these. Pairing rules (same-sex,
-      // household) are left to the user to confirm.
-      return true;
-
-    case "Video":
-      // Videos are introduced by the chairman; no separate assignee needed.
-      return false;
+  // Privilege check
+  if (target.requiredPrivileges.length > 0) {
+    const hasAny = target.requiredPrivileges.some((p) => a.privileges.includes(p));
+    if (!hasAny) return false;
   }
+
+  // Specific hardcoded overrides that are harder to represent in simple rules
+  // but could eventually be moved too.
+  if (partType === "Opening Prayer" || partType === "Closing Prayer") {
+    if (purpose === "auto") {
+      // In auto-assign, we prefer MS/E/CBSR for prayers.
+      return isMSorAbove(a) || a.privileges.includes("CBSR");
+    }
+  }
+
+  if (partType === "Video") return false;
+
+  return true;
 }
 
 /**

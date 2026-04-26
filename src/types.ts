@@ -147,7 +147,140 @@ export interface AppSettings {
    * rolling 4-week period. 0 = no limit. Default 2.
    */
   maxAssignmentsPerMonth?: number;
+  /** Custom eligibility rules for each part type. */
+  assignmentRules: Record<string, AssignmentRule>;
 }
+
+export interface AssignmentRule {
+  allowedGenders: Gender[];
+  /** If empty, no specific privilege is required. */
+  requiredPrivileges: Privilege[];
+  mustBeBaptized: boolean;
+  /** Rules for the assistant role (if applicable). */
+  assistant?: {
+    allowedGenders: Gender[];
+    requiredPrivileges: Privilege[];
+    mustBeBaptized: boolean;
+  };
+}
+
+export const DEFAULT_ASSIGNMENT_RULES: Record<string, AssignmentRule> = {
+  Chairman: {
+    allowedGenders: ["M"],
+    requiredPrivileges: ["QE"],
+    mustBeBaptized: true,
+  },
+  "Opening Prayer": {
+    allowedGenders: ["M"],
+    requiredPrivileges: [],
+    mustBeBaptized: true,
+  },
+  "Closing Prayer": {
+    allowedGenders: ["M"],
+    requiredPrivileges: [],
+    mustBeBaptized: true,
+  },
+  Talk: {
+    allowedGenders: ["M"],
+    requiredPrivileges: ["MS", "QMS", "E", "QE"],
+    mustBeBaptized: true,
+  },
+  "Spiritual Gems": {
+    allowedGenders: ["M"],
+    requiredPrivileges: ["MS", "QMS", "E", "QE"],
+    mustBeBaptized: true,
+  },
+  "Bible Reading": {
+    allowedGenders: ["M"],
+    requiredPrivileges: [],
+    mustBeBaptized: false,
+  },
+  "Starting a Conversation": {
+    allowedGenders: ["M", "F"],
+    requiredPrivileges: [],
+    mustBeBaptized: false,
+    assistant: {
+      allowedGenders: ["M", "F"],
+      requiredPrivileges: [],
+      mustBeBaptized: false,
+    },
+  },
+  "Following Up": {
+    allowedGenders: ["M", "F"],
+    requiredPrivileges: [],
+    mustBeBaptized: false,
+    assistant: {
+      allowedGenders: ["M", "F"],
+      requiredPrivileges: [],
+      mustBeBaptized: false,
+    },
+  },
+  "Making Disciples": {
+    allowedGenders: ["M", "F"],
+    requiredPrivileges: [],
+    mustBeBaptized: false,
+    assistant: {
+      allowedGenders: ["M", "F"],
+      requiredPrivileges: [],
+      mustBeBaptized: false,
+    },
+  },
+  "Explaining Your Beliefs": {
+    allowedGenders: ["M", "F"],
+    requiredPrivileges: [],
+    mustBeBaptized: false,
+    assistant: {
+      allowedGenders: ["M", "F"],
+      requiredPrivileges: [],
+      mustBeBaptized: false,
+    },
+  },
+  "Initial Call": {
+    allowedGenders: ["M", "F"],
+    requiredPrivileges: [],
+    mustBeBaptized: false,
+    assistant: {
+      allowedGenders: ["M", "F"],
+      requiredPrivileges: [],
+      mustBeBaptized: false,
+    },
+  },
+  "Talk (Ministry)": {
+    allowedGenders: ["M"],
+    requiredPrivileges: [],
+    mustBeBaptized: false,
+  },
+  "Living Part": {
+    allowedGenders: ["M"],
+    requiredPrivileges: ["MS", "QMS", "E", "QE"],
+    mustBeBaptized: true,
+  },
+  "Local Needs": {
+    allowedGenders: ["M"],
+    requiredPrivileges: ["MS", "QMS", "E", "QE"],
+    mustBeBaptized: true,
+  },
+  "Governing Body Update": {
+    allowedGenders: ["M"],
+    requiredPrivileges: ["MS", "QMS", "E", "QE"],
+    mustBeBaptized: true,
+  },
+  "Congregation Bible Study": {
+    allowedGenders: ["M"],
+    requiredPrivileges: ["QE"],
+    mustBeBaptized: true,
+    assistant: {
+      allowedGenders: ["M"],
+      requiredPrivileges: ["CBSR"],
+      mustBeBaptized: true,
+    },
+  },
+  Video: {
+    allowedGenders: ["M", "F"],
+    requiredPrivileges: [],
+    mustBeBaptized: false,
+  },
+};
 
 export const DEFAULT_SETTINGS: AppSettings = {
   id: "app",
@@ -157,4 +290,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   chairmanGapWeeks: 3,
   catchUpIntensity: 1,
   maxAssignmentsPerMonth: 2,
+  assignmentRules: DEFAULT_ASSIGNMENT_RULES,
 };

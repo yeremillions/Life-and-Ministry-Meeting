@@ -1,7 +1,13 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useState } from "react";
 import { db, ensureSettings } from "../db";
-import type { Assignment, PartType, SegmentId, Week } from "../types";
+import {
+  Assignment,
+  DEFAULT_SETTINGS,
+  PartType,
+  SegmentId,
+  Week,
+} from "../types";
 
 import { autoAssignWeek } from "../scheduler";
 import { nextMondayIso, uid, weekRangeLabel, workbookPeriod } from "../utils";
@@ -113,6 +119,7 @@ export default function SchedulePage({
       chairmanGapWeeks: settings.chairmanGapWeeks ?? 3,
       catchUpIntensity: settings.catchUpIntensity ?? 1,
       maxAssignmentsPerMonth: settings.maxAssignmentsPerMonth ?? 2,
+      assignmentRules: settings.assignmentRules,
     });
     await saveWeek(updated);
   }
@@ -242,7 +249,7 @@ export default function SchedulePage({
             onUpdateAssignment={(a) => updateAssignment(selected, a)}
             onNavigateToProfile={onNavigateToProfile}
             allWeeks={weeks}
-            settings={settings || { id: "app", privilegedMinistryShare: 10, minGapWeeks: 2, catchUpIntensity: 1 }}
+            settings={settings || DEFAULT_SETTINGS}
           />
         ) : (
           <div className="card">

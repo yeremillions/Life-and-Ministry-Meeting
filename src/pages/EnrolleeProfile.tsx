@@ -1,6 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
-import { Assignee, Week, Assignment, PartType } from "../types";
+import { AppSettings, Assignee, Week, Assignment, PartType } from "../types";
 import { segmentOf, isEligible } from "../meeting";
 import { todayIso } from "../utils";
 import { buildStats, AssigneeStats } from "../scheduler";
@@ -18,6 +18,7 @@ export default function EnrolleeProfile({
   const allAssignees = useLiveQuery(() => db.assignees.toArray(), []);
   const weeks = useLiveQuery(() => db.weeks.orderBy("weekOf").toArray(), []);
   const households = useLiveQuery(() => db.households.toArray(), []);
+  const settings = useLiveQuery(() => db.settings.get("app"), []) || null;
 
   if (!enrollee || !weeks || !allAssignees || !households) return <div className="p-8 text-center text-slate-500">Loading...</div>;
 
@@ -42,7 +43,7 @@ export default function EnrolleeProfile({
   const stats = buildStats([enrollee], weeks).get(id)!;
 
   // Calculate insights
-  const insights = calculateInsights(enrollee, history, stats);
+  const insights = calculateInsights(enrollee, history, stats, settings);
 
   return (
     <div className="space-y-6">
@@ -213,7 +214,7 @@ export default function EnrolleeProfile({
   );
 }
 
-function calculateInsights(enrollee: Assignee, history: any[], stats: AssigneeStats): string[] {
+function calculateInsights(enrollee: Assignee, history: any[], stats: AssigneeStats, settings: AppSettings | null): string[] {
     const insights: string[] = [];
     const today = todayIso();
 
@@ -237,7 +238,7 @@ function calculateInsights(enrollee: Assignee, history: any[], stats: AssigneeSt
         "Congregation Bible Study", "Closing Prayer"
     ];
 
-    const eligibleFor = allParts.filter(p => isEligible(enrollee, p, "main"));
+    const eligibleFor = allParts.filter(p => isEligible(enrollee, p, "main", "manual", settings?.assignmentRules));
     
     // Find parts they haven't done
     const doneParts = new Set(history.filter(h => h.role === 'main').map(h => h.assignment.partType));

@@ -1,7 +1,14 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useState } from "react";
 import { db, ensureSettings } from "../db";
-import type { AppSettings } from "../types";
+import {
+  DEFAULT_ASSIGNMENT_RULES,
+  DEFAULT_SETTINGS,
+  type AppSettings,
+  type AssignmentRule,
+  type Gender,
+  type Privilege,
+} from "../types";
 
 export default function SettingsPage({
   onNavigateToAdmin,
@@ -41,6 +48,14 @@ export default function SettingsPage({
     });
     await ensureSettings();
     window.location.reload();
+  }
+
+  async function restoreDefaults() {
+    if (!confirm("Reset all settings to defaults? Rules will be restored.")) return;
+    setDraft(DEFAULT_SETTINGS);
+    await db.settings.put(DEFAULT_SETTINGS);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
   }
 
   async function exportBackup() {
@@ -97,8 +112,13 @@ export default function SettingsPage({
 
   return (
     <div className="space-y-6">
-      <div className="card space-y-3">
-        <h2 className="font-semibold">App settings</h2>
+      <div className="card space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-slate-800">General Settings</h2>
+          <button className="btn-secondary text-xs" onClick={restoreDefaults}>
+            Restore Defaults
+          </button>
+        </div>
         <div>
           <label className="label">Congregation name</label>
           <input
@@ -251,6 +271,42 @@ export default function SettingsPage({
         </div>
       </div>
 
+      <div className="card space-y-4">
+        <h2 className="text-xl font-bold text-slate-800">Assignment Eligibility Rules</h2>
+        <p className="text-sm text-slate-500">
+          Configure who can be assigned to each part type. "Main" refers to the primary person (e.g. Conductor, Speaker), and "Assistant" refers to the secondary person (e.g. Reader, Householder).
+        </p>
+
+        <div className="overflow-x-auto -mx-6 sm:mx-0">
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead>
+              <tr className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-y border-slate-100">
+                <th className="py-2 px-6">Part Type</th>
+                <th className="py-2 px-6">Role</th>
+                <th className="py-2 px-6">Allowed Genders</th>
+                <th className="py-2 px-6">Must be Baptized</th>
+                <th className="py-2 px-6">Required Privileges</th>
+              </tr>
+            </thead>
+            <tbody className="text-sm divide-y divide-slate-50">
+              {Object.keys(DEFAULT_ASSIGNMENT_RULES).map((partType) => (
+                <RuleRows
+                  key={partType}
+                  partType={partType}
+                  rule={draft.assignmentRules?.[partType] || DEFAULT_ASSIGNMENT_RULES[partType]}
+                  onChange={(r) => {
+                    setDraft({
+                      ...draft,
+                      assignmentRules: { ...draft.assignmentRules, [partType]: r },
+                    });
+                  }}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="card space-y-3">
         <h2 className="font-semibold">Backup &amp; restore</h2>
         <p className="text-sm text-slate-600">
@@ -290,6 +346,102 @@ export default function SettingsPage({
         </div>
       )}
     </div>
+  );
+}
+
+function RuleRows({
+  partType,
+  rule,
+  onChange,
+}: {
+  partType: string;
+  rule: AssignmentRule;
+  onChange: (r: AssignmentRule) => void;
+}) {
+  const ALL_PRIVILEGES: Privilege[] = ["QE", "E", "QMS", "MS", "RP", "CBSR"];
+
+  const renderRow = (
+    label: string,
+    target: {
+      allowedGenders: Gender[];
+      mustBeBaptized: boolean;
+      requiredPrivileges: Privilege[];
+    },
+    update: (fields: Partial<typeof target>) => void
+  ) => (
+    <tr>
+      <td className="py-2 px-6 font-medium text-slate-700">{label}</td>
+      <td className="py-2 px-6 text-slate-500 italic">
+        {label === partType ? "Main" : "Assistant"}
+      </td>
+      <td className="py-2 px-6">
+        <div className="flex gap-3">
+          {["M", "F"].map((g) => (
+            <label
+              key={g}
+              className="inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                className="checkbox"
+                checked={target.allowedGenders.includes(g as Gender)}
+                onChange={(e) => {
+                  const next = e.target.checked
+                    ? [...target.allowedGenders, g as Gender]
+                    : target.allowedGenders.filter((x) => x !== g);
+                  update({ allowedGenders: next });
+                }}
+              />
+              <span className="text-xs font-bold">{g}</span>
+            </label>
+          ))}
+        </div>
+      </td>
+      <td className="py-2 px-6">
+        <input
+          type="checkbox"
+          className="checkbox"
+          checked={target.mustBeBaptized}
+          onChange={(e) => update({ mustBeBaptized: e.target.checked })}
+        />
+      </td>
+      <td className="py-2 px-6">
+        <div className="flex flex-wrap gap-2">
+          {ALL_PRIVILEGES.map((p) => (
+            <label
+              key={p}
+              className="inline-flex items-center gap-1 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                className="checkbox w-3 h-3"
+                checked={target.requiredPrivileges.includes(p)}
+                onChange={(e) => {
+                  const next = e.target.checked
+                    ? [...target.requiredPrivileges, p]
+                    : target.requiredPrivileges.filter((x) => x !== p);
+                  update({ requiredPrivileges: next });
+                }}
+              />
+              <span className="text-[10px] font-mono">{p}</span>
+            </label>
+          ))}
+        </div>
+      </td>
+    </tr>
+  );
+
+  return (
+    <>
+      {renderRow(partType, rule, (fields) => onChange({ ...rule, ...fields }))}
+      {rule.assistant &&
+        renderRow(partType + "-assistant", rule.assistant, (fields) =>
+          onChange({
+            ...rule,
+            assistant: { ...rule.assistant!, ...fields },
+          })
+        )}
+    </>
   );
 }
 

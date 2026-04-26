@@ -354,13 +354,13 @@ function PartRow({
   allWeeks: Week[];
 }) {
   const eligibleMain = useMemo(
-    () => assignees.filter((a) => isEligible(a, assignment.partType, "main")),
-    [assignees, assignment.partType]
+    () => assignees.filter((a) => isEligible(a, assignment.partType, "main", "manual", settings.assignmentRules)),
+    [assignees, assignment.partType, settings.assignmentRules]
   );
   const eligibleAssistant = useMemo(
     () =>
-      assignees.filter((a) => isEligible(a, assignment.partType, "assistant")),
-    [assignees, assignment.partType]
+      assignees.filter((a) => isEligible(a, assignment.partType, "assistant", "manual", settings.assignmentRules)),
+    [assignees, assignment.partType, settings.assignmentRules]
   );
 
   const seg = segmentOf(assignment.segment);

@@ -3,10 +3,11 @@ import {
   isPrivileged,
   needsAssistant,
 } from "./meeting";
-import type {
+import {
   Assignee,
   Assignment,
   Week,
+  AssignmentRule,
 } from "./types";
 
 export interface AssigneeStats {
@@ -307,6 +308,8 @@ export interface AutoAssignOptions {
   catchUpIntensity: number;
   /** Max main assignments in a rolling 4-week window. 0 = no limit. Default 2. */
   maxAssignmentsPerMonth: number;
+  /** Custom eligibility rules. */
+  assignmentRules: Record<string, AssignmentRule>;
 }
 
 /**
@@ -498,7 +501,10 @@ function pickCandidate(args: PickArgs): Assignee | null {
   let eligiblePool = assignees.filter((a) => {
     if (used.has(a.id ?? -1)) return false;
     if (genderFilter && a.gender !== genderFilter) return false;
-    return isEligible(a, part.partType, role, "auto");
+    // Hard eligibility check
+    if (!isEligible(a, part.partType, role, "auto", opts.assignmentRules)) {
+      return false;
+    }
   });
 
   // ── Hard constraint: minimum gap between main assignments ──────────
