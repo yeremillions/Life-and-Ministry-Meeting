@@ -218,9 +218,11 @@ export function scoreCandidate(
     }
 
     // Workload penalty: spread the total lifetime burden.
-    score -= stats.totalMain * 15;
+    // Reduced from 15 to 2 so it breaks ties and handles long-term drift
+    // without completely blocking experienced members from a normal rotation.
+    score -= stats.totalMain * 2;
     // Segment balancing — penalise heavy use in this segment.
-    score -= stats.bySegmentMain[part.segment] * 8;
+    score -= stats.bySegmentMain[part.segment] * 3;
   } else {
     // Assistant role — use assistant-only history.
     if (stats.lastWeekAssistant) {
