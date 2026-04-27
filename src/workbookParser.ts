@@ -36,6 +36,8 @@ export interface ParsedMeeting {
   /** Bible reading reference for the week, e.g. "PROVERBS 26-28". */
   bibleReading?: string;
   parts: ParsedPart[];
+  /** The 1-indexed page number where this week was primarily found. */
+  pageNumber?: number;
 }
 
 const MONTHS: Record<string, number> = {
@@ -119,7 +121,10 @@ function extractBibleReading(slice: string): string | undefined {
  * adjacent items is a within-word letter-space (no separator) or a
  * real inter-word space.
  */
-export async function extractPdfText(file: File): Promise<string> {
+export async function extractPdfText(file: File): Promise<{
+  fullText: string;
+  pageTexts: { page: number; text: string }[];
+}> {
   // Dynamic imports so pdf.js isn't in the main bundle until the user
   // actually opens the importer.
   const pdfjsLib = await import("pdfjs-dist");
@@ -172,7 +177,10 @@ export async function extractPdfText(file: File): Promise<string> {
     );
     pages.push(lines.filter(Boolean).join("\n"));
   }
-  return pages.join("\n\n");
+  return {
+    fullText: pages.join("\n\n"),
+    pageTexts: pages.map((text, i) => ({ page: i + 1, text })),
+  };
 }
 
 /**
@@ -215,10 +223,12 @@ function assembleLine(
  * the first 4-digit year in the document text.
  */
 export function parseWorkbookText(
-  text: string,
+  input: string | { fullText: string; pageTexts: { page: number; text: string }[] },
   forcedYear?: number,
   filename?: string
 ): ParsedMeeting[] {
+  const text = typeof input === "string" ? input : input.fullText;
+  const pageTexts = typeof input === "string" ? [] : input.pageTexts;
   // Normalise to simplify downstream regexes.
   const normalised = text
     .replace(/\r\n?/g, "\n")
@@ -385,7 +395,18 @@ export function parseWorkbookText(
 
     const bibleReading = extractBibleReading(slice);
     const parts = extractParts(slice);
-    results.push({ weekOf, banner, bibleReading, parts });
+
+    // Heuristic: which page was this slice likely on?
+    // We look for the page that contains most of the slice's text.
+    let pageNumber: number | undefined;
+    if (pageTexts.length > 0) {
+      // Find page that contains the banner or first few parts
+      const bannerMarker = banner.toUpperCase();
+      const match = pageTexts.find(pt => pt.text.toUpperCase().includes(bannerMarker));
+      if (match) pageNumber = match.page;
+    }
+
+    results.push({ weekOf, banner, bibleReading, parts, pageNumber });
   }
 
   // Deduplicate weeks (a workbook occasionally repeats a week in TOC-like

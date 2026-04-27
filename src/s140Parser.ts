@@ -124,8 +124,8 @@ export async function parseS140Pdf(
   file: File,
   forcedYear?: number
 ): Promise<S140Week[]> {
-  const text = await extractPdfText(file);
-  return parseS140Text(text, forcedYear, file.name);
+  const result = await extractPdfText(file);
+  return parseS140Text(result.fullText, forcedYear, file.name);
 }
 
 // ─── Core text parser ─────────────────────────────────────────────────

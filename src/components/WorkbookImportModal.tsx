@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { db } from "../db";
 import type { Assignment, Week } from "../types";
 import { uid } from "../utils";
@@ -30,11 +30,14 @@ export default function WorkbookImportModal({
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParsedMeeting[] | null>(null);
-  const [rawText, setRawText] = useState<string | null>(null);
-  const [showRaw, setShowRaw] = useState(false);
   const [forcedYear, setForcedYear] = useState<string>("");
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [importing, setImporting] = useState(false);
+  
+  // Review state
+  const [reviewing, setReviewing] = useState(false);
+  const [selectedReviewIdx, setSelectedReviewIdx] = useState(0);
+  const [pdfDoc, setPdfDoc] = useState<any>(null);
 
   const existingSet = useMemo(
     () => new Set(existingWeekOfs),
@@ -46,17 +49,21 @@ export default function WorkbookImportModal({
     setParsing(true);
     setError(null);
     setParsed(null);
-    setRawText(null);
-    setShowRaw(false);
     try {
-      const text = await extractPdfText(file);
-      setRawText(text);
+      const result = await extractPdfText(file);
+      
       const yearNum = forcedYear.trim() ? parseInt(forcedYear, 10) : undefined;
       const meetings = parseWorkbookText(
-        text,
+        result,
         Number.isFinite(yearNum) ? yearNum : undefined,
         file.name
       );
+
+      // Load PDF for rendering
+      const pdfjsLib = await import("pdfjs-dist");
+      const buf = await file.arrayBuffer();
+      const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+      setPdfDoc(doc);
       if (meetings.length === 0) {
         setError(
           "No meeting weeks were recognised. " +
@@ -145,194 +152,358 @@ export default function WorkbookImportModal({
     }
   }
 
+
+
+  if (reviewing && parsed) {
+    const meeting = parsed[selectedReviewIdx];
+    return (
+      <div
+        className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-[100]"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div>
+              <h3 className="font-bold text-xl text-slate-800">Verify Workbook Parts</h3>
+              <p className="text-sm text-slate-500">
+                Compare the detected parts on the right with the original workbook page on the left.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-slate-400">
+                Week {selectedReviewIdx + 1} of {parsed.length}
+              </span>
+              <button
+                className="text-slate-400 hover:text-slate-600 text-2xl"
+                onClick={onClose}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          {/* Main content: Side-by-Side */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Left: PDF Preview */}
+            <div className="flex-1 bg-slate-200 overflow-auto p-4 flex justify-center">
+              <div className="bg-white shadow-lg h-fit">
+                <PdfPageRenderer
+                  doc={pdfDoc}
+                  pageNumber={meeting.pageNumber ?? 1}
+                />
+              </div>
+            </div>
+
+            {/* Right: Parsed Data */}
+            <div className="w-[400px] border-l border-slate-100 bg-white flex flex-col">
+              <div className="p-6 flex-1 overflow-auto">
+                <div className="mb-6">
+                  <div className="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-1">
+                    Detected Date
+                  </div>
+                  <h4 className="text-xl font-bold text-slate-800">{meeting.banner}</h4>
+                  <div className="text-sm text-slate-500">{meeting.bibleReading}</div>
+                </div>
+
+                <div className="space-y-6">
+                  {["treasures", "ministry", "living"].map((segId) => {
+                    const segmentParts = meeting.parts.filter(p => p.segment === segId);
+                    if (segmentParts.length === 0) return null;
+                    return (
+                      <div key={segId}>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-3 border-b border-slate-50 pb-1">
+                          {segId.replace(/s$/, "")}
+                        </div>
+                        <ul className="space-y-3">
+                          {segmentParts.map((p) => (
+                            <li key={p.number} className="flex gap-3">
+                              <span className="text-xs font-bold text-slate-300 tabular-nums pt-0.5">
+                                {p.number}
+                              </span>
+                              <div>
+                                <div className="text-sm font-semibold text-slate-700 leading-snug">
+                                  {p.title}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-medium">
+                                  {p.partType} {p.minutes ? `(${p.minutes} min.)` : ""}
+                                </div>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-8 p-4 bg-amber-50 rounded-xl border border-amber-100">
+                  <div className="flex gap-3">
+                    <span className="text-xl">⚠️</span>
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      <strong>Reminder:</strong> Please ensure the parts match the workbook exactly. You can manually adjust any errors in the week editor after importing.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation within Review */}
+              <div className="p-4 border-t border-slate-50 bg-slate-50/30 flex gap-2">
+                <button
+                  className="btn-secondary flex-1"
+                  disabled={selectedReviewIdx === 0}
+                  onClick={() => setSelectedReviewIdx(prev => prev - 1)}
+                >
+                  Previous
+                </button>
+                <button
+                  className="btn-secondary flex-1"
+                  disabled={selectedReviewIdx === parsed.length - 1}
+                  onClick={() => setSelectedReviewIdx(prev => prev + 1)}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-slate-100 bg-white flex justify-between items-center">
+            <button className="text-sm font-medium text-slate-400 hover:text-slate-600" onClick={() => setReviewing(false)}>
+              ← Back to list
+            </button>
+            <div className="flex gap-3">
+              <button className="btn-secondary" onClick={onClose}>Cancel</button>
+              <button className="btn px-8" onClick={handleImport} disabled={importing}>
+                {importing ? "Importing..." : `Import ${parsed.length} Weeks`}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-50"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg shadow-xl max-w-3xl w-full p-5 max-h-[90vh] flex flex-col"
+        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-lg">Import workbook PDF</h3>
-          <button
-            className="text-slate-500 hover:text-slate-800"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            &times;
-          </button>
-        </div>
-
-        <p className="text-sm text-slate-600 mb-3">
-          Upload the Life and Ministry Meeting workbook PDF (e.g.{" "}
-          <code>mwb_E_202601.pdf</code>). Weeks and parts will be extracted
-          and added to the schedule.
-        </p>
-
-        <div className="flex flex-wrap gap-3 items-end mb-3">
-          <div className="flex-1 min-w-[220px]">
-            <label className="label">PDF file</label>
-            <input
-              type="file"
-              accept="application/pdf,.pdf"
-              className="input"
-              onChange={(e) => {
-                setFile(e.target.files?.[0] ?? null);
-                setParsed(null);
-                setError(null);
-              }}
-            />
-          </div>
+        {/* Header */}
+        <div className="p-6 border-b border-slate-100 flex items-start justify-between">
           <div>
-            <label className="label">Year (optional)</label>
-            <input
-              type="number"
-              placeholder="auto"
-              className="input w-28"
-              value={forcedYear}
-              onChange={(e) => setForcedYear(e.target.value)}
-            />
+            <h3 className="font-semibold text-lg text-slate-800">
+              Import Workbook PDF
+            </h3>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Select a Life and Ministry Meeting Workbook (MWB) file to extract
+              meeting parts.
+            </p>
           </div>
           <button
-            className="btn"
-            onClick={handleParse}
-            disabled={!file || parsing}
+            className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+            onClick={onClose}
           >
-            {parsing ? "Reading…" : "Read PDF"}
+            ×
           </button>
         </div>
 
-        {error && (
-          <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
-            {error}
-          </div>
-        )}
-
-        {parsed && parsed.length > 0 && (
-          <div className="mb-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded text-xs text-blue-700 flex justify-between items-center">
-            <span>
-              Detected Year: <strong>{parsed[0].weekOf.slice(0, 4)}</strong>
-            </span>
-            <span className="opacity-70 italic">
-              If this is wrong, enter the correct year above and click "Read PDF" again.
-            </span>
-          </div>
-        )}
-
-        <div className="flex-1 overflow-auto border border-slate-200 rounded">
+        <div className="flex-1 overflow-auto p-6 space-y-6">
           {!parsed ? (
-            <p className="p-4 text-sm text-slate-500">
-              Pick a PDF and click “Read PDF” to preview the parsed weeks.
-            </p>
-          ) : parsed.length === 0 ? (
-            <p className="p-4 text-sm text-slate-500">
-              No weeks parsed.
-            </p>
+            <>
+              <div className="space-y-4">
+                <label className="block">
+                  <span className="label">Select PDF file</span>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    className="input mt-1"
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="label">Force Year (Optional)</span>
+                    <input
+                      type="number"
+                      placeholder="e.g. 2026"
+                      className="input mt-1"
+                      value={forcedYear}
+                      onChange={(e) => setForcedYear(e.target.value)}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 text-red-700 text-sm p-4 rounded-lg border border-red-100">
+                  {error}
+                </div>
+              )}
+            </>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500 sticky top-0">
-                <tr>
-                  <th className="text-left px-3 py-2">Week of</th>
-                  <th className="text-left px-3 py-2">Banner</th>
-                  <th className="text-left px-3 py-2">Bible reading</th>
-                  <th className="text-right px-3 py-2">Parts</th>
-                  <th className="text-right px-3 py-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {parsed.map((m) => {
-                  const exists = existingSet.has(m.weekOf);
-                  return (
-                    <tr
-                      key={m.weekOf}
-                      className="border-t border-slate-100 align-top"
-                    >
-                      <td className="px-3 py-2 font-mono text-xs">
-                        {m.weekOf}
-                      </td>
-                      <td className="px-3 py-2">{m.banner}</td>
-                      <td className="px-3 py-2 text-slate-600">
-                        {m.bibleReading ?? "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {m.parts.length}
-                      </td>
-                      <td className="px-3 py-2 text-right text-xs">
-                        {exists ? (
-                          <span className="text-amber-700">
-                            already in schedule
-                          </span>
-                        ) : (
-                          <span className="text-emerald-700">new</span>
-                        )}
-                      </td>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between bg-emerald-50 text-emerald-700 px-4 py-3 rounded-lg border border-emerald-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">✓</span>
+                  <span className="font-medium">
+                    Successfully parsed {parsed.length} weeks
+                  </span>
+                </div>
+                <button
+                  className="text-emerald-800 text-xs font-bold uppercase hover:underline"
+                  onClick={() => setParsed(null)}
+                >
+                  Reset
+                </button>
+              </div>
+
+              <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 flex gap-3">
+                <span className="text-xl">💡</span>
+                <p className="text-sm text-amber-800 leading-relaxed">
+                  <strong>Recommendation:</strong> Always verify that the extracted parts match your physical workbook before assigning brothers.
+                </p>
+              </div>
+
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-semibold text-slate-600">
+                        Date
+                      </th>
+                      <th className="px-4 py-2 text-left font-semibold text-slate-600">
+                        Bible Reading
+                      </th>
+                      <th className="px-4 py-2 text-center font-semibold text-slate-600 w-20">
+                        Status
+                      </th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {parsed.map((m) => {
+                      const exists = existingSet.has(m.weekOf);
+                      return (
+                        <tr key={m.weekOf}>
+                          <td className="px-4 py-2 font-medium">
+                            {m.banner}
+                          </td>
+                          <td className="px-4 py-2 text-slate-500">
+                            {m.bibleReading}
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            {exists ? (
+                              <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase">
+                                Skip
+                              </span>
+                            ) : (
+                              <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded font-bold uppercase">
+                                New
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={replaceExisting}
+                  onChange={(e) => setReplaceExisting(e.target.checked)}
+                  className="accent-indigo-600"
+                />
+                <span className="text-sm text-slate-600">
+                  Replace existing weeks if dates overlap
+                </span>
+              </label>
+            </div>
           )}
         </div>
 
-        {parsed && parsed.length > 0 && (
-          <label className="flex items-center gap-2 text-sm mt-3">
-            <input
-              type="checkbox"
-              checked={replaceExisting}
-              onChange={(e) => setReplaceExisting(e.target.checked)}
-            />
-            Also update weeks that are already in my schedule (preserves
-            existing assignee selections where the part matches).
-          </label>
-        )}
-
-        {rawText && (
-          <div className="mt-3">
-            <button
-              className="text-xs text-slate-500 underline"
-              onClick={() => setShowRaw((v) => !v)}
-            >
-              {showRaw ? "Hide" : "Show"} extracted text (for debugging)
-            </button>
-            {showRaw && (
-              <textarea
-                readOnly
-                className="mt-1 w-full h-40 text-xs font-mono border border-slate-200 rounded p-2 bg-slate-50 resize-y"
-                value={rawText}
-              />
-            )}
-          </div>
-        )}
-
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
           <button className="btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button
-            className="btn"
-            onClick={handleImport}
-            disabled={
-              importing ||
-              !parsed ||
-              parsed.length === 0 ||
-              (!replaceExisting &&
-                parsed.every((m) => existingSet.has(m.weekOf)))
-            }
-          >
-            {importing
-              ? "Importing…"
-              : parsed
-                ? `Import ${
-                    replaceExisting
-                      ? parsed.length
-                      : parsed.filter((m) => !existingSet.has(m.weekOf)).length
-                  } week(s)`
-                : "Import"}
-          </button>
+          {!parsed ? (
+            <button
+              className="btn px-8"
+              onClick={handleParse}
+              disabled={!file || parsing}
+            >
+              {parsing ? "Parsing PDF..." : "Extract Parts"}
+            </button>
+          ) : (
+            <>
+              <button
+                className="btn-secondary flex items-center gap-2"
+                onClick={() => setReviewing(true)}
+              >
+                🔍 Visual Review
+              </button>
+              <button
+                className="btn px-8"
+                onClick={handleImport}
+                disabled={importing}
+              >
+                {importing ? "Importing..." : "Commit All"}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+/** Component to render a specific PDF page onto a canvas. */
+function PdfPageRenderer({ doc, pageNumber }: { doc: any; pageNumber: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!doc || !canvasRef.current) return;
+
+    let active = true;
+    const renderPage = async () => {
+      try {
+        const page = await doc.getPage(pageNumber);
+        if (!active) return;
+
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas = canvasRef.current!;
+        const context = canvas.getContext("2d");
+        if (!context) return;
+
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+        };
+
+        await page.render(renderContext).promise;
+      } catch (err) {
+        console.error("PDF render error:", err);
+      }
+    };
+
+    renderPage();
+    return () => {
+      active = false;
+    };
+  }, [doc, pageNumber]);
+
+  return <canvas ref={canvasRef} className="max-w-full h-auto" />;
 }
