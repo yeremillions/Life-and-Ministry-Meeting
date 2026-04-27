@@ -2,7 +2,13 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { db } from "../db";
-import type { Assignee, Gender, Household, Privilege } from "../types";
+import type {
+  Assignee,
+  Gender,
+  Household,
+  PartType,
+  Privilege,
+} from "../types";
 import { parseAssigneeFile, parsedToAssignee, parseTextList } from "../importers";
 import { normalizePrivileges } from "../meeting";
 
@@ -16,6 +22,25 @@ const PRIV_LABELS: Record<Privilege, string> = {
   RP: "Regular Pioneer (RP)",
   CBSR: "CBS Reader (CBSR)",
 };
+
+const ALL_PARTS: PartType[] = [
+  "Chairman",
+  "Opening Prayer",
+  "Talk",
+  "Spiritual Gems",
+  "Bible Reading",
+  "Starting a Conversation",
+  "Following Up",
+  "Making Disciples",
+  "Explaining Your Beliefs",
+  "Initial Call",
+  "Talk (Ministry)",
+  "Living Part",
+  "Local Needs",
+  "Governing Body Update",
+  "Congregation Bible Study",
+  "Closing Prayer",
+];
 
 export default function EnrolleesPage({
   onNavigateToProfile,
@@ -932,6 +957,9 @@ function EnrolleeModal({
     initial?.privileges ?? []
   );
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [allowedParts, setAllowedParts] = useState<PartType[] | undefined>(
+    initial?.allowedParts
+  );
 
   const canSubmit = name.trim().length > 0;
 
@@ -1031,6 +1059,62 @@ function EnrolleeModal({
             {" "}RP can be held by brothers and sisters.
           </p>
         </div>
+
+        <div className="pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-between mb-2">
+            <label className="label mb-0">Assignment Restrictions</label>
+            <select
+              className="text-xs border rounded px-1 py-0.5 bg-slate-50"
+              value={
+                !allowedParts
+                  ? "none"
+                  : allowedParts.length === 1 && allowedParts[0] === "Bible Reading"
+                  ? "investigation"
+                  : "custom"
+              }
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "none") setAllowedParts(undefined);
+                else if (val === "investigation") setAllowedParts(["Bible Reading"]);
+              }}
+            >
+              <option value="none">No Restrictions (All Eligible)</option>
+              <option value="investigation">Pending Investigation (Bible Reading Only)</option>
+              <option value="custom">Custom Whitelist...</option>
+            </select>
+          </div>
+
+          {allowedParts !== undefined && (
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <p className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-wider">
+                Only allow these specific parts:
+              </p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {ALL_PARTS.map((p) => (
+                  <label key={p} className="flex items-center gap-2 text-xs cursor-pointer hover:text-indigo-600 transition-colors">
+                    <input
+                      type="checkbox"
+                      className="checkbox w-3 h-3"
+                      checked={allowedParts.includes(p)}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? [...allowedParts, p]
+                          : allowedParts.filter((x) => x !== p);
+                        setAllowedParts(next);
+                      }}
+                    />
+                    {p === "Talk" ? "Treasures Talk" : p}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
+            Use this to limit assignments due to health, age, or special circumstances.
+            If active, the scheduler will strictly ignore this person for any part not checked above.
+          </p>
+        </div>
+
         <div>
           <label className="label">Notes (optional)</label>
           <textarea
@@ -1066,6 +1150,7 @@ function EnrolleeModal({
                     ? normalizePrivileges(privileges)
                     : normalizePrivileges(privileges.filter((p) => p === "RP")),
                 notes: notes.trim() || undefined,
+                allowedParts,
               })
             }
           >

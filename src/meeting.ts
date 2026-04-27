@@ -166,6 +166,11 @@ export function isEligible(
   const rule = rules[partType] || DEFAULT_ASSIGNMENT_RULES[partType];
   if (!rule) return false;
 
+  // Individual restrictions (e.g. ill health, investigation)
+  if (a.allowedParts && !a.allowedParts.includes(partType)) {
+    return false;
+  }
+
   const target = role === "assistant" && rule.assistant ? rule.assistant : rule;
 
   // Gender check

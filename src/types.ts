@@ -29,6 +29,8 @@ export interface Assignee {
   isMinor?: boolean;
   /** Optional free-form notes (e.g. availability, pairing preferences). */
   notes?: string;
+  /** If present, the person can ONLY be assigned these specific part types. */
+  allowedParts?: PartType[];
   createdAt: number;
 }
 
