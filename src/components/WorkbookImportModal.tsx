@@ -38,6 +38,27 @@ export default function WorkbookImportModal({
   const [reviewing, setReviewing] = useState(false);
   const [selectedReviewIdx, setSelectedReviewIdx] = useState(0);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const [pageOverride, setPageOverride] = useState<number | null>(null);
+
+  const meeting = (reviewing && parsed) ? parsed[selectedReviewIdx] : null;
+
+  // Ensure we show exactly what will be imported (including Chairman, etc.)
+  const reviewAssignments = useMemo(() => {
+    if (!meeting) return [];
+    const parsedAssignments: Assignment[] = meeting.parts.map((p) => ({
+      uid: uid(),
+      segment: p.segment,
+      order: p.number,
+      partType: p.partType,
+      title: p.title,
+    }));
+    return ensureRequiredParts(parsedAssignments, uid);
+  }, [meeting, uid]);
+
+  // Reset override when week changes
+  useEffect(() => {
+    setPageOverride(null);
+  }, [selectedReviewIdx]);
 
   const existingSet = useMemo(
     () => new Set(existingWeekOfs),
@@ -154,29 +175,8 @@ export default function WorkbookImportModal({
 
 
 
-  if (reviewing && parsed) {
-    const meeting = parsed[selectedReviewIdx];
-    
-    // Ensure we show exactly what will be imported (including Chairman, etc.)
-    const reviewAssignments = useMemo(() => {
-      const parsedAssignments: Assignment[] = meeting.parts.map((p) => ({
-        uid: uid(),
-        segment: p.segment,
-        order: p.number,
-        partType: p.partType,
-        title: p.title,
-      }));
-      return ensureRequiredParts(parsedAssignments, uid);
-    }, [meeting, uid]);
-
-    // Manual page override for this week
-    const [pageOverride, setPageOverride] = useState<number | null>(null);
+  if (reviewing && parsed && meeting) {
     const currentPage = pageOverride ?? meeting.pageNumber ?? 1;
-
-    // Reset override when week changes
-    useEffect(() => {
-      setPageOverride(null);
-    }, [selectedReviewIdx]);
 
     return (
       <div
