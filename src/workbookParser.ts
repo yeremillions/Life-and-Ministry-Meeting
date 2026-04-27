@@ -405,7 +405,8 @@ function normalizeWorkbookText(text: string): string {
     .replace(/\r\n?/g, "\n")
     // Strip non-printable control characters
     .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "")
-    .replace(/\s+/g, " ")
+    // Collapse horizontal whitespace but preserve newlines
+    .replace(/[^\S\n\r]+/g, " ")
     .replace(/\u00a0/g, " ")
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201c\u201d]/g, '"')
