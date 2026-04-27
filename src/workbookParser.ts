@@ -229,57 +229,11 @@ export function parseWorkbookText(
 ): ParsedMeeting[] {
   const text = typeof input === "string" ? input : input.fullText;
   const pageTexts = typeof input === "string" ? [] : input.pageTexts;
-  // Normalise to simplify downstream regexes.
-  const normalised = text
-    .replace(/\r\n?/g, "\n")
-    // Strip non-printable control characters (PDF decorative artifacts like
-    // colored bars, icons) but keep \t (0x09) and \n (0x0a).
-    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "")
-    .replace(/\u00a0/g, " ")
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201c\u201d]/g, '"')
-    // -----------------------------------------------------------------------
-    // Month-name normalisation.
-    //
-    // Different MWB issues use different font renderings that mangle month
-    // names in two distinct ways:
-    //   • Full letter-spacing:  "J U N E", "S E P T E M B E R"
-    //   • Internal glyph split: "SEPTEMB ER", "OCTOB ER", "N OVEMB ER"
-    //
-    // Both are handled by allowing \s* between every character of the month
-    // name. This runs BEFORE the general letter-spacing collapse so that
-    // partially-spaced variants (e.g. "S E PTE M B E R") are also caught.
-    // -----------------------------------------------------------------------
-    .replace(/J\s*A\s*N\s*U\s*A\s*R\s*Y/gi, "JANUARY")
-    .replace(/F\s*E\s*B\s*R\s*U\s*A\s*R\s*Y/gi, "FEBRUARY")
-    .replace(/M\s*A\s*R\s*C\s*H/gi, "MARCH")
-    .replace(/A\s*P\s*R\s*I\s*L/gi, "APRIL")
-    .replace(/J\s*U\s*N\s*E/gi, "JUNE")
-    .replace(/J\s*U\s*L\s*Y/gi, "JULY")
-    .replace(/A\s*U\s*G\s*U\s*S\s*T/gi, "AUGUST")
-    .replace(/S\s*E\s*P\s*T\s*E\s*M\s*B\s*E\s*R/gi, "SEPTEMBER")
-    .replace(/O\s*C\s*T\s*O\s*B\s*E\s*R/gi, "OCTOBER")
-    .replace(/N\s*O\s*V\s*E\s*M\s*B\s*E\s*R/gi, "NOVEMBER")
-    .replace(/D\s*E\s*C\s*E\s*M\s*B\s*E\s*R/gi, "DECEMBER")
-    // -----------------------------------------------------------------------
-    // Collapse any remaining letter-spaced uppercase words that survived the
-    // month pass (e.g. section headings like "M E E T I N G").
-    .replace(/(?<![A-Za-z])(?:[A-Z] ){2,}[A-Z](?![A-Za-z])/g, (m) =>
-      m.replace(/ /g, "")
-    )
-    // Collapse letter-spaced digit runs: "2 5" → "25", "3 1" → "31".
-    // Run twice to handle three-digit runs ("1 5 - 2 1" → "15 - 21").
-    .replace(/(?<=\b)(\d) (\d)(?=\b)/g, "$1$2")
-    .replace(/(?<=\b)(\d) (\d)(?=\b)/g, "$1$2")
-    // Remove spurious space before the range hyphen/dash in week banners
-    // e.g. "MAY 4 -10" → "MAY 4-10".
-    .replace(
-      /([A-Z]{3,}) (\d{1,2}) [-\u2013\u2014](\d{1,2})/gi,
-      "$1 $2-$3"
-    )
-    // Collapse "20 26" → "2026" so year detection still works when the
-    // digit-pair didn't merge through gap-based extraction.
-    .replace(/\b(20)\s(\d{2})\b/g, "$1$2");
+  const normalised = normalizeWorkbookText(text);
+  const normalizedPageTexts = pageTexts.map((pt) => ({
+    page: pt.page,
+    text: normalizeWorkbookText(pt.text),
+  }));
 
   const year = forcedYear ?? inferYear(normalised, filename);
 
@@ -397,12 +351,31 @@ export function parseWorkbookText(
     const parts = extractParts(slice);
 
     // Heuristic: which page was this slice likely on?
-    // We look for the page that contains most of the slice's text.
     let pageNumber: number | undefined;
-    if (pageTexts.length > 0) {
-      // Find page that contains the banner or first few parts
+    if (normalizedPageTexts.length > 0) {
+      // 1. Try exact banner match in normalized page text
       const bannerMarker = banner.toUpperCase();
-      const match = pageTexts.find(pt => pt.text.toUpperCase().includes(bannerMarker));
+      let match = normalizedPageTexts.find((pt) =>
+        pt.text.toUpperCase().includes(bannerMarker)
+      );
+
+      // 2. Fallback: Try matching the start date components
+      if (!match && matchingBanner) {
+        const { startMonth, startDay } = matchingBanner;
+        const fallbackMarker = `${startMonth} ${startDay}`.toUpperCase();
+        match = normalizedPageTexts.find((pt) =>
+          pt.text.toUpperCase().includes(fallbackMarker)
+        );
+      }
+
+      // 3. Fallback: Try searching for the bible reading reference
+      if (!match && bibleReading) {
+        const brMarker = bibleReading.toUpperCase();
+        match = normalizedPageTexts.find((pt) =>
+          pt.text.toUpperCase().includes(brMarker)
+        );
+      }
+
       if (match) pageNumber = match.page;
     }
 
@@ -423,6 +396,43 @@ export function parseWorkbookText(
 
 /* ------------------------- helpers ------------------------- */
 
+
+/**
+ * Standard normalization used for both full text and individual pages.
+ */
+function normalizeWorkbookText(text: string): string {
+  return text
+    .replace(/\r\n?/g, "\n")
+    // Strip non-printable control characters
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/\u00a0/g, " ")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    // Month-name normalisation
+    .replace(/J\s*A\s*N\s*U\s*A\s*R\s*Y/gi, "JANUARY")
+    .replace(/F\s*E\s*B\s*R\s*U\s*A\s*R\s*Y/gi, "FEBRUARY")
+    .replace(/M\s*A\s*R\s*C\s*H/gi, "MARCH")
+    .replace(/A\s*P\s*R\s*I\s*L/gi, "APRIL")
+    .replace(/J\s*U\s*N\s*E/gi, "JUNE")
+    .replace(/J\s*U\s*L\s*Y/gi, "JULY")
+    .replace(/A\s*U\s*G\s*U\s*S\s*T/gi, "AUGUST")
+    .replace(/S\s*E\s*P\s*T\s*E\s*M\s*B\s*E\s*R/gi, "SEPTEMBER")
+    .replace(/O\s*C\s*T\s*O\s*B\s*E\s*R/gi, "OCTOBER")
+    .replace(/N\s*O\s*V\s*E\s*M\s*B\s*E\s*R/gi, "NOVEMBER")
+    .replace(/D\s*E\s*C\s*E\s*M\s*B\s*E\s*R/gi, "DECEMBER")
+    // Collapse any remaining letter-spaced uppercase words
+    .replace(/(?<![A-Za-z])(?:[A-Z] ){2,}[A-Z](?![A-Za-z])/g, (m) =>
+      m.replace(/ /g, "")
+    )
+    // Collapse letter-spaced digit runs
+    .replace(/(?<=\b)(\d) (\d)(?=\b)/g, "$1$2")
+    .replace(/(?<=\b)(\d) (\d)(?=\b)/g, "$1$2")
+    // Remove spurious space before range hyphen
+    .replace(/([A-Z]{3,})\s*(\d{1,2})\s*[-\u2013\u2014]\s*(\d{1,2})/gi, "$1 $2-$3")
+    // Collapse "20 26" -> "2026"
+    .replace(/\b(20)\s(\d{2})\b/g, "$1$2");
+}
 
 function monthNameFromNum(monthNum: number): string {
   const names = [

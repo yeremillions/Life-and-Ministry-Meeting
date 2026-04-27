@@ -176,7 +176,12 @@ export default function WorkbookImportModal({
 
 
   if (reviewing && parsed && meeting) {
-    const currentPage = pageOverride ?? meeting.pageNumber ?? 1;
+    // If page detection failed for this week, try to guess it from the previous week.
+    let detectedPage = meeting.pageNumber;
+    if (!detectedPage && selectedReviewIdx > 0) {
+      detectedPage = parsed[selectedReviewIdx - 1].pageNumber;
+    }
+    const currentPage = pageOverride ?? detectedPage ?? 1;
 
     return (
       <div
