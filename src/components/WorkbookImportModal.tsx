@@ -156,6 +156,28 @@ export default function WorkbookImportModal({
 
   if (reviewing && parsed) {
     const meeting = parsed[selectedReviewIdx];
+    
+    // Ensure we show exactly what will be imported (including Chairman, etc.)
+    const reviewAssignments = useMemo(() => {
+      const parsedAssignments: Assignment[] = meeting.parts.map((p) => ({
+        uid: uid(),
+        segment: p.segment,
+        order: p.number,
+        partType: p.partType,
+        title: p.title,
+      }));
+      return ensureRequiredParts(parsedAssignments, uid);
+    }, [meeting, uid]);
+
+    // Manual page override for this week
+    const [pageOverride, setPageOverride] = useState<number | null>(null);
+    const currentPage = pageOverride ?? meeting.pageNumber ?? 1;
+
+    // Reset override when week changes
+    useEffect(() => {
+      setPageOverride(null);
+    }, [selectedReviewIdx]);
+
     return (
       <div
         className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-[100]"
@@ -189,12 +211,51 @@ export default function WorkbookImportModal({
           {/* Main content: Side-by-Side */}
           <div className="flex-1 flex overflow-hidden">
             {/* Left: PDF Preview */}
-            <div className="flex-1 bg-slate-200 overflow-auto p-4 flex justify-center">
-              <div className="bg-white shadow-lg h-fit">
-                <PdfPageRenderer
-                  doc={pdfDoc}
-                  pageNumber={meeting.pageNumber ?? 1}
-                />
+            <div className="flex-1 bg-slate-800 overflow-hidden flex flex-col">
+              {/* PDF Toolbar */}
+              <div className="px-4 py-2 bg-slate-900 border-b border-slate-700 flex items-center justify-between text-white">
+                <div className="flex items-center gap-2">
+                  <button 
+                    className="p-1 hover:bg-slate-700 rounded disabled:opacity-30"
+                    onClick={() => setPageOverride(Math.max(1, currentPage - 1))}
+                    disabled={currentPage <= 1}
+                  >
+                    ◀
+                  </button>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Page</span>
+                    <input 
+                      type="number"
+                      className="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-xs w-12 text-center"
+                      value={currentPage}
+                      onChange={(e) => setPageOverride(parseInt(e.target.value, 10) || 1)}
+                    />
+                    <span className="text-xs text-slate-500">/ {pdfDoc?.numPages}</span>
+                  </div>
+                  <button 
+                    className="p-1 hover:bg-slate-700 rounded disabled:opacity-30"
+                    onClick={() => setPageOverride(Math.min(pdfDoc?.numPages || 1, currentPage + 1))}
+                    disabled={currentPage >= (pdfDoc?.numPages || 1)}
+                  >
+                    ▶
+                  </button>
+                </div>
+                {meeting.pageNumber && meeting.pageNumber !== currentPage && (
+                  <button 
+                    className="text-[10px] bg-indigo-600 hover:bg-indigo-500 px-2 py-1 rounded font-bold uppercase"
+                    onClick={() => setPageOverride(null)}
+                  >
+                    Reset to Detected Page ({meeting.pageNumber})
+                  </button>
+                )}
+              </div>
+              <div className="flex-1 overflow-auto p-4 flex justify-center">
+                <div className="bg-white shadow-2xl h-fit">
+                  <PdfPageRenderer
+                    doc={pdfDoc}
+                    pageNumber={currentPage}
+                  />
+                </div>
               </div>
             </div>
 
@@ -210,26 +271,26 @@ export default function WorkbookImportModal({
                 </div>
 
                 <div className="space-y-6">
-                  {["treasures", "ministry", "living"].map((segId) => {
-                    const segmentParts = meeting.parts.filter(p => p.segment === segId);
+                  {["opening", "treasures", "ministry", "living"].map((segId) => {
+                    const segmentParts = reviewAssignments.filter(p => p.segment === segId);
                     if (segmentParts.length === 0) return null;
                     return (
                       <div key={segId}>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-3 border-b border-slate-50 pb-1">
+                        <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em] mb-3 border-b border-indigo-50 pb-1">
                           {segId.replace(/s$/, "")}
                         </div>
                         <ul className="space-y-3">
-                          {segmentParts.map((p) => (
-                            <li key={p.number} className="flex gap-3">
+                          {segmentParts.map((p, idx) => (
+                            <li key={p.uid} className="flex gap-3">
                               <span className="text-xs font-bold text-slate-300 tabular-nums pt-0.5">
-                                {p.number}
+                                {p.order || idx + 1}
                               </span>
                               <div>
                                 <div className="text-sm font-semibold text-slate-700 leading-snug">
-                                  {p.title}
+                                  {p.title || p.partType}
                                 </div>
                                 <div className="text-[10px] text-slate-400 font-medium">
-                                  {p.partType} {p.minutes ? `(${p.minutes} min.)` : ""}
+                                  {p.partType}
                                 </div>
                               </div>
                             </li>
