@@ -10,7 +10,7 @@ import type {
   Privilege,
 } from "../types";
 import { parseAssigneeFile, parsedToAssignee, parseTextList } from "../importers";
-import { normalizePrivileges } from "../meeting";
+import { isEligible, normalizePrivileges } from "../meeting";
 
 const ALL_PRIVS: Privilege[] = ["E", "QE", "MS", "QMS", "RP", "CBSR"];
 
@@ -952,6 +952,7 @@ function EnrolleeModal({
   onSave: (a: Omit<Assignee, "id" | "createdAt">) => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
 }) {
+  const settings = useLiveQuery(() => db.settings.get("app"), []);
   const [name, setName] = useState(initial?.name ?? "");
   const [gender, setGender] = useState<Gender>(initial?.gender ?? "M");
   const [baptised, setBaptised] = useState(initial?.baptised ?? true);
@@ -1078,24 +1079,40 @@ function EnrolleeModal({
                 setRestrictionType(val);
                 if (val === "none") {
                   setAllowedParts(undefined);
-                } else if (val === "infirmed") {
-                  setAllowedParts([
-                    "Opening Prayer",
-                    "Closing Prayer",
-                    "Local Needs",
-                    "Spiritual Gems",
-                    "Starting a Conversation",
-                    "Following Up",
-                  ]);
-                } else if (val === "investigation") {
-                  setAllowedParts([
-                    "Bible Reading",
-                    "Starting a Conversation",
-                    "Following Up",
-                  ]);
+                } else if (val === "infirmed" || val === "investigation") {
+                  const ideal: PartType[] =
+                    val === "infirmed"
+                      ? [
+                          "Opening Prayer",
+                          "Closing Prayer",
+                          "Local Needs",
+                          "Spiritual Gems",
+                          "Starting a Conversation",
+                          "Following Up",
+                        ]
+                      : [
+                          "Bible Reading",
+                          "Starting a Conversation",
+                          "Following Up",
+                        ];
+
+                  // Filter by actual global eligibility rules (gender, privileges, etc.)
+                  const rules = settings?.assignmentRules;
+                  const person: Assignee = {
+                    name: "TEMPLATE",
+                    gender,
+                    baptised,
+                    isMinor,
+                    active: true,
+                    privileges: normalizePrivileges(privileges),
+                    createdAt: 0,
+                  };
+
+                  const filtered = ideal.filter((p) =>
+                    isEligible(person, p, "main", "manual", rules)
+                  );
+                  setAllowedParts(filtered);
                 } else if (val === "elderly") {
-                  // Elderly still qualifies for all, just throttled.
-                  // We don't automatically restrict parts unless they were already restricted.
                   if (!allowedParts) setAllowedParts(undefined);
                 }
               }}
