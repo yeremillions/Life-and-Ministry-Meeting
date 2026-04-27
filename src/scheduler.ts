@@ -288,6 +288,12 @@ export function scoreCandidate(
     score += 30;
   }
 
+  // ── Frequency throttling ────────────────────────────────────────────
+  if (a.restrictionType === "infirmed" || a.restrictionType === "elderly") {
+    // Significant penalty to ensure they are chosen last.
+    score -= 100;
+  }
+
   // Deterministic tiny jitter for reproducible tie-breaking per week.
   // Scaled small enough (0..0.99) to never override meaningful differences.
   const jitter = ((a.id ?? 0) * 1315423911 + seed) % 100;

@@ -961,6 +961,9 @@ function EnrolleeModal({
     initial?.privileges ?? []
   );
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [restrictionType, setRestrictionType] = useState<Assignee["restrictionType"]>(
+    initial?.restrictionType ?? "none"
+  );
   const [allowedParts, setAllowedParts] = useState<PartType[] | undefined>(
     initial?.allowedParts
   );
@@ -1069,42 +1072,72 @@ function EnrolleeModal({
             <label className="label mb-0">Assignment Restrictions</label>
             <select
               className="text-xs border rounded px-1 py-0.5 bg-slate-50"
-              value={
-                !allowedParts
-                  ? "none"
-                  : allowedParts.length === 1 && allowedParts[0] === "Bible Reading"
-                  ? "investigation"
-                  : "custom"
-              }
+              value={restrictionType ?? "none"}
               onChange={(e) => {
-                const val = e.target.value;
-                if (val === "none") setAllowedParts(undefined);
-                else if (val === "investigation") setAllowedParts(["Bible Reading"]);
+                const val = e.target.value as Assignee["restrictionType"];
+                setRestrictionType(val);
+                if (val === "none") {
+                  setAllowedParts(undefined);
+                } else if (val === "infirmed") {
+                  setAllowedParts([
+                    "Opening Prayer",
+                    "Closing Prayer",
+                    "Local Needs",
+                    "Spiritual Gems",
+                    "Starting a Conversation",
+                    "Following Up",
+                  ]);
+                } else if (val === "investigation") {
+                  setAllowedParts([
+                    "Bible Reading",
+                    "Starting a Conversation",
+                    "Following Up",
+                  ]);
+                } else if (val === "elderly") {
+                  // Elderly still qualifies for all, just throttled.
+                  // We don't automatically restrict parts unless they were already restricted.
+                  if (!allowedParts) setAllowedParts(undefined);
+                }
               }}
             >
-              <option value="none">No Restrictions (All Eligible)</option>
-              <option value="investigation">Pending Investigation (Bible Reading Only)</option>
+              <option value="none">No Restrictions</option>
+              <option value="infirmed">Infirmed (Throttled & Limited Parts)</option>
+              <option value="elderly">Elderly (Throttled Frequency)</option>
+              <option value="investigation">Pending Investigation (Limited Parts)</option>
               <option value="custom">Custom Whitelist...</option>
             </select>
           </div>
 
-          {allowedParts !== undefined && (
+          {(allowedParts !== undefined || restrictionType === "custom") && (
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-              <p className="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-wider">
-                Only allow these specific parts:
-              </p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                  Allowed Parts:
+                </p>
+                {restrictionType !== "custom" && restrictionType !== "none" && (
+                  <button
+                    type="button"
+                    className="text-[10px] text-indigo-600 font-semibold hover:underline"
+                    onClick={() => setRestrictionType("custom")}
+                  >
+                    Customise...
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                 {ALL_PARTS.map((p) => (
                   <label key={p} className="flex items-center gap-2 text-xs cursor-pointer hover:text-indigo-600 transition-colors">
                     <input
                       type="checkbox"
                       className="checkbox w-3 h-3"
-                      checked={allowedParts.includes(p)}
+                      checked={allowedParts?.includes(p) ?? true}
                       onChange={(e) => {
+                        const current = allowedParts ?? ALL_PARTS;
                         const next = e.target.checked
-                          ? [...allowedParts, p]
-                          : allowedParts.filter((x) => x !== p);
+                          ? [...current, p]
+                          : current.filter((x) => x !== p);
                         setAllowedParts(next);
+                        if (restrictionType !== "custom") setRestrictionType("custom");
                       }}
                     />
                     {p === "Talk" ? "Treasures Talk" : p}
@@ -1114,8 +1147,9 @@ function EnrolleeModal({
             </div>
           )}
           <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
-            Use this to limit assignments due to health, age, or special circumstances.
-            If active, the scheduler will strictly ignore this person for any part not checked above.
+            {restrictionType === "infirmed" || restrictionType === "elderly"
+              ? "⚡ Frequency throttling active: This person will be assigned much less often."
+              : "Use this to limit assignments due to health, age, or special circumstances."}
           </p>
         </div>
 
@@ -1155,6 +1189,7 @@ function EnrolleeModal({
                     : normalizePrivileges(privileges.filter((p) => p === "RP")),
                 notes: notes.trim() || undefined,
                 allowedParts,
+                restrictionType,
               })
             }
           >

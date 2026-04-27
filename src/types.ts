@@ -31,6 +31,8 @@ export interface Assignee {
   notes?: string;
   /** If present, the person can ONLY be assigned these specific part types. */
   allowedParts?: PartType[];
+  /** Categorized restriction for frequency throttling and defaults. */
+  restrictionType?: "infirmed" | "elderly" | "investigation" | "none" | "custom";
   createdAt: number;
 }
 
