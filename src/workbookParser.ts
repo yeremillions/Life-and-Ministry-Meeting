@@ -540,11 +540,12 @@ function extractMinutes(raw: string): number | undefined {
   return m ? parseInt(m[1], 10) : undefined;
 }
 
-/** Strip "(n min.)" markers but preserve text around them. */
+/** Strip "(n min.)" suffixes and trailing body-text run-on. */
 function cleanTitle(raw: string): string {
   let title = raw
-    // drop the "(n min.)" marker itself, but don't delete what follows.
-    .replace(/\(\s*\d+\s*min\.?\s*\)/i, "")
+    // drop any "(n min.)" marker and everything after it (this keeps the 
+    // importer neat by cutting off the body text that often follows).
+    .replace(/\s*\(\s*\d+\s*min\.?.*$/i, "")
     .trim();
   // Drop stray trailing punctuation
   title = title.replace(/[.\s:]+$/, "").trim();
