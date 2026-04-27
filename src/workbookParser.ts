@@ -1,5 +1,10 @@
 import type { PartType, SegmentId } from "./types";
 import { detectYear as inferYear } from "./utils";
+import * as pdfjsLib from "pdfjs-dist";
+
+// @ts-ignore
+import pdfWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 /* -------------------------------------------------------------------- *
  * Life and Ministry Meeting Workbook parser.
@@ -125,14 +130,6 @@ export async function extractPdfText(file: File): Promise<{
   fullText: string;
   pageTexts: { page: number; text: string }[];
 }> {
-  // Dynamic imports so pdf.js isn't in the main bundle until the user
-  // actually opens the importer.
-  const pdfjsLib = await import("pdfjs-dist");
-  const workerUrl = (await import("pdfjs-dist/build/pdf.worker.mjs?url"))
-    .default;
-  (pdfjsLib as unknown as { GlobalWorkerOptions: { workerSrc: string } })
-    .GlobalWorkerOptions.workerSrc = workerUrl;
-
   const buf = await file.arrayBuffer();
   const doc = await pdfjsLib.getDocument({ data: buf }).promise;
 
@@ -422,8 +419,8 @@ function normalizeWorkbookText(text: string): string {
     .replace(/O\s*C\s*T\s*O\s*B\s*E\s*R/gi, "OCTOBER")
     .replace(/N\s*O\s*V\s*E\s*M\s*B\s*E\s*R/gi, "NOVEMBER")
     .replace(/D\s*E\s*C\s*E\s*M\s*B\s*E\s*R/gi, "DECEMBER")
-    // Collapse any remaining letter-spaced uppercase words
-    .replace(/(?<![A-Za-z])(?:[A-Z] ){2,}[A-Z](?![A-Za-z])/g, (m) =>
+    // Collapse any remaining letter-spaced uppercase words (e.g. "S E P T E M B E R")
+    .replace(/\b(?:[A-Z] ){2,}[A-Z]\b/g, (m) =>
       m.replace(/ /g, "")
     )
     // Collapse letter-spaced digit runs

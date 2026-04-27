@@ -62,7 +62,7 @@ export default function SchedulePage({
   const [congregationName, setCongregationName] = useState("");
 
   // Load congregation name once (needed for PDF header).
-  useMemo(() => {
+  useEffect(() => {
     getSettings().then((s) => setCongregationName(s.congregationName ?? ""));
   }, []);
 

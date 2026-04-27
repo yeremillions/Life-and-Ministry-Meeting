@@ -9,6 +9,11 @@ import {
 } from "../workbookParser";
 import type { SegmentId } from "../types";
 import { ensureRequiredParts, SEGMENT_PART_TYPES } from "../meeting";
+import * as pdfjsLib from "pdfjs-dist";
+
+// @ts-ignore
+import pdfWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 /**
  * Modal for importing a Life and Ministry Meeting workbook PDF.
@@ -86,17 +91,17 @@ export default function WorkbookImportModal({
     
     if (targetIdx < 0 || targetIdx >= parts.length) return;
 
-    // Cross-segment movement: automatically update the segment of the moved part
-    // to match its new neighbors if it crosses a boundary.
+    // Cross-segment movement
     const SEG_ORDER: SegmentId[] = ["opening", "treasures", "ministry", "living"];
-    const movingPart = parts[partIdx];
+    const movingPart = { ...parts[partIdx] }; // Create a copy to avoid mutation
     const targetNeighbor = parts[targetIdx];
     
     if (movingPart.segment !== targetNeighbor.segment) {
       movingPart.segment = targetNeighbor.segment;
     }
 
-    [parts[partIdx], parts[targetIdx]] = [parts[targetIdx], parts[partIdx]];
+    parts[partIdx] = parts[targetIdx];
+    parts[targetIdx] = movingPart;
     
     // Sort to ensure segments stay grouped, then re-index
     week.parts = parts.sort((a, b) => {
@@ -179,7 +184,6 @@ export default function WorkbookImportModal({
       });
 
       // Load PDF for rendering
-      const pdfjsLib = await import("pdfjs-dist");
       const buf = await file.arrayBuffer();
       const doc = await pdfjsLib.getDocument({ data: buf }).promise;
       setPdfDoc(doc);
