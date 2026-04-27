@@ -1,6 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useState } from "react";
-import { db, ensureSettings } from "../db";
+import { db, ensureSettings, addLog } from "../db";
 import {
   Assignment,
   DEFAULT_SETTINGS,
@@ -119,6 +119,11 @@ export default function SchedulePage({
       assignmentRules: settings.assignmentRules,
     });
     await saveWeek(updated);
+    await addLog(
+      "schedule",
+      preserveExisting ? "Auto-fill empty slots" : "Auto-assign all parts",
+      `Week of ${week.weekOf}`
+    );
   }
 
   async function clearAssignments(week: Week) {
@@ -131,6 +136,7 @@ export default function SchedulePage({
       })),
     };
     await saveWeek(cleared);
+    await addLog("schedule", "Cleared all assignments", `Week of ${week.weekOf}`);
   }
 
   function addPart(week: Week, segment: SegmentId, partType: PartType) {

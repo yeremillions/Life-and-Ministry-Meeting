@@ -6,6 +6,7 @@ import {
   type SegmentId,
   type Week,
   type AppSettings,
+  type LogEntry,
   DEFAULT_SETTINGS,
 } from "./types";
 
@@ -37,6 +38,7 @@ class MeetingDB extends Dexie {
   weeks!: Table<Week, number>;
   settings!: Table<AppSettings, string>;
   households!: Table<Household, number>;
+  logs!: Table<LogEntry, number>;
 
   constructor() {
     super("life-and-ministry-meeting");
@@ -100,6 +102,15 @@ class MeetingDB extends Dexie {
       settings:   "id",
       households: "++id, name, createdAt",
     });
+
+    // v5: add logs table for audit trail.
+    this.version(5).stores({
+      assignees:  "++id, name, gender, active, createdAt",
+      weeks:      "++id, weekOf, createdAt",
+      settings:   "id",
+      households: "++id, name, createdAt",
+      logs:       "++id, timestamp, category",
+    });
   }
 }
 
@@ -119,4 +130,26 @@ export async function ensureSettings(): Promise<AppSettings> {
     return updated;
   }
   return existing;
+}
+
+/** Record an action in the change log. */
+export async function addLog(
+  category: LogEntry["category"],
+  action: string,
+  details?: string
+) {
+  await db.logs.add({
+    timestamp: Date.now(),
+    category,
+    action,
+    details,
+  });
+
+  // Keep logs manageable (keep last 500)
+  const count = await db.logs.count();
+  if (count > 500) {
+    const oldest = await db.logs.orderBy("timestamp").limit(count - 500).toArray();
+    const ids = oldest.map(l => l.id).filter((id): id is number => id != null);
+    await db.logs.bulkDelete(ids);
+  }
 }

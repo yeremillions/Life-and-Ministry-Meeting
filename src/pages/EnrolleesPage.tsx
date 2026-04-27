@@ -1,7 +1,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { db } from "../db";
+import { db, addLog } from "../db";
 import type {
   Assignee,
   Gender,
@@ -704,6 +704,7 @@ export default function EnrolleesPage({
           onClose={() => setAdding(false)}
           onSave={async (a) => {
             await db.assignees.add({ ...a, createdAt: Date.now() });
+            await addLog("enrollees", `Added enrollee: ${a.name}`);
             setAdding(false);
           }}
         />
@@ -715,13 +716,16 @@ export default function EnrolleesPage({
           onSave={async (a) => {
             if (editing.id != null) {
               await db.assignees.update(editing.id, a);
+              await addLog("enrollees", `Updated enrollee: ${a.name}`);
             }
             setEditing(null);
           }}
           onDelete={async () => {
             if (editing.id != null) {
-              if (confirm(`Remove ${editing.name}?`)) {
+              const name = editing.name;
+              if (confirm(`Remove ${name}?`)) {
                 await db.assignees.delete(editing.id);
+                await addLog("enrollees", `Deleted enrollee: ${name}`);
                 setEditing(null);
               }
             }
@@ -1288,11 +1292,11 @@ export function Modal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg shadow-xl max-w-lg w-full p-5"
+        className="bg-white rounded-lg shadow-xl max-w-lg w-full flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">{title}</h3>
+        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <h3 className="font-semibold text-slate-800">{title}</h3>
           <button
             className="text-slate-500 hover:text-slate-800 text-xl leading-none"
             onClick={onClose}
@@ -1301,7 +1305,9 @@ export function Modal({
             &times;
           </button>
         </div>
-        {children}
+        <div className="p-5 overflow-y-auto flex-1 custom-scrollbar">
+          {children}
+        </div>
       </div>
     </div>
   );

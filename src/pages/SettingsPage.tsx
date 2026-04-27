@@ -9,6 +9,7 @@ import {
   type Gender,
   type Privilege,
 } from "../types";
+import { addLog } from "../db";
 
 export default function SettingsPage({
   onNavigateToAdmin,
@@ -16,6 +17,7 @@ export default function SettingsPage({
   onNavigateToAdmin?: () => void;
 }) {
   const settings = useLiveQuery(() => db.settings.get("app"), []);
+  const logs = useLiveQuery(() => db.logs.orderBy("timestamp").reverse().toArray(), []) ?? [];
   const [draft, setDraft] = useState<AppSettings | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -30,6 +32,7 @@ export default function SettingsPage({
   async function save() {
     if (!draft) return;
     await db.settings.put(draft);
+    await addLog("settings", "Saved settings changes");
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   }
@@ -54,6 +57,7 @@ export default function SettingsPage({
     if (!confirm("Reset all settings to defaults? Rules will be restored.")) return;
     setDraft(DEFAULT_SETTINGS);
     await db.settings.put(DEFAULT_SETTINGS);
+    await addLog("settings", "Restored default settings");
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   }
@@ -334,6 +338,69 @@ export default function SettingsPage({
           </button>
         </div>
       </div>
+
+      <section id="changelog" className="mt-12 mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-slate-800">Change Log</h2>
+          <span className="pill bg-slate-100 text-slate-600 text-xs font-semibold">
+            Last {logs.length} entries
+          </span>
+        </div>
+
+        <div className="card p-0 overflow-hidden border-slate-200 shadow-sm">
+          {logs.length === 0 ? (
+            <div className="p-12 text-center">
+              <div className="text-4xl mb-3">📋</div>
+              <p className="text-slate-500">No activity logged yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar">
+              <table className="w-full text-sm border-collapse">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="py-3 px-5 text-left font-semibold text-slate-600 w-48">Date & Time</th>
+                    <th className="py-3 px-5 text-left font-semibold text-slate-600 w-32">Category</th>
+                    <th className="py-3 px-5 text-left font-semibold text-slate-600">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {logs.map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3 px-5 text-slate-500 font-mono text-[13px]">
+                        {new Date(log.timestamp).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="py-3 px-5">
+                        <span className={`pill text-[10px] font-bold uppercase tracking-wider ${
+                          log.category === "settings" ? "bg-amber-50 text-amber-700 border border-amber-100" :
+                          log.category === "schedule" ? "bg-indigo-50 text-indigo-700 border border-indigo-100" :
+                          log.category === "enrollees" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" :
+                          "bg-slate-50 text-slate-600 border border-slate-200"
+                        }`}>
+                          {log.category}
+                        </span>
+                      </td>
+                      <td className="py-3 px-5">
+                        <div className="font-medium text-slate-800">{log.action}</div>
+                        {log.details && (
+                          <div className="text-xs text-slate-500 mt-0.5">{log.details}</div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        <p className="text-center text-[10px] text-slate-400 mt-4 italic">
+          The change log automatically prunes old entries beyond 500 records.
+        </p>
+      </section>
 
       {onNavigateToAdmin && (
         <div className="text-right">

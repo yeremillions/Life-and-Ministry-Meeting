@@ -111,6 +111,15 @@ export interface Household {
   createdAt: number;
 }
 
+/** Represents an entry in the application change log. */
+export interface LogEntry {
+  id?: number;
+  timestamp: number;
+  category: "settings" | "schedule" | "enrollees" | "system";
+  action: string;
+  details?: string;
+}
+
 export interface AppSettings {
   id: "app";
   /**
