@@ -8,7 +8,7 @@ import {
   type ParsedMeeting,
 } from "../workbookParser";
 import type { SegmentId } from "../types";
-import { ensureRequiredParts } from "../meeting";
+import { ensureRequiredParts, SEGMENT_PART_TYPES } from "../meeting";
 
 /**
  * Modal for importing a Life and Ministry Meeting workbook PDF.
@@ -85,11 +85,37 @@ export default function WorkbookImportModal({
     const targetIdx = direction === 'up' ? partIdx - 1 : partIdx + 1;
     
     if (targetIdx < 0 || targetIdx >= parts.length) return;
-    // Don't allow moving across segments for now to keep it simple and clean
-    if (parts[partIdx].segment !== parts[targetIdx].segment) return;
+
+    // Cross-segment movement: automatically update the segment of the moved part
+    // to match its new neighbors if it crosses a boundary.
+    const SEG_ORDER: SegmentId[] = ["opening", "treasures", "ministry", "living"];
+    const movingPart = parts[partIdx];
+    const targetNeighbor = parts[targetIdx];
+    
+    if (movingPart.segment !== targetNeighbor.segment) {
+      movingPart.segment = targetNeighbor.segment;
+    }
 
     [parts[partIdx], parts[targetIdx]] = [parts[targetIdx], parts[partIdx]];
-    week.parts = parts.map((p, i) => ({ ...p, number: i }));
+    
+    // Sort to ensure segments stay grouped, then re-index
+    week.parts = parts.sort((a, b) => {
+      const sd = SEG_ORDER.indexOf(a.segment) - SEG_ORDER.indexOf(b.segment);
+      if (sd !== 0) return sd;
+      return a.number - b.number;
+    }).map((p, i) => ({ ...p, number: i }));
+    
+    newParsed[selectedReviewIdx] = week;
+    setParsed(newParsed);
+  };
+
+  const handleUpdatePart = (partIdx: number, updates: Partial<any>) => {
+    if (!parsed || !meeting) return;
+    const newParsed = [...parsed];
+    const week = { ...meeting };
+    const parts = [...week.parts];
+    parts[partIdx] = { ...parts[partIdx], ...updates };
+    week.parts = parts;
     newParsed[selectedReviewIdx] = week;
     setParsed(newParsed);
   };
@@ -340,6 +366,9 @@ export default function WorkbookImportModal({
                     
                     if (segmentParts.length === 0 && segId !== "ministry") return null;
                     
+                    // Parts for numbering: exclude Opening segment
+                    const numberedParts = meeting.parts.filter(p => p.segment !== 'opening');
+
                     return (
                       <div key={segId}>
                         <div className="flex items-center justify-between mb-3 border-b border-indigo-50 pb-1">
@@ -356,55 +385,86 @@ export default function WorkbookImportModal({
                             </svg>
                           </button>
                         </div>
-                        <ul className="space-y-2">
-                          {segmentParts.map((p, idx) => (
-                            <li key={(p as any).uid || idx} className="group flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg transition-colors">
-                              <span className="text-[10px] font-bold text-slate-300 tabular-nums w-4">
-                                {p.number + 1}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-semibold text-slate-700 leading-snug truncate">
-                                  {p.title || p.partType}
+                        <ul className="space-y-1">
+                          {segmentParts.map((p, idx) => {
+                            const isNumbered = segId !== 'opening';
+                            const displayNum = isNumbered 
+                              ? numberedParts.findIndex(np => (np as any).uid === (p as any).uid) + 1 
+                              : null;
+
+                            return (
+                              <li key={(p as any).uid || idx} className="group flex items-center gap-3 p-1.5 hover:bg-slate-50 rounded-lg transition-colors">
+                                <span className="text-[10px] font-bold text-slate-300 tabular-nums w-4 text-center">
+                                  {displayNum || "•"}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <input 
+                                    className="w-full text-sm font-semibold text-slate-700 leading-tight bg-transparent border-none p-0 focus:ring-0 focus:outline-none placeholder:text-slate-300"
+                                    value={p.title}
+                                    placeholder="Click to edit title..."
+                                    onChange={(e) => handleUpdatePart(p.originalIdx, { title: e.target.value })}
+                                  />
+                                  <div className="relative inline-block group/select">
+                                    <select 
+                                      className="appearance-none text-[10px] text-slate-400 font-medium bg-transparent border-none p-0 pr-4 leading-none focus:ring-0 focus:outline-none cursor-pointer hover:text-indigo-600"
+                                      value={p.partType}
+                                      onChange={(e) => handleUpdatePart(p.originalIdx, { partType: e.target.value })}
+                                    >
+                                      {SEGMENT_PART_TYPES[segId as SegmentId].map(type => (
+                                        <option key={type} value={type}>{type}</option>
+                                      ))}
+                                      {/* Allow choosing any part type even if it belongs to another segment */}
+                                      <optgroup label="Other Segments">
+                                        {Object.entries(SEGMENT_PART_TYPES)
+                                          .filter(([id]) => id !== segId)
+                                          .map(([_, types]) => types.map(type => (
+                                            <option key={type} value={type}>{type}</option>
+                                          )))}
+                                      </optgroup>
+                                    </select>
+                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-slate-300 group-hover/select:text-indigo-400">
+                                      <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="text-[10px] text-slate-400 font-medium">
-                                  {p.partType}
+                                
+                                {/* Actions */}
+                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button 
+                                    className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-20"
+                                    disabled={p.originalIdx === 0}
+                                    onClick={() => handleMovePart(p.originalIdx, 'up')}
+                                    title="Move up"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+                                    </svg>
+                                  </button>
+                                  <button 
+                                    className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-20"
+                                    disabled={p.originalIdx === meeting.parts.length - 1}
+                                    onClick={() => handleMovePart(p.originalIdx, 'down')}
+                                    title="Move down"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                  <button 
+                                    className="p-1 text-slate-400 hover:text-red-500"
+                                    onClick={() => handleDeletePart(p.originalIdx)}
+                                    title="Delete part"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
                                 </div>
-                              </div>
-                              
-                              {/* Actions */}
-                              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button 
-                                  className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-20"
-                                  disabled={idx === 0}
-                                  onClick={() => handleMovePart(p.originalIdx, 'up')}
-                                  title="Move up"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
-                                  </svg>
-                                </button>
-                                <button 
-                                  className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-20"
-                                  disabled={idx === segmentParts.length - 1}
-                                  onClick={() => handleMovePart(p.originalIdx, 'down')}
-                                  title="Move down"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                                  </svg>
-                                </button>
-                                <button 
-                                  className="p-1 text-slate-400 hover:text-red-500"
-                                  onClick={() => handleDeletePart(p.originalIdx)}
-                                  title="Delete part"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
-                              </div>
-                            </li>
-                          ))}
+                              </li>
+                            );
+                          })}
                         </ul>
                       </div>
                     );
