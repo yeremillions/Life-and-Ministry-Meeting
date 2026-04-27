@@ -524,9 +524,14 @@ function classifyPart(
   rawText: string
 ): ParsedPart | null {
   const minutes = extractMinutes(rawText);
-  const title = cleanTitle(rawText);
+  let title = cleanTitle(rawText);
+  
+  if (!title || /^[.\s]*$/.test(title)) {
+    const partType = inferPartType(segment, "", number);
+    return { number, segment, partType, title: partType, minutes };
+  }
+
   const partType = inferPartType(segment, title, number);
-  if (!title) return null;
   return { number, segment, partType, title, minutes };
 }
 
@@ -535,14 +540,14 @@ function extractMinutes(raw: string): number | undefined {
   return m ? parseInt(m[1], 10) : undefined;
 }
 
-/** Strip "(n min.)" suffixes and trailing body-text run-on. */
+/** Strip "(n min.)" markers but preserve text around them. */
 function cleanTitle(raw: string): string {
   let title = raw
-    // drop any "(n min.)" marker and everything after it
-    .replace(/\s*\(\s*\d+\s*min\.?.*$/i, "")
+    // drop the "(n min.)" marker itself, but don't delete what follows.
+    .replace(/\(\s*\d+\s*min\.?\s*\)/i, "")
     .trim();
   // Drop stray trailing punctuation
-  title = title.replace(/[.\s]+$/, "").trim();
+  title = title.replace(/[.\s:]+$/, "").trim();
   // Strip quotes wrapping the whole title.
   if (
     (title.startsWith('"') && title.endsWith('"')) ||
