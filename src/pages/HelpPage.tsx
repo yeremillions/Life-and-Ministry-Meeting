@@ -263,17 +263,23 @@ function SettingsSection() {
         desc="How many weeks must pass before the same person gets another main part. Default: 2 weeks."
       />
       <KeyValue
-        label="Chairman rotation gap"
-        desc="How many weeks before the same elder can serve as chairman again. Default: 3 weeks."
-      />
-      <KeyValue
-        label="Catch-up priority (1–5)"
-        desc="How aggressively to prioritise overlooked publishers. 1 = equal rotation (default, no special treatment). Higher values deliberately boost neglected members. Default: 1."
-      />
-      <KeyValue
         label="Max assignments per month"
         desc="Maximum number of main parts a person can receive in any rolling 4-week period. Default: 2."
       />
+
+      <SubTitle>Assignment Eligibility Rules</SubTitle>
+      <P>
+        You can now customise which roles (Main or Assistant) can be held by which gender,
+        whether baptism is required, and what privileges are needed for every part type.
+        These rules are applied globally when the scheduler runs and when you use the manual dropdowns.
+      </P>
+
+      <SubTitle>Change Log</SubTitle>
+      <P>
+        The <strong>Change Log</strong> at the bottom of the Settings page automatically records
+        administrative actions like adding enrollees, auto-assigning weeks, or saving settings.
+        This provides a modern audit trail of all major modifications to your data.
+      </P>
 
       <Note>
         Always click <strong>Save settings</strong> after making changes. Settings are applied the next
@@ -307,6 +313,18 @@ function EnrolleesSection() {
       <KeyValue label="Minor" desc="Check this for those under 18. The scheduler prefers adult assistants for minors." />
       <KeyValue label="Privileges" desc="Select all that apply: Elder (E), Qualified Elder (QE), Ministerial Servant (MS), Qualified MS (QMS), Regular Pioneer (RP), CBS Reader (CBSR)." />
       <KeyValue label="Active" desc="Inactive enrollees are skipped by the auto-assigner but remain in the system." />
+
+      <SubTitle>Individual Assignment Restrictions</SubTitle>
+      <P>
+        Use the <strong>Assignment Restrictions</strong> section to limit what an enrollee
+        can receive due to age, health, or special circumstances:
+      </P>
+      <ul className="text-sm text-gray-600 space-y-1.5 mb-4 ml-4 list-disc">
+        <li><strong>Infirmed</strong> — Throttles frequency (assigned less often) and restricts parts to Prayers, Local Needs, Gems, and simple student demos.</li>
+        <li><strong>Elderly</strong> — Throttles frequency but remains qualified for all eligible parts.</li>
+        <li><strong>Pending Investigation</strong> — Restricts eligibility to Bible Reading and simple student demos, but maintains normal frequency.</li>
+        <li><strong>Custom Whitelist</strong> — Manually pick exactly which parts the person is allowed to handle.</li>
+      </ul>
 
       <SubTitle>Privilege Rules</SubTitle>
       <P>Privileges determine eligibility for specific parts:</P>
@@ -423,6 +441,8 @@ function AutoAssignSection() {
         <li><strong>Segment balance</strong> — The scheduler avoids giving the same person the same type of part repeatedly</li>
         <li><strong>Chairman rotation</strong> — Elders must wait the configured number of weeks before chairing again</li>
         <li><strong>Same-meeting uniqueness</strong> — No person is assigned two main parts in the same meeting</li>
+        <li><strong>Individual Restrictions</strong> — The scheduler strictly ignores parts not in an enrollee's custom whitelist</li>
+        <li><strong>Frequency Throttling</strong> — People marked as 'Infirmed' or 'Elderly' are assigned significantly less often</li>
       </ul>
 
       <Tip>
@@ -634,6 +654,12 @@ function FaqSection() {
       <FaqItem q="Can I edit a week after exporting the PDF?">
         Absolutely. The export does not lock anything. You can continue editing assignments and
         export a new PDF at any time.
+      </FaqItem>
+
+      <FaqItem q="Can I change the global rules (e.g. who can be a Reader)?">
+        Yes! In the <strong>Settings</strong> page, use the <strong>Assignment Eligibility Rules</strong>
+        table to change gender, baptism, or privilege requirements for any part type. These changes
+        affect every week in the application.
       </FaqItem>
     </div>
   );
