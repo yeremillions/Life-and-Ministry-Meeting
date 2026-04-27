@@ -7,6 +7,7 @@ import {
   parseWorkbookText,
   type ParsedMeeting,
 } from "../workbookParser";
+import type { SegmentId } from "../types";
 import { ensureRequiredParts } from "../meeting";
 
 /**
@@ -36,29 +37,78 @@ export default function WorkbookImportModal({
   
   // Review state
   const [reviewing, setReviewing] = useState(false);
-  const [selectedReviewIdx, setSelectedReviewIdx] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
-  const [pageOverride, setPageOverride] = useState<number | null>(null);
+
+  // Active week is the one that starts on or before the current page.
+  const selectedReviewIdx = useMemo(() => {
+    if (!parsed) return 0;
+    // Find the last week that starts on or before the current page
+    let bestIdx = 0;
+    for (let i = 0; i < parsed.length; i++) {
+      if (parsed[i].pageNumber && parsed[i].pageNumber! <= currentPage) {
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }, [parsed, currentPage]);
 
   const meeting = (reviewing && parsed) ? parsed[selectedReviewIdx] : null;
 
-  // Ensure we show exactly what will be imported (including Chairman, etc.)
-  const reviewAssignments = useMemo(() => {
-    if (!meeting) return [];
-    const parsedAssignments: Assignment[] = meeting.parts.map((p) => ({
+  // Review edit handlers
+  const handleAddPart = (segment: SegmentId) => {
+    if (!parsed || !meeting) return;
+    const newParsed = [...parsed];
+    const week = { ...meeting };
+    const newPart = {
       uid: uid(),
-      segment: p.segment,
-      order: p.number,
-      partType: p.partType,
-      title: p.title,
-    }));
-    return ensureRequiredParts(parsedAssignments, uid);
-  }, [meeting, uid]);
+      number: week.parts.length,
+      segment,
+      partType: segment === "ministry" ? "Starting a Conversation" : "Living Part",
+      title: "New Part",
+    };
+    week.parts = [...week.parts, newPart as any].sort((a, b) => {
+      const SEG_ORDER: SegmentId[] = ["opening", "treasures", "ministry", "living"];
+      const sd = SEG_ORDER.indexOf(a.segment) - SEG_ORDER.indexOf(b.segment);
+      if (sd !== 0) return sd;
+      return a.number - b.number;
+    }).map((p, i) => ({ ...p, number: i }));
+    newParsed[selectedReviewIdx] = week;
+    setParsed(newParsed);
+  };
 
-  // Reset override when week changes
+  const handleMovePart = (partIdx: number, direction: 'up' | 'down') => {
+    if (!parsed || !meeting) return;
+    const newParsed = [...parsed];
+    const week = { ...meeting };
+    const parts = [...week.parts];
+    const targetIdx = direction === 'up' ? partIdx - 1 : partIdx + 1;
+    
+    if (targetIdx < 0 || targetIdx >= parts.length) return;
+    // Don't allow moving across segments for now to keep it simple and clean
+    if (parts[partIdx].segment !== parts[targetIdx].segment) return;
+
+    [parts[partIdx], parts[targetIdx]] = [parts[targetIdx], parts[partIdx]];
+    week.parts = parts.map((p, i) => ({ ...p, number: i }));
+    newParsed[selectedReviewIdx] = week;
+    setParsed(newParsed);
+  };
+
+  const handleDeletePart = (partIdx: number) => {
+    if (!parsed || !meeting) return;
+    const newParsed = [...parsed];
+    const week = { ...meeting };
+    week.parts = week.parts.filter((_, i) => i !== partIdx).map((p, i) => ({ ...p, number: i }));
+    newParsed[selectedReviewIdx] = week;
+    setParsed(newParsed);
+  };
+
+  // When starting review, jump to the first week's page
   useEffect(() => {
-    setPageOverride(null);
-  }, [selectedReviewIdx]);
+    if (reviewing && parsed?.[0]?.pageNumber) {
+      setCurrentPage(parsed[0].pageNumber);
+    }
+  }, [reviewing]);
 
   const existingSet = useMemo(
     () => new Set(existingWeekOfs),
@@ -74,11 +124,33 @@ export default function WorkbookImportModal({
       const result = await extractPdfText(file);
       
       const yearNum = forcedYear.trim() ? parseInt(forcedYear, 10) : undefined;
-      const meetings = parseWorkbookText(
+      const rawMeetings = parseWorkbookText(
         result,
         Number.isFinite(yearNum) ? yearNum : undefined,
         file.name
       );
+
+      // Normalize meetings immediately to have stable UIDs and required parts
+      const meetings = rawMeetings.map(m => {
+        const parsedAssignments: Assignment[] = m.parts.map((p) => ({
+          uid: uid(),
+          segment: p.segment,
+          order: p.number,
+          partType: p.partType,
+          title: p.title,
+        }));
+        const assignments = ensureRequiredParts(parsedAssignments, uid);
+        return {
+          ...m,
+          parts: assignments.map(a => ({
+            number: a.order,
+            segment: a.segment,
+            partType: a.partType,
+            title: a.title,
+            uid: a.uid, // Add UID to the part for stable rendering
+          } as any))
+        };
+      });
 
       // Load PDF for rendering
       const pdfjsLib = await import("pdfjs-dist");
@@ -115,14 +187,13 @@ export default function WorkbookImportModal({
           .where("weekOf")
           .equals(meeting.weekOf)
           .first();
-        const parsedAssignments: Assignment[] = meeting.parts.map((p) => ({
-          uid: uid(),
+        const assignments: Assignment[] = meeting.parts.map((p: any) => ({
+          uid: p.uid || uid(),
           segment: p.segment,
           order: p.number,
           partType: p.partType,
           title: p.title,
         }));
-        const assignments = ensureRequiredParts(parsedAssignments, uid);
         const week: Omit<Week, "id"> = {
           weekOf: meeting.weekOf,
           weeklyBibleReading: meeting.bibleReading,
@@ -176,12 +247,6 @@ export default function WorkbookImportModal({
 
 
   if (reviewing && parsed && meeting) {
-    // If page detection failed for this week, try to guess it from the previous week.
-    let detectedPage = meeting.pageNumber;
-    if (!detectedPage && selectedReviewIdx > 0) {
-      detectedPage = parsed[selectedReviewIdx - 1].pageNumber;
-    }
-    const currentPage = pageOverride ?? detectedPage ?? 1;
 
     return (
       <div
@@ -222,7 +287,7 @@ export default function WorkbookImportModal({
                 <div className="flex items-center gap-2">
                   <button 
                     className="p-1 hover:bg-slate-700 rounded disabled:opacity-30"
-                    onClick={() => setPageOverride(Math.max(1, currentPage - 1))}
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                     disabled={currentPage <= 1}
                   >
                     ◀
@@ -233,26 +298,18 @@ export default function WorkbookImportModal({
                       type="number"
                       className="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-xs w-12 text-center"
                       value={currentPage}
-                      onChange={(e) => setPageOverride(parseInt(e.target.value, 10) || 1)}
+                      onChange={(e) => setCurrentPage(parseInt(e.target.value, 10) || 1)}
                     />
                     <span className="text-xs text-slate-500">/ {pdfDoc?.numPages}</span>
                   </div>
                   <button 
                     className="p-1 hover:bg-slate-700 rounded disabled:opacity-30"
-                    onClick={() => setPageOverride(Math.min(pdfDoc?.numPages || 1, currentPage + 1))}
+                    onClick={() => setCurrentPage(Math.min(pdfDoc?.numPages || 1, currentPage + 1))}
                     disabled={currentPage >= (pdfDoc?.numPages || 1)}
                   >
                     ▶
                   </button>
                 </div>
-                {meeting.pageNumber && meeting.pageNumber !== currentPage && (
-                  <button 
-                    className="text-[10px] bg-indigo-600 hover:bg-indigo-500 px-2 py-1 rounded font-bold uppercase"
-                    onClick={() => setPageOverride(null)}
-                  >
-                    Reset to Detected Page ({meeting.pageNumber})
-                  </button>
-                )}
               </div>
               <div className="flex-1 overflow-auto p-4 flex justify-center">
                 <div className="bg-white shadow-2xl h-fit">
@@ -277,26 +334,74 @@ export default function WorkbookImportModal({
 
                 <div className="space-y-6">
                   {["opening", "treasures", "ministry", "living"].map((segId) => {
-                    const segmentParts = reviewAssignments.filter(p => p.segment === segId);
-                    if (segmentParts.length === 0) return null;
+                    const segmentParts = meeting.parts
+                      .map((p, originalIdx) => ({ ...p, originalIdx }))
+                      .filter(p => p.segment === segId);
+                    
+                    if (segmentParts.length === 0 && segId !== "ministry") return null;
+                    
                     return (
                       <div key={segId}>
-                        <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em] mb-3 border-b border-indigo-50 pb-1">
-                          {segId.replace(/s$/, "")}
+                        <div className="flex items-center justify-between mb-3 border-b border-indigo-50 pb-1">
+                          <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em]">
+                            {segId.replace(/s$/, "")}
+                          </div>
+                          <button 
+                            className="text-indigo-400 hover:text-indigo-600 p-1"
+                            title="Add part to this section"
+                            onClick={() => handleAddPart(segId as SegmentId)}
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </button>
                         </div>
-                        <ul className="space-y-3">
+                        <ul className="space-y-2">
                           {segmentParts.map((p, idx) => (
-                            <li key={p.uid} className="flex gap-3">
-                              <span className="text-xs font-bold text-slate-300 tabular-nums pt-0.5">
-                                {p.order || idx + 1}
+                            <li key={(p as any).uid || idx} className="group flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                              <span className="text-[10px] font-bold text-slate-300 tabular-nums w-4">
+                                {p.number + 1}
                               </span>
-                              <div>
-                                <div className="text-sm font-semibold text-slate-700 leading-snug">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-semibold text-slate-700 leading-snug truncate">
                                   {p.title || p.partType}
                                 </div>
                                 <div className="text-[10px] text-slate-400 font-medium">
                                   {p.partType}
                                 </div>
+                              </div>
+                              
+                              {/* Actions */}
+                              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                  className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-20"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMovePart(p.originalIdx, 'up')}
+                                  title="Move up"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+                                  </svg>
+                                </button>
+                                <button 
+                                  className="p-1 text-slate-400 hover:text-indigo-600 disabled:opacity-20"
+                                  disabled={idx === segmentParts.length - 1}
+                                  onClick={() => handleMovePart(p.originalIdx, 'down')}
+                                  title="Move down"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                                <button 
+                                  className="p-1 text-slate-400 hover:text-red-500"
+                                  onClick={() => handleDeletePart(p.originalIdx)}
+                                  title="Delete part"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
                               </div>
                             </li>
                           ))}
@@ -320,17 +425,17 @@ export default function WorkbookImportModal({
               <div className="p-4 border-t border-slate-50 bg-slate-50/30 flex gap-2">
                 <button
                   className="btn-secondary flex-1"
-                  disabled={selectedReviewIdx === 0}
-                  onClick={() => setSelectedReviewIdx(prev => prev - 1)}
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(prev => prev - 1)}
                 >
-                  Previous
+                  Previous Page
                 </button>
                 <button
                   className="btn-secondary flex-1"
-                  disabled={selectedReviewIdx === parsed.length - 1}
-                  onClick={() => setSelectedReviewIdx(prev => prev + 1)}
+                  disabled={currentPage >= (pdfDoc?.numPages || 1)}
+                  onClick={() => setCurrentPage(prev => prev + 1)}
                 >
-                  Next
+                  Next Page
                 </button>
               </div>
             </div>
