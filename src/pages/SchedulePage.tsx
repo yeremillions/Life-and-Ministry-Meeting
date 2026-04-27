@@ -2,6 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useState } from "react";
 import { db, ensureSettings, addLog } from "../db";
 import {
+  Assignee,
   Assignment,
   DEFAULT_SETTINGS,
   PartType,
@@ -16,6 +17,7 @@ import WeekEditor from "../components/WeekEditor";
 import WorkbookImportModal from "../components/WorkbookImportModal";
 import S140ImportModal from "../components/S140ImportModal";
 import ExportPdfModal from "../components/ExportPdfModal";
+import CompletionModal from "../components/CompletionModal";
 import { ensureSettings as getSettings } from "../db";
 
 function buildEmptyWeek(weekOf: string): Week {
@@ -208,12 +210,21 @@ export default function SchedulePage({
             Import S-140 schedule
           </button>
           <button
-            className="btn-secondary w-full"
+            className="btn w-full flex items-center justify-center gap-2 relative overflow-hidden group"
             onClick={() => setExportingPdf(true)}
-            title="Export filled schedule as a Midweek Meeting Schedule PDF"
+            title="Download the official S-140 Meeting Schedule PDF"
             disabled={weeks.length === 0}
           >
-            ⬇ Export PDF
+            <span>Download S-140 Meeting Schedule</span>
+            <svg
+              className="w-4 h-4 text-white/80 group-hover:text-white transition-colors"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
+              {/* PDF-like icon */}
+              <path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3.5h-3V10h2v1.5h-2v1.5H19v-5zM9 8.5V10h1v-.5H9v-1zm5 4h1V8.5h-1v4z" />
+            </svg>
           </button>
           {lastImportCount != null && (
             <p className="text-xs text-emerald-700">
@@ -232,6 +243,8 @@ export default function SchedulePage({
               weeks={weeks}
               selectedId={selectedId}
               onSelect={(id) => setSelectedId(id)}
+              assignees={assignees}
+              congregationName={congregationName}
             />
           )}
         </div>
@@ -354,11 +367,17 @@ function WeekListGrouped({
   weeks,
   selectedId,
   onSelect,
+  assignees,
+  congregationName,
 }: {
   weeks: Week[];
   selectedId: number | null;
   onSelect: (id: number | null) => void;
+  assignees: Assignee[];
+  congregationName: string;
 }) {
+  const [completionPeriod, setCompletionPeriod] = useState<{key: string, label: string, weeks: Week[]} | null>(null);
+  const [notifiedPeriods, setNotifiedPeriods] = useState<Set<string>>(new Set());
   const todayIso = new Date().toISOString().slice(0, 10);
   const todayKey = workbookPeriod(todayIso).key;
 
@@ -444,6 +463,42 @@ function WeekListGrouped({
       setOpenGroup(defaultOpenKey);
     }
   }, [defaultOpenKey]);
+
+  // Congratulations detection: Check if any period just became 100% full
+  useEffect(() => {
+    if (weeks.length === 0) return;
+    
+    // Group all weeks by period
+    const periodMap = new Map<string, {key: string, label: string, weeks: Week[]}>();
+    for (const w of weeks) {
+      const { key, label } = workbookPeriod(w.weekOf);
+      if (!periodMap.has(key)) periodMap.set(key, { key, label, weeks: [] });
+      periodMap.get(key)!.weeks.push(w);
+    }
+
+    for (const group of periodMap.values()) {
+      const totalParts = group.weeks.reduce((s, w) => s + w.assignments.length, 0);
+      const filledParts = group.weeks.reduce((s, w) => s + w.assignments.filter(a => a.assigneeId).length, 0);
+      
+      const isFull = totalParts > 0 && filledParts === totalParts;
+      
+      if (isFull && !notifiedPeriods.has(group.key)) {
+        // This period is full and we haven't notified yet.
+        // But only trigger if it's the current or a future period to avoid spamming old history.
+        if (group.key >= todayKey) {
+          setCompletionPeriod(group);
+          setNotifiedPeriods(prev => new Set(prev).add(group.key));
+        }
+      } else if (!isFull && notifiedPeriods.has(group.key)) {
+        // If it was full but now isn't (unassigned), remove from notified set so it can trigger again.
+        setNotifiedPeriods(prev => {
+          const next = new Set(prev);
+          next.delete(group.key);
+          return next;
+        });
+      }
+    }
+  }, [weeks, notifiedPeriods, todayKey]);
 
   // If the selected week changes to a different group, switch to it.
   useEffect(() => {
@@ -664,6 +719,14 @@ function WeekListGrouped({
           </div>
         );
       })}
+      {completionPeriod && (
+        <CompletionModal
+          period={completionPeriod}
+          assignees={assignees}
+          congregationName={congregationName}
+          onClose={() => setCompletionPeriod(null)}
+        />
+      )}
     </div>
   );
 }
