@@ -97,10 +97,7 @@ export default function SchedulePage({
 
   async function saveWeek(updated: Week) {
     if (updated.id == null) return;
-    await db.weeks.update(updated.id, {
-      ...updated,
-      updatedAt: Date.now(),
-    });
+    await db.weeks.put(updated);
   }
 
   async function deleteWeek(id: number) {
@@ -249,7 +246,11 @@ export default function SchedulePage({
             onUpdateAssignment={(a) => updateAssignment(selected, a)}
             onNavigateToProfile={onNavigateToProfile}
             allWeeks={weeks}
-            settings={settings || DEFAULT_SETTINGS}
+            settings={
+              settings
+                ? { ...DEFAULT_SETTINGS, ...settings }
+                : DEFAULT_SETTINGS
+            }
           />
         ) : (
           <div className="card">

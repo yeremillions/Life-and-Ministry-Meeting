@@ -108,7 +108,15 @@ export const db = new MeetingDB();
 /** Ensure the singleton settings row exists. */
 export async function ensureSettings(): Promise<AppSettings> {
   const existing = await db.settings.get("app");
-  if (existing) return existing;
-  await db.settings.put(DEFAULT_SETTINGS);
-  return DEFAULT_SETTINGS;
+  if (!existing) {
+    await db.settings.put(DEFAULT_SETTINGS);
+    return DEFAULT_SETTINGS;
+  }
+  // Migration: If rules are missing (old DB), add them now.
+  if (!existing.assignmentRules) {
+    const updated = { ...existing, assignmentRules: DEFAULT_SETTINGS.assignmentRules };
+    await db.settings.put(updated);
+    return updated;
+  }
+  return existing;
 }

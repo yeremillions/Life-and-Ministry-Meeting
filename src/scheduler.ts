@@ -505,6 +505,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
     if (!isEligible(a, part.partType, role, "auto", opts.assignmentRules)) {
       return false;
     }
+    return true;
   });
 
   // ── Hard constraint: minimum gap between main assignments ──────────
