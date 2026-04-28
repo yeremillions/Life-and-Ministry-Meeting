@@ -138,7 +138,7 @@ export default function Dashboard({
           valueSuffix="%"
           sub={needsAttention.length > 0 ? `${needsAttention.length} need attention` : "all filled"}
           accent={upcomingFill === 100 ? "#006064" : upcomingFill > 50 ? "#c4952a" : "#7b1928"}
-          onClick={() => onNavigate("schedule")}
+          onClick={() => onNavigate("schedule", needsAttention.length > 0 ? needsAttention[0].id : undefined)}
         />
       </section>
 
