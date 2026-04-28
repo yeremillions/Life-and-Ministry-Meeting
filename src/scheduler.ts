@@ -756,11 +756,11 @@ export function analyzeWeekOptimization(
             best, a, week.weekOf, bestStats, seed, opts.privilegedMinistryShare, talkSplit, "main", opts
           );
 
-          if (bestScore - currentScore > 15) {
+          if (bestScore - currentScore > 50) {
             suggestions.push({
               uid: a.uid, partType: a.partType, role: "main", currentAssigneeId: currentPerson.id, currentScore,
               suggestedAssigneeId: best.id!, suggestedScore: bestScore,
-              reason: `Better fit: Score +${Math.round(bestScore - currentScore)}`,
+              reason: `Strongly recommended (score +${Math.round(bestScore - currentScore)})`,
             });
           }
         }
@@ -798,11 +798,11 @@ export function analyzeWeekOptimization(
             bestAss, a, week.weekOf, bestAssStats, seed + 1, opts.privilegedMinistryShare, talkSplit, "assistant", opts, isMinorMain
           );
 
-          if (bestScore - currentScore > 20) {
+          if (bestScore - currentScore > 40) {
             suggestions.push({
               uid: a.uid, partType: a.partType, role: "assistant", currentAssigneeId: currentAssistant.id, currentScore,
               suggestedAssigneeId: bestAss.id!, suggestedScore: bestScore,
-              reason: `Better fit: Score +${Math.round(bestScore - currentScore)}`,
+              reason: `Strongly recommended (score +${Math.round(bestScore - currentScore)})`,
             });
           }
         }
@@ -810,5 +810,23 @@ export function analyzeWeekOptimization(
     }
   }
 
-  return suggestions;
+  // De-duplicate: pick the best slot for each suggested assignee
+  const bySuggestedPerson = new Map<number, OptimizationSuggestion>();
+  for (const sug of suggestions) {
+    const existing = bySuggestedPerson.get(sug.suggestedAssigneeId);
+    const scoreDiff = sug.suggestedScore - sug.currentScore;
+    if (!existing) {
+      bySuggestedPerson.set(sug.suggestedAssigneeId, sug);
+    } else {
+      const existingDiff = existing.suggestedScore - existing.currentScore;
+      if (scoreDiff > existingDiff) {
+        bySuggestedPerson.set(sug.suggestedAssigneeId, sug);
+      }
+    }
+  }
+
+  // Return the top 3 most impactful optimizations
+  return Array.from(bySuggestedPerson.values())
+    .sort((a, b) => (b.suggestedScore - b.currentScore) - (a.suggestedScore - a.currentScore))
+    .slice(0, 3);
 }
