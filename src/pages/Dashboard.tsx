@@ -1,10 +1,11 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { db } from "../db";
 import { buildStats, dueSoon } from "../scheduler";
 import { SEGMENTS, segmentOf } from "../meeting";
 import { todayIso, weekRangeLabel } from "../utils";
 import type { Week, Assignee } from "../types";
+import QuickStartWizard from "../components/QuickStartWizard";
 
 export default function Dashboard({
   onNavigate,
@@ -70,8 +71,37 @@ export default function Dashboard({
     return filled < w.assignments.length;
   });
 
+  const [showWizard, setShowWizard] = useState(false);
+  const isBrandNew = assignees.length === 0 && weeks.length === 0;
+
   return (
     <div className="space-y-5">
+      {/* ── Wizard Overlay ─────────────────────────────────────────── */}
+      {showWizard && (
+        <QuickStartWizard
+          onClose={() => setShowWizard(false)}
+          onNavigate={onNavigate}
+        />
+      )}
+
+      {/* ── Welcome Banner for New Users ───────────────────────────── */}
+      {isBrandNew && (
+        <div className="card bg-indigo-50 border-indigo-200 shadow-sm flex flex-col sm:flex-row items-center gap-4 sm:justify-between p-6">
+          <div>
+            <h2 className="text-xl font-bold text-indigo-900">Welcome to Life & Ministry Meeting Scheduler!</h2>
+            <p className="text-indigo-700 mt-1">
+              It looks like your database is empty. Would you like us to guide you through setting up your first schedule?
+            </p>
+          </div>
+          <button
+            className="btn bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap shrink-0"
+            onClick={() => setShowWizard(true)}
+          >
+            Start Guided Setup
+          </button>
+        </div>
+      )}
+
       {/* ── This Week's Meeting ─────────────────────────────────────── */}
       {thisWeek && (
         <ThisWeekCard
@@ -340,6 +370,13 @@ export default function Dashboard({
                 onClick={() => onNavigate("enrollees")}
               >
                 Add enrollee
+              </button>
+              <button
+                className="w-full btn-secondary text-left text-sm flex justify-between"
+                onClick={() => setShowWizard(true)}
+              >
+                <span>Guided Setup Wizard</span>
+                <span className="text-indigo-500">✨</span>
               </button>
               <button
                 className="w-full btn-secondary text-left text-sm"

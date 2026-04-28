@@ -249,15 +249,68 @@ export default function SettingsPage({
               onChange={(e) =>
                 setDraft({
                   ...draft,
-                  maxAssignmentsPerMonth: clamp(parseInt(e.target.value || "0", 10), 0, 8),
+                  maxAssignmentsPerMonth: clamp(
+                    parseInt(e.target.value || "0", 10),
+                    0,
+                    8
+                  ),
                 })
               }
             />
             <p className="text-xs text-slate-500 mt-1">
-              Maximum main assignments a person can receive in any 4-week
-              period. Set to 0 for no limit.
+              Limits the total main assignments any one person can receive in a
+              rolling 4-week window. Set to 0 to disable.
             </p>
           </div>
+
+          <div>
+            <label className="label">Optimization Threshold (Main Role)</label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              className="input max-w-xs"
+              value={draft.optimizationThresholdMain ?? 50}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  optimizationThresholdMain: clamp(
+                    parseInt(e.target.value || "50", 10),
+                    0,
+                    100
+                  ),
+                })
+              }
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Minimum score difference required for the system to suggest replacing a main assignee. Higher values mean fewer, more impactful suggestions. Default is 50.
+            </p>
+          </div>
+
+          <div>
+            <label className="label">Optimization Threshold (Assistant Role)</label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              className="input max-w-xs"
+              value={draft.optimizationThresholdAssistant ?? 40}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  optimizationThresholdAssistant: clamp(
+                    parseInt(e.target.value || "40", 10),
+                    0,
+                    100
+                  ),
+                })
+              }
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Minimum score difference required for the system to suggest replacing an assistant. Default is 40.
+            </p>
+          </div>
+
         </div>
 
         <div>

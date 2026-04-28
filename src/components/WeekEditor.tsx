@@ -148,6 +148,13 @@ export default function WeekEditor(props: WeekEditorProps) {
           <div className="ml-auto flex flex-wrap gap-2">
             <button
               className="btn-secondary"
+              onClick={handleReviewOptimization}
+              title="Review for compliance optimizations"
+            >
+              Review Optimization
+            </button>
+            <button
+              className="btn-secondary"
               onClick={() => props.onClear()}
             >
               Clear all
@@ -158,13 +165,6 @@ export default function WeekEditor(props: WeekEditorProps) {
               title="Fill empty slots only"
             >
               Auto-fill empty
-            </button>
-            <button
-              className="btn-secondary"
-              onClick={handleReviewOptimization}
-              title="Review for compliance optimizations"
-            >
-              Review Optimization
             </button>
             <button
               className="btn"

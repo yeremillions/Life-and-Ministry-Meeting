@@ -184,37 +184,11 @@ export function scoreCandidate(
         score += neglectBonus * priorityMul;
       }
     } else {
-      // Never assigned as main. Distinguish between:
-      //   (a) a genuine newcomer who just enrolled (ease them in), and
-      //   (b) someone who has been enrolled a long time but was overlooked.
-      const enrolledDays = Math.max(
-        0,
-        Math.round(
-          (new Date(weekOf + "T00:00:00").getTime() - a.createdAt) /
-            (1000 * 60 * 60 * 24)
-        )
-      );
-
-      const RAMP_DAYS = 56;
-
-      // Base score — treat them roughly like someone whose last
-      // assignment was `enrolledDays` ago, capped at the same
-      // 60-day decay window used for everyone else.
-      const DECAY_DAYS = 60;
-      const baseScore = Math.min(enrolledDays, DECAY_DAYS) * 0.6;
-
-      // Catch-up addition — only meaningful at intensity > 1.
-      const catchUpBonus = priorityMul > 0
-        ? Math.min(enrolledDays, 80 + catchUp * 32) * priorityMul
-        : 0;
-
-      if (enrolledDays < RAMP_DAYS) {
-        // Newcomer — ramp in gradually over ~8 weeks.
-        const ramp = 0.3 + 0.7 * (enrolledDays / RAMP_DAYS);
-        score += (baseScore + catchUpBonus) * ramp;
-      } else {
-        score += baseScore + catchUpBonus;
-      }
+      // Never assigned. They are a newcomer (or have been enrolled a long time but never assigned).
+      // Based on user feedback, newcomers should never be prioritized. We do not apply catch-up 
+      // bonuses or enrolled-days gap bonuses. They start with a neutral gap score (0) and will be
+      // picked when others are penalized or naturally exhausted from the pool.
+      score += 0;
     }
 
     // Workload penalty: spread the total lifetime burden.
@@ -232,7 +206,7 @@ export function scoreCandidate(
       }
       score += Math.min(gap, 180);
     } else {
-      score += 180;
+      score += 0;
     }
     score -= stats.totalAssistant * 10;
   }
@@ -316,6 +290,8 @@ export interface AutoAssignOptions {
   catchUpIntensity: number;
   /** Max main assignments in a rolling 4-week window. 0 = no limit. Default 2. */
   maxAssignmentsPerMonth: number;
+  optimizationThresholdMain?: number;
+  optimizationThresholdAssistant?: number;
   /** Custom eligibility rules. */
   assignmentRules: Record<string, AssignmentRule>;
 }
@@ -642,8 +618,6 @@ export function dueSoon(
   limit = 10
 ): { assignee: Assignee; stats: AssigneeStats; neglect: number }[] {
   const stats = buildStats(assignees, weeks);
-  const todayMs = new Date(today + "T00:00:00").getTime();
-  const RAMP_DAYS = 56; // Same ramp-up period as the scorer
 
   return assignees
     .filter((a) => a.active)
@@ -661,18 +635,8 @@ export function dueSoon(
         neglect = daysBetween(s.lastWeekMain, today) - s.totalMain * 7;
       } else {
         // Never assigned. Check how long they've been enrolled.
-        const enrolledDays = Math.max(
-          0,
-          Math.round((todayMs - a.createdAt) / (1000 * 60 * 60 * 24))
-        );
-        if (enrolledDays < RAMP_DAYS) {
-          // Newcomer — reduced neglect so they don't jump ahead of
-          // genuinely overlooked long-term members.
-          neglect = Math.round(enrolledDays * 0.5);
-        } else {
-          // Enrolled a long time with zero assignments — truly overlooked.
-          neglect = 999;
-        }
+        // Based on user feedback, newcomers should never be treated as neglected.
+        neglect = 0;
       }
 
       return { assignee: a, stats: s, neglect };
@@ -756,7 +720,8 @@ export function analyzeWeekOptimization(
             best, a, week.weekOf, bestStats, seed, opts.privilegedMinistryShare, talkSplit, "main", opts
           );
 
-          if (bestScore - currentScore > 50) {
+          const threshold = opts.optimizationThresholdMain ?? 50;
+          if (bestScore - currentScore > threshold) {
             suggestions.push({
               uid: a.uid, partType: a.partType, role: "main", currentAssigneeId: currentPerson.id, currentScore,
               suggestedAssigneeId: best.id!, suggestedScore: bestScore,
@@ -798,7 +763,8 @@ export function analyzeWeekOptimization(
             bestAss, a, week.weekOf, bestAssStats, seed + 1, opts.privilegedMinistryShare, talkSplit, "assistant", opts, isMinorMain
           );
 
-          if (bestScore - currentScore > 40) {
+          const threshold = opts.optimizationThresholdAssistant ?? 40;
+          if (bestScore - currentScore > threshold) {
             suggestions.push({
               uid: a.uid, partType: a.partType, role: "assistant", currentAssigneeId: currentAssistant.id, currentScore,
               suggestedAssigneeId: bestAss.id!, suggestedScore: bestScore,
