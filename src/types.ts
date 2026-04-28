@@ -85,6 +85,8 @@ export interface Assignment {
   assistantId?: number;
   /** Any scheduler notes. */
   note?: string;
+  /** Duration of the part in minutes, as parsed from the workbook or entered manually. */
+  minutes?: number;
 }
 
 export interface Week {

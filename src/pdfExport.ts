@@ -327,40 +327,43 @@ function drawPartRow(
 function formatPartTitle(part: Assignment, num: number): string {
   const title = part.title?.trim();
 
+  const m = (defaultMin: string) => 
+    part.minutes ? `  (${part.minutes} min.)` : `  (${defaultMin})`;
+
   switch (part.partType) {
     case "Talk":
-      return title ? `${num}. ${title} (10 min.)` : `${num}. [Title]  (10 min.)`;
+      return title ? `${num}. ${title}${m("10 min.")}` : `${num}. [Title]${m("10 min.")}`;
     case "Spiritual Gems":
-      return `${num}. Spiritual Gems  (10 min.)`;
+      return `${num}. Spiritual Gems${m("10 min.")}`;
     case "Bible Reading":
       return title
-        ? `${num}. Bible Reading — ${title}  (4 min.)`
-        : `${num}. Bible Reading  (4 min.)`;
+        ? `${num}. Bible Reading — ${title}${m("4 min.")}`
+        : `${num}. Bible Reading${m("4 min.")}`;
     case "Congregation Bible Study":
       return title
-        ? `${num}. Congregation Bible Study — ${title}  (30 min.)`
-        : `${num}. Congregation Bible Study  (30 min.)`;
+        ? `${num}. Congregation Bible Study — ${title}${m("30 min.")}`
+        : `${num}. Congregation Bible Study${m("30 min.")}`;
     case "Local Needs":
-      return `${num}. Local Needs  (15 min.)`;
+      return `${num}. Local Needs${m("15 min.")}`;
     case "Governing Body Update":
       return `${num}. Governing Body Update`;
     case "Video":
       return title ? `${num}. ${title}  (Video)` : `${num}. (Video)`;
     case "Living Part":
-      return title ? `${num}. ${title}  (15 min.)` : `${num}. [Title]  (15 min.)`;
+      return title ? `${num}. ${title}${m("15 min.")}` : `${num}. [Title]${m("15 min.")}`;
     case "Starting a Conversation":
-      return title ? `${num}. ${title}  (3 min.)` : `${num}. Starting a Conversation  (3 min.)`;
+      return title ? `${num}. ${title}${m("3 min.")}` : `${num}. Starting a Conversation${m("3 min.")}`;
     case "Following Up":
-      return title ? `${num}. ${title}  (4 min.)` : `${num}. Following Up  (4 min.)`;
+      return title ? `${num}. ${title}${m("4 min.")}` : `${num}. Following Up${m("4 min.")}`;
     case "Making Disciples":
-      return title ? `${num}. ${title}  (5 min.)` : `${num}. Making Disciples  (5 min.)`;
+      return title ? `${num}. ${title}${m("5 min.")}` : `${num}. Making Disciples${m("5 min.")}`;
     case "Explaining Your Beliefs":
-      return title ? `${num}. ${title}  (5 min.)` : `${num}. Explaining Your Beliefs  (5 min.)`;
+      return title ? `${num}. ${title}${m("5 min.")}` : `${num}. Explaining Your Beliefs${m("5 min.")}`;
     case "Initial Call":
-      return title ? `${num}. ${title}  (3 min.)` : `${num}. Initial Call  (3 min.)`;
+      return title ? `${num}. ${title}${m("3 min.")}` : `${num}. Initial Call${m("3 min.")}`;
     case "Talk (Ministry)":
-      return title ? `${num}. ${title}` : `${num}. Talk  (X min.)`;
+      return title ? `${num}. ${title}${m("5 min.")}` : `${num}. Talk${m("5 min.")}`;
     default:
-      return title ? `${num}. ${title}` : `${num}. [Title]`;
+      return title ? `${num}. ${title}${part.minutes ? `  (${part.minutes} min.)` : ""}` : `${num}. [Title]${part.minutes ? `  (${part.minutes} min.)` : ""}`;
   }
 }

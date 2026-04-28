@@ -556,20 +556,9 @@ function classifyPart(
     segment = "living";
   }
 
-  // Bug 5 Fix: If title is missing, apply fallback rule.
+  // If title is missing, leave it blank in the schedule page
   if (!title || /^[.\s]*$/.test(title)) {
-    // Only apply partType as title for these specific predictable types
-    const FIXED_TITLES = [
-      "Spiritual Gems",
-      "Bible Reading",
-      "Starting a Conversation",
-      "Following Up",
-      "Explaining Your Beliefs",
-      "Making Disciples",
-      "Congregation Bible Study",
-      "Local Needs",
-    ];
-    title = FIXED_TITLES.includes(partType) ? partType : "";
+    title = "";
   }
 
   return { number, segment, partType, title, minutes };

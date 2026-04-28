@@ -223,6 +223,7 @@ export default function WorkbookImportModal({
           order: p.number,
           partType: p.partType,
           title: p.title,
+          minutes: p.minutes,
         }));
         const week: Omit<Week, "id"> = {
           weekOf: meeting.weekOf,
@@ -248,6 +249,7 @@ export default function WorkbookImportModal({
                   assistantId: prev.assistantId,
                   note: prev.note,
                   title: a.title || prev.title,
+                  minutes: a.minutes ?? prev.minutes,
                 }
               : a;
           });

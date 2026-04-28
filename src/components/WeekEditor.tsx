@@ -181,7 +181,7 @@ export default function WeekEditor(props: WeekEditorProps) {
         <div className="mt-3">
           <label className="label">Weekly Bible reading (optional)</label>
           <input
-            className="input max-w-md"
+            className="input max-w-md font-bold text-slate-800"
             value={week.weeklyBibleReading ?? ""}
             onChange={(e) =>
               props.onSave({
@@ -630,6 +630,23 @@ function PartRow({
             }
           />
         </div>
+        <div className="w-20">
+          <label className="label">Min</label>
+          <input
+            type="number"
+            min="1"
+            max="120"
+            className="input text-center px-1 placeholder-slate-400"
+            value={assignment.minutes || ""}
+            placeholder={defaultMinutes(assignment.partType)}
+            onChange={(e) =>
+              onUpdate({
+                ...assignment,
+                minutes: e.target.value ? parseInt(e.target.value, 10) : undefined,
+              })
+            }
+          />
+        </div>
         <div className="pt-5">
           <button
             className="text-slate-400 hover:text-red-600 text-sm"
@@ -1045,6 +1062,37 @@ function titlePlaceholder(t: PartType): string {
       return "e.g. jy chap. 43";
     default:
       return "Scenario / description (optional)";
+  }
+}
+
+function defaultMinutes(t: PartType): string {
+  switch (t) {
+    case "Talk":
+      return "10";
+    case "Spiritual Gems":
+      return "10";
+    case "Bible Reading":
+      return "4";
+    case "Congregation Bible Study":
+      return "30";
+    case "Local Needs":
+      return "15";
+    case "Living Part":
+      return "15";
+    case "Starting a Conversation":
+      return "3";
+    case "Following Up":
+      return "4";
+    case "Making Disciples":
+      return "5";
+    case "Explaining Your Beliefs":
+      return "5";
+    case "Initial Call":
+      return "3";
+    case "Talk (Ministry)":
+      return "5";
+    default:
+      return "—";
   }
 }
 
