@@ -146,39 +146,33 @@ export default function WeekEditor(props: WeekEditorProps) {
             </div>
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
-            <button
-              className="btn-secondary"
-              onClick={handleReviewOptimization}
-              title="Review for compliance optimizations"
-            >
-              Review Optimization
-            </button>
-            <button
-              className="btn-secondary"
-              onClick={() => props.onClear()}
-            >
-              Clear all
-            </button>
-            <button
-              className="btn-secondary"
-              onClick={() => props.onAutoFill(true)}
-              title="Fill empty slots only"
-            >
-              Auto-fill empty
-            </button>
-            <button
-              className="btn"
-              onClick={() => props.onAutoFill(false)}
-              title="Reassign everything from scratch"
-            >
-              Auto-assign all
-            </button>
-            <button className="btn-danger" onClick={() => props.onDelete()}>
-              Delete
-            </button>
-          </div>
+          <button
+            className="btn-secondary"
+            onClick={() => props.onClear()}
+          >
+            Clear all
+          </button>
+          <button
+            className="btn-secondary"
+            onClick={() => props.onAutoFill(true)}
+            title="Fill empty slots only"
+          >
+            Auto-fill empty
+          </button>
+          <button
+            className="btn"
+            onClick={() => props.onAutoFill(false)}
+            title="Reassign everything from scratch"
+          >
+            Auto-assign all
+          </button>
+          <button className="btn-danger" onClick={() => props.onDelete()}>
+            Delete
+          </button>
         </div>
-        <div className="mt-3">
+      </div>
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div className="flex-1">
           <label className="label">Weekly Bible reading (optional)</label>
           <input
             className="input max-w-md font-bold text-slate-800"
@@ -192,6 +186,14 @@ export default function WeekEditor(props: WeekEditorProps) {
             placeholder="e.g. Matthew 5-7"
           />
         </div>
+        <button
+          className="btn-secondary"
+          onClick={handleReviewOptimization}
+          title="Review for compliance optimizations"
+        >
+          Review Optimization
+        </button>
+      </div>
       </header>
 
       {/* Opening segment — always first, single Chairman slot */}
@@ -630,23 +632,7 @@ function PartRow({
             }
           />
         </div>
-        <div className="w-20">
-          <label className="label">Min</label>
-          <input
-            type="number"
-            min="1"
-            max="120"
-            className="input text-center px-1 placeholder-slate-400"
-            value={assignment.minutes || ""}
-            placeholder={defaultMinutes(assignment.partType)}
-            onChange={(e) =>
-              onUpdate({
-                ...assignment,
-                minutes: e.target.value ? parseInt(e.target.value, 10) : undefined,
-              })
-            }
-          />
-        </div>
+
         <div className="pt-5">
           <button
             className="text-slate-400 hover:text-red-600 text-sm"
@@ -733,15 +719,34 @@ function PartRow({
           </>
         )}
       </div>
-      <div className="mt-2">
-        <input
-          className="input"
-          placeholder="Scheduler note (optional)"
-          value={assignment.note ?? ""}
-          onChange={(e) =>
-            onUpdate({ ...assignment, note: e.target.value || undefined })
-          }
-        />
+      <div className="mt-3 flex items-center gap-3">
+        <div className="flex-1">
+          <input
+            className="input"
+            placeholder="Scheduler note (optional)"
+            value={assignment.note ?? ""}
+            onChange={(e) =>
+              onUpdate({ ...assignment, note: e.target.value || undefined })
+            }
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-slate-500">Min:</span>
+          <input
+            type="number"
+            min="1"
+            max="120"
+            className="input w-16 text-center px-1 placeholder-slate-400"
+            value={assignment.minutes || ""}
+            placeholder={defaultMinutes(assignment.partType)}
+            onChange={(e) =>
+              onUpdate({
+                ...assignment,
+                minutes: e.target.value ? parseInt(e.target.value, 10) : undefined,
+              })
+            }
+          />
+        </div>
       </div>
     </li>
   );
