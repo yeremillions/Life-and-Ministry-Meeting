@@ -74,10 +74,10 @@ const WEEK_RE = new RegExp(
 const SEGMENT_RE = {
   // 2025 and earlier: heading on one line.
   // 2026+: heading split across two lines ("TREASURES\nFROM GOD'S WORD").
-  // Use [\s\S] so the match can span a newline.
-  treasures: /TREASURES[\s\S]*?FROM\s+GOD[''\u2019]?S?\s+WORD/i,
-  ministry: /APPLY\s*YOURSELF[\s\S]*?TO\s+THE\s+FIELD\s+MINISTRY/i,
-  living: /LIVING[\s\S]*?AS\s+CHRISTIANS/i,
+  // Use [\s\S] so the match can span a newline. Limit span to avoid consuming body.
+  treasures: /TREASURES[\s\S]{0,40}FROM\s+GOD[''\u2019]?S?\s+WORD/i,
+  ministry: /APPLY\s+YOURSELF[\s\S]{0,40}FIELD\s+MINISTRY/i,
+  living: /LIVING[\s\S]{0,40}AS\s+CHRISTIANS/i,
 };
 
 /**
@@ -533,13 +533,45 @@ function classifyPart(
 ): ParsedPart | null {
   const minutes = extractMinutes(rawText);
   let title = cleanTitle(rawText);
-  
-  if (!title || /^[.\s]*$/.test(title)) {
-    const partType = inferPartType(segment, "", number);
-    return { number, segment, partType, title: partType, minutes };
+
+  // Bug 1 & Bug 3 Fix: Hard-enforce segment boundaries by numbering constraints,
+  // overriding incorrect regex matches if they swallowed segments.
+  if (number <= 3) {
+    segment = "treasures";
+  } else if (segment === "treasures") {
+    segment = "ministry";
   }
 
-  const partType = inferPartType(segment, title, number);
+  // First infer type to check if it's explicitly a Living part.
+  let partType = inferPartType(segment, title, number);
+
+  // Correct segment if the part type is exclusively a Living part
+  if (
+    partType === "Congregation Bible Study" ||
+    partType === "Local Needs" ||
+    partType === "Governing Body Update"
+  ) {
+    segment = "living";
+  } else if (partType === "Living Part" && number > 6) {
+    segment = "living";
+  }
+
+  // Bug 5 Fix: If title is missing, apply fallback rule.
+  if (!title || /^[.\s]*$/.test(title)) {
+    // Only apply partType as title for these specific predictable types
+    const FIXED_TITLES = [
+      "Spiritual Gems",
+      "Bible Reading",
+      "Starting a Conversation",
+      "Following Up",
+      "Explaining Your Beliefs",
+      "Making Disciples",
+      "Congregation Bible Study",
+      "Local Needs",
+    ];
+    title = FIXED_TITLES.includes(partType) ? partType : "";
+  }
+
   return { number, segment, partType, title, minutes };
 }
 
@@ -574,27 +606,32 @@ function inferPartType(
 ): PartType {
   const t = title.toLowerCase();
 
-  if (segment === "treasures") {
-    // Order within Treasures is guaranteed: 1=Talk, 2=Gems, 3=Bible reading.
-    if (number === 2 || /spiritual\s+gems/.test(t)) return "Spiritual Gems";
-    if (number === 3 || /bible\s+reading/.test(t)) return "Bible Reading";
-    return "Talk";
-  }
+  // 1. Treasures logic strictly bound to numbering
+  if (number === 1) return "Talk";
+  if (number === 2) return "Spiritual Gems";
+  if (number === 3) return "Bible Reading";
 
-  if (segment === "ministry") {
-    if (/starting\s+a\s+conversation/.test(t)) return "Starting a Conversation";
-    if (/following\s+up/.test(t)) return "Following Up";
-    if (/making\s+disciples/.test(t)) return "Making Disciples";
-    if (/explaining\s+your\s+beliefs/.test(t)) return "Explaining Your Beliefs";
-    if (/initial\s+call/.test(t)) return "Initial Call";
-    if (/^talk\b/.test(t)) return "Talk (Ministry)";
-    // Fallback for custom titles under the segment heading.
-    return "Starting a Conversation";
-  }
-
-  // living
+  // 2. Keyword matching (Segment-independent)
+  if (/starting\s+a\s+conversation/.test(t)) return "Starting a Conversation";
+  if (/following\s+up/.test(t)) return "Following Up";
+  if (/making\s+disciples/.test(t)) return "Making Disciples";
+  if (/explaining\s+(your|our)\s+beliefs/.test(t)) return "Explaining Your Beliefs";
+  if (/initial\s+call/.test(t)) return "Initial Call";
+  
   if (/congregation\s+bible\s+study/.test(t)) return "Congregation Bible Study";
   if (/local\s+needs/.test(t)) return "Local Needs";
   if (/governing\s+body\s+update/.test(t)) return "Governing Body Update";
-  return "Living Part";
+
+  // 3. Fallbacks based on assigned segment
+  if (segment === "ministry") {
+    if (/^talk\b/.test(t)) return "Talk (Ministry)";
+    return "Starting a Conversation"; // Generic fallback for ministry
+  }
+  
+  if (segment === "living") {
+    return "Living Part";
+  }
+
+  // 4. Ultimate fallback for mis-segmented parts
+  return number <= 3 ? "Talk" : "Living Part";
 }

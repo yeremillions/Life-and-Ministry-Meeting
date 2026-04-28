@@ -288,6 +288,14 @@ export function ensureRequiredParts(
     });
   }
 
+  // Ministry Segment
+  const ministryParts = result.filter(a => a.segment === "ministry");
+  if (ministryParts.length === 0) {
+    result.push({ uid: generateUid(), segment: "ministry", order: 4, partType: "Starting a Conversation", title: "" });
+    result.push({ uid: generateUid(), segment: "ministry", order: 5, partType: "Following Up", title: "" });
+    result.push({ uid: generateUid(), segment: "ministry", order: 6, partType: "Making Disciples", title: "" });
+  }
+
   // Living Segment
   const talks = result.filter(
     (a) =>
