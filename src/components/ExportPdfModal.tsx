@@ -39,11 +39,24 @@ export default function ExportPdfModal({
       if (!map.has(key)) map.set(key, { key, label, count: 0 });
       map.get(key)!.count++;
     }
-    return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
+    return [...map.values()].sort((a, b) => b.key.localeCompare(a.key)); // newest first
   }, [weeks]);
 
-  // Scope: "current" period, a "specific" period, or "all"
-  type Scope = "current" | "specific" | "all";
+  // Collect unique months that have data
+  const months = useMemo(() => {
+    const map = new Map<string, { key: string; label: string; count: number }>();
+    for (const w of weeks) {
+      const key = w.weekOf.slice(0, 7); // YYYY-MM
+      const d = new Date(w.weekOf + "T00:00:00");
+      const label = d.toLocaleString("default", { month: "long", year: "numeric" });
+      if (!map.has(key)) map.set(key, { key, label, count: 0 });
+      map.get(key)!.count++;
+    }
+    return [...map.values()].sort((a, b) => b.key.localeCompare(a.key)); // newest first
+  }, [weeks]);
+
+  // Scope: "current" period, a "specific" period, "month", "custom" range, or "all"
+  type Scope = "current" | "specific" | "month" | "custom" | "all";
   const defaultScope: Scope =
     currentPeriodKey && periods.some((p) => p.key === currentPeriodKey)
       ? "current"
@@ -53,18 +66,31 @@ export default function ExportPdfModal({
   const [selectedPeriodKey, setSelectedPeriodKey] = useState(
     periods[0]?.key ?? ""
   );
+  const [selectedMonthKey, setSelectedMonthKey] = useState(
+    months[0]?.key ?? ""
+  );
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Weeks that will be exported given the current scope
   const exportWeeks = useMemo(() => {
     if (scope === "all") return weeks;
-    const key =
-      scope === "current"
-        ? currentPeriodKey
-        : selectedPeriodKey;
-    return weeks.filter((w) => workbookPeriod(w.weekOf).key === key);
-  }, [scope, currentPeriodKey, selectedPeriodKey, weeks]);
+    if (scope === "current") return weeks.filter((w) => workbookPeriod(w.weekOf).key === currentPeriodKey);
+    if (scope === "specific") return weeks.filter((w) => workbookPeriod(w.weekOf).key === selectedPeriodKey);
+    if (scope === "month") return weeks.filter((w) => w.weekOf.slice(0, 7) === selectedMonthKey);
+    if (scope === "custom") {
+      if (!customStart && !customEnd) return [];
+      return weeks.filter((w) => {
+        if (customStart && w.weekOf < customStart) return false;
+        if (customEnd && w.weekOf > customEnd) return false;
+        return true;
+      });
+    }
+    return [];
+  }, [scope, currentPeriodKey, selectedPeriodKey, selectedMonthKey, customStart, customEnd, weeks]);
 
   const currentPeriodLabel = useMemo(
     () => periods.find((p) => p.key === currentPeriodKey)?.label ?? "",
@@ -167,7 +193,7 @@ export default function ExportPdfModal({
                 className="accent-indigo-600 mt-0.5"
               />
               <div className="flex-1">
-                <span className="text-sm font-medium">Choose a period</span>
+                <span className="text-sm font-medium">Specific workbook period</span>
                 {scope === "specific" && (
                   <select
                     className="input mt-2 w-full"
@@ -184,6 +210,73 @@ export default function ExportPdfModal({
               </div>
             </label>
           )}
+
+          {/* Specific month */}
+          {months.length > 1 && (
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="scope"
+                value="month"
+                checked={scope === "month"}
+                onChange={() => setScope("month")}
+                className="accent-indigo-600 mt-0.5"
+              />
+              <div className="flex-1">
+                <span className="text-sm font-medium">Specific month</span>
+                {scope === "month" && (
+                  <select
+                    className="input mt-2 w-full"
+                    value={selectedMonthKey}
+                    onChange={(e) => setSelectedMonthKey(e.target.value)}
+                  >
+                    {months.map((m) => (
+                      <option key={m.key} value={m.key}>
+                        {m.label} ({m.count} week{m.count !== 1 ? "s" : ""})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </label>
+          )}
+
+          {/* Custom range */}
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="radio"
+              name="scope"
+              value="custom"
+              checked={scope === "custom"}
+              onChange={() => setScope("custom")}
+              className="accent-indigo-600 mt-0.5"
+            />
+            <div className="flex-1">
+              <span className="text-sm font-medium">Custom date range</span>
+              {scope === "custom" && (
+                <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-slate-500 block mb-1">From</label>
+                    <input
+                      type="date"
+                      className="input w-full"
+                      value={customStart}
+                      onChange={(e) => setCustomStart(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-slate-500 block mb-1">To</label>
+                    <input
+                      type="date"
+                      className="input w-full"
+                      value={customEnd}
+                      onChange={(e) => setCustomEnd(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </label>
 
           {/* All weeks */}
           <label className="flex items-center gap-3 cursor-pointer">

@@ -285,7 +285,7 @@ export const DEFAULT_ASSIGNMENT_RULES: Record<string, AssignmentRule> = {
     assistant: {
       allowedGenders: ["M"],
       requiredPrivileges: ["CBSR"],
-      mustBeBaptized: true,
+      mustBeBaptized: false,
     },
   },
 };

@@ -14,6 +14,7 @@ import {
   needsAssistant,
   privilegeLabel,
   segmentOf,
+  byOrder,
 } from "../meeting";
 import { weekRangeLabel } from "../utils";
 import {
@@ -38,6 +39,7 @@ export interface WeekEditorProps {
   onNavigateToProfile: (id: number) => void;
   allWeeks: Week[];
   settings: AppSettings;
+  onSelectWeek?: (id: number) => void;
 }
 
 export default function WeekEditor(props: WeekEditorProps) {
@@ -65,6 +67,34 @@ export default function WeekEditor(props: WeekEditorProps) {
       talkSplit: buildTalkSplit(assignees, before),
     };
   }, [props.allWeeks, week.weekOf, assignees]);
+
+  const partNumbers = useMemo(() => {
+    const numbers = new Map<string, number>();
+    let counter = 1;
+    const sorted = [...week.assignments].sort(byOrder);
+    let pastCBS = false;
+    for (const a of sorted) {
+      if (a.segment === "opening") continue;
+      if (a.partType === "Closing Prayer") continue;
+      if (pastCBS) continue;
+      
+      numbers.set(a.uid, counter++);
+      
+      if (a.partType === "Congregation Bible Study") {
+        pastCBS = true;
+      }
+    }
+    return numbers;
+  }, [week.assignments]);
+
+  const { prevWeek, nextWeek } = useMemo(() => {
+    const sorted = [...props.allWeeks].sort((a, b) => a.weekOf.localeCompare(b.weekOf));
+    const idx = sorted.findIndex(w => w.id === week.id);
+    return {
+      prevWeek: idx > 0 ? sorted[idx - 1] : null,
+      nextWeek: idx !== -1 && idx < sorted.length - 1 ? sorted[idx + 1] : null,
+    };
+  }, [props.allWeeks, week.id]);
 
   return (
     <div className="space-y-5">
@@ -157,6 +187,7 @@ export default function WeekEditor(props: WeekEditorProps) {
         talkSplit={talkSplit}
         settings={props.settings}
         allWeeks={props.allWeeks}
+        partNumbers={partNumbers}
       />
       {SEGMENTS.filter((s) => s.id !== "opening").map((seg) => (
         <SegmentCard
@@ -193,8 +224,36 @@ export default function WeekEditor(props: WeekEditorProps) {
           talkSplit={talkSplit}
           settings={props.settings}
           allWeeks={props.allWeeks}
+          partNumbers={partNumbers}
         />
       ))}
+
+      {/* Navigation Footer */}
+      <footer className="card flex items-center justify-between">
+        <div className="flex-1">
+          {prevWeek && (
+            <button
+              onClick={() => props.onSelectWeek?.(prevWeek.id!)}
+              className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center gap-1"
+            >
+              <span>«</span> {weekRangeLabel(prevWeek.weekOf)}
+            </button>
+          )}
+        </div>
+        <div className="flex-1 text-center text-slate-400 text-xs uppercase tracking-widest font-semibold">
+          Navigation
+        </div>
+        <div className="flex-1 text-right flex justify-end">
+          {nextWeek && (
+            <button
+              onClick={() => props.onSelectWeek?.(nextWeek.id!)}
+              className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center gap-1"
+            >
+              {weekRangeLabel(nextWeek.weekOf)} <span>»</span>
+            </button>
+          )}
+        </div>
+      </footer>
     </div>
   );
 }
@@ -233,6 +292,7 @@ function SegmentCard({
   talkSplit: TalkSplit;
   settings: AppSettings;
   allWeeks: Week[];
+  partNumbers: Map<string, number>;
 }) {
   const [isOver, setIsOver] = useState(false);
   const [pickerType, setPickerType] = useState<PartType>(
@@ -318,6 +378,7 @@ function SegmentCard({
               talkSplit={talkSplit}
               settings={settings}
               allWeeks={allWeeks}
+              partNumber={partNumbers.get(a.uid)}
             />
           ))}
         </ul>
@@ -352,6 +413,7 @@ function PartRow({
   talkSplit: TalkSplit;
   settings: AppSettings;
   allWeeks: Week[];
+  partNumber?: number;
 }) {
   const eligibleMain = useMemo(
     () => assignees.filter((a) => isEligible(a, assignment.partType, "main", "manual", settings.assignmentRules)),
@@ -412,6 +474,11 @@ function PartRow({
       style={{ borderLeft: `4px solid ${seg.color}` }}
     >
       <div className="flex flex-wrap gap-2 items-start">
+        {partNumber !== undefined && (
+          <div className="pt-8 pr-1 font-bold text-slate-300 text-xl w-6 text-right">
+            {partNumber}
+          </div>
+        )}
         <div className="flex-1 min-w-[160px]">
           <label className="label">Part type</label>
           <select

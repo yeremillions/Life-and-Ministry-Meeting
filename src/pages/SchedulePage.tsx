@@ -270,6 +270,7 @@ export default function SchedulePage({
                 ? { ...DEFAULT_SETTINGS, ...settings }
                 : DEFAULT_SETTINGS
             }
+            onSelectWeek={(id) => setSelectedId(id)}
           />
         ) : (
           <div className="card">
