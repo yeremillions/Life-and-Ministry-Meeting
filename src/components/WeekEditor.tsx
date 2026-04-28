@@ -21,8 +21,10 @@ import {
   buildStats,
   buildTalkSplit,
   scoreCandidate,
+  analyzeWeekOptimization,
   type AssigneeStats,
   type TalkSplit,
+  type OptimizationSuggestion,
 } from "../scheduler";
 import type { AppSettings } from "../types";
 export interface WeekEditorProps {
@@ -44,6 +46,7 @@ export interface WeekEditorProps {
 
 export default function WeekEditor(props: WeekEditorProps) {
   const { week, assignees, households } = props;
+  const [optimizations, setOptimizations] = useState<OptimizationSuggestion[] | null>(null);
 
   const bySegment = useMemo(() => {
     const map: Record<SegmentId, Assignment[]> = {
@@ -96,6 +99,38 @@ export default function WeekEditor(props: WeekEditorProps) {
     };
   }, [props.allWeeks, week.id]);
 
+  function handleReviewOptimization() {
+    const suggestions = analyzeWeekOptimization(
+      week,
+      assignees,
+      props.allWeeks,
+      { 
+        ...props.settings, 
+        preserveExisting: true,
+        minGapWeeks: props.settings.minGapWeeks ?? 2,
+        chairmanGapWeeks: props.settings.chairmanGapWeeks ?? 3,
+        catchUpIntensity: props.settings.catchUpIntensity ?? 3,
+        maxAssignmentsPerMonth: props.settings.maxAssignmentsPerMonth ?? 2,
+      }
+    );
+    setOptimizations(suggestions);
+  }
+
+  function applyOptimization(opt: OptimizationSuggestion) {
+    const nextAssignments = week.assignments.map(a => {
+      if (a.uid === opt.uid) {
+        if (opt.role === "main") {
+          return { ...a, assigneeId: opt.suggestedAssigneeId };
+        } else {
+          return { ...a, assistantId: opt.suggestedAssigneeId };
+        }
+      }
+      return a;
+    });
+    props.onSave({ ...week, assignments: nextAssignments });
+    setOptimizations(prev => prev ? prev.filter(o => o !== opt) : null);
+  }
+
   return (
     <div className="space-y-5">
       <header className="card">
@@ -123,6 +158,13 @@ export default function WeekEditor(props: WeekEditorProps) {
               title="Fill empty slots only"
             >
               Auto-fill empty
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={handleReviewOptimization}
+              title="Review for compliance optimizations"
+            >
+              Review Optimization
             </button>
             <button
               className="btn"
@@ -254,6 +296,83 @@ export default function WeekEditor(props: WeekEditorProps) {
           )}
         </div>
       </footer>
+
+      {/* Optimization Modal */}
+      {optimizations !== null && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-50"
+          onClick={() => setOptimizations(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4 shrink-0">
+              <div>
+                <h3 className="font-semibold text-lg text-slate-800">
+                  Review Optimization
+                </h3>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  The system found {optimizations.length} suggestion{optimizations.length !== 1 ? "s" : ""} to improve fairness and compliance based on your settings.
+                </p>
+              </div>
+              <button
+                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+                onClick={() => setOptimizations(null)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto min-h-0 space-y-3 custom-scrollbar pr-2 -mr-2">
+              {optimizations.length === 0 ? (
+                <div className="text-center py-8 text-emerald-600 font-medium">
+                  Looking good! No significant optimizations found.
+                </div>
+              ) : (
+                optimizations.map((opt, idx) => {
+                  const part = week.assignments.find((a) => a.uid === opt.uid);
+                  const currentPerson = assignees.find((a) => a.id === opt.currentAssigneeId);
+                  const newPerson = assignees.find((a) => a.id === opt.suggestedAssigneeId);
+                  return (
+                    <div key={idx} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <h4 className="font-semibold text-sm text-slate-800">
+                          {part?.title || part?.partType}
+                          <span className="text-xs font-normal text-slate-500 ml-2 italic">({opt.role})</span>
+                        </h4>
+                        <button
+                          className="btn text-xs py-1 px-3 shadow-none"
+                          onClick={() => applyOptimization(opt)}
+                        >
+                          Apply
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="text-slate-500 line-through">
+                          {currentPerson?.name || "Unassigned"}
+                        </div>
+                        <div className="text-emerald-700 font-medium flex items-center gap-1.5">
+                          <span>→</span> {newPerson?.name}
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-2">
+                        {opt.reason}
+                      </p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-end shrink-0">
+              <button className="btn-secondary" onClick={() => setOptimizations(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -275,6 +394,7 @@ function SegmentCard({
   talkSplit,
   settings,
   allWeeks,
+  partNumbers,
 }: {
   segment: SegmentId;
   title: string;
@@ -400,6 +520,7 @@ function PartRow({
   talkSplit,
   settings,
   allWeeks,
+  partNumber,
 }: {
   assignment: Assignment;
   assignees: Assignee[];

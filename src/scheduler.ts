@@ -685,3 +685,130 @@ export function fmtLastAssigned(stats: AssigneeStats): string {
   if (!stats.lastWeekMain) return "never";
   return stats.lastWeekMain;
 }
+
+export interface OptimizationSuggestion {
+  uid: string;
+  partType: string;
+  role: "main" | "assistant";
+  currentAssigneeId?: number;
+  currentScore: number;
+  suggestedAssigneeId: number;
+  suggestedScore: number;
+  reason: string;
+}
+
+export function analyzeWeekOptimization(
+  week: Week,
+  assignees: Assignee[],
+  historicalWeeks: Week[],
+  opts: AutoAssignOptions
+): OptimizationSuggestion[] {
+  const suggestions: OptimizationSuggestion[] = [];
+  const workingWeeks = historicalWeeks.filter((w) => w.id !== week.id);
+  const seed = parseInt(week.weekOf.replace(/-/g, ""), 10) || 1;
+  const talkSplit = buildTalkSplit(assignees, workingWeeks);
+  const stats = buildStats(assignees, workingWeeks);
+
+  const usedMainsThisWeek = new Set<number>();
+  let ministryTotal = 0;
+  let ministryPrivileged = 0;
+
+  for (const a of week.assignments) {
+    if (a.assigneeId != null) usedMainsThisWeek.add(a.assigneeId);
+    if (a.segment === "ministry" && a.assigneeId != null) {
+      ministryTotal += 1;
+      const p = assignees.find((x) => x.id === a.assigneeId);
+      if (p && isPrivileged(p)) ministryPrivileged += 1;
+    }
+  }
+
+  for (const a of week.assignments) {
+    if (a.assigneeId != null) {
+      const currentPerson = assignees.find((x) => x.id === a.assigneeId);
+      if (currentPerson) {
+        let usedForPick = new Set(usedMainsThisWeek);
+        usedForPick.delete(a.assigneeId);
+
+        if (a.partType === "Opening Prayer") {
+          const chairmanId = week.assignments.find((x) => x.partType === "Chairman")?.assigneeId;
+          if (chairmanId != null) usedForPick.delete(chairmanId);
+        }
+
+        const s = stats.get(currentPerson.id!) ?? {
+          totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
+          totalAssistant: 0, recentMainDates: []
+        };
+        const currentScore = scoreCandidate(
+          currentPerson, a, week.weekOf, s, seed, opts.privilegedMinistryShare, talkSplit, "main", opts
+        );
+
+        const best = pickCandidate({
+          part: a, role: "main", assignees, stats, weekOf: week.weekOf, seed, used: usedForPick,
+          privilegedMinistryShare: opts.privilegedMinistryShare, ministryTotal, ministryPrivileged, talkSplit, opts
+        });
+
+        if (best && best.id !== currentPerson.id) {
+          const bestStats = stats.get(best.id!) ?? {
+            totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
+            totalAssistant: 0, recentMainDates: []
+          };
+          const bestScore = scoreCandidate(
+            best, a, week.weekOf, bestStats, seed, opts.privilegedMinistryShare, talkSplit, "main", opts
+          );
+
+          if (bestScore - currentScore > 15) {
+            suggestions.push({
+              uid: a.uid, partType: a.partType, role: "main", currentAssigneeId: currentPerson.id, currentScore,
+              suggestedAssigneeId: best.id!, suggestedScore: bestScore,
+              reason: `Better fit: Score +${Math.round(bestScore - currentScore)}`,
+            });
+          }
+        }
+      }
+    }
+
+    if (needsAssistant(a.partType) && a.assistantId != null) {
+      const currentAssistant = assignees.find((x) => x.id === a.assistantId);
+      if (currentAssistant) {
+        const usedForAssistant = new Set([...usedMainsThisWeek]);
+        if (a.assigneeId != null) usedForAssistant.add(a.assigneeId);
+        usedForAssistant.delete(a.assistantId);
+
+        const isMinorMain = assignees.find((x) => x.id === a.assigneeId)?.isMinor;
+        const s = stats.get(currentAssistant.id!) ?? {
+          totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
+          totalAssistant: 0, recentMainDates: []
+        };
+
+        const currentScore = scoreCandidate(
+          currentAssistant, a, week.weekOf, s, seed + 1, opts.privilegedMinistryShare, talkSplit, "assistant", opts, isMinorMain
+        );
+
+        const bestAss = pickCandidate({
+          part: a, role: "assistant", assignees, stats, weekOf: week.weekOf, seed: seed + 1, used: usedForAssistant,
+          privilegedMinistryShare: opts.privilegedMinistryShare, ministryTotal, ministryPrivileged, talkSplit, opts, isMinorMain
+        });
+
+        if (bestAss && bestAss.id !== currentAssistant.id) {
+          const bestAssStats = stats.get(bestAss.id!) ?? {
+            totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
+            totalAssistant: 0, recentMainDates: []
+          };
+          const bestScore = scoreCandidate(
+            bestAss, a, week.weekOf, bestAssStats, seed + 1, opts.privilegedMinistryShare, talkSplit, "assistant", opts, isMinorMain
+          );
+
+          if (bestScore - currentScore > 20) {
+            suggestions.push({
+              uid: a.uid, partType: a.partType, role: "assistant", currentAssigneeId: currentAssistant.id, currentScore,
+              suggestedAssigneeId: bestAss.id!, suggestedScore: bestScore,
+              reason: `Better fit: Score +${Math.round(bestScore - currentScore)}`,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return suggestions;
+}
