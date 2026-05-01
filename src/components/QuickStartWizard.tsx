@@ -288,7 +288,7 @@ export default function QuickStartWizard({
               </p>
 
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-[11px] text-slate-600">
-                <span className="font-bold">Legend:</span> QE = Qualified Elder, MS = Ministerial Servant, RP = Regular Pioneer, CBSR = CBS Reader.
+                <span className="font-bold">Legend:</span> E = Elder, QE = Qualified Elder, MS = Ministerial Servant, QMS = Qualified MS, RP = Regular Pioneer, CBSR = CBS Reader.
               </div>
               
               <div className="border border-slate-200 rounded-lg overflow-hidden">
@@ -297,8 +297,10 @@ export default function QuickStartWizard({
                     <tr>
                       <th className="px-3 py-2 text-left font-semibold text-slate-700">Name</th>
                       <th className="px-3 py-2 text-center font-semibold text-slate-700">Gender</th>
+                      <th className="px-3 py-2 text-center font-semibold text-slate-700">E</th>
                       <th className="px-3 py-2 text-center font-semibold text-slate-700">QE</th>
                       <th className="px-3 py-2 text-center font-semibold text-slate-700">MS</th>
+                      <th className="px-3 py-2 text-center font-semibold text-slate-700">QMS</th>
                       <th className="px-3 py-2 text-center font-semibold text-slate-700">RP</th>
                       <th className="px-3 py-2 text-center font-semibold text-slate-700">CBSR</th>
                     </tr>
@@ -318,6 +320,13 @@ export default function QuickStartWizard({
                         <td className="px-3 py-2 text-center">
                           <input 
                             type="checkbox" 
+                            checked={enrollee.privileges.includes('E')} 
+                            onChange={() => togglePrivilege(idx, 'E')}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <input 
+                            type="checkbox" 
                             checked={enrollee.privileges.includes('QE')} 
                             onChange={() => togglePrivilege(idx, 'QE')}
                           />
@@ -327,6 +336,13 @@ export default function QuickStartWizard({
                             type="checkbox" 
                             checked={enrollee.privileges.includes('MS')} 
                             onChange={() => togglePrivilege(idx, 'MS')}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <input 
+                            type="checkbox" 
+                            checked={enrollee.privileges.includes('QMS')} 
+                            onChange={() => togglePrivilege(idx, 'QMS')}
                           />
                         </td>
                         <td className="px-3 py-2 text-center">
