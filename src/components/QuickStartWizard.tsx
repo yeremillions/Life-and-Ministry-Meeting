@@ -20,7 +20,7 @@ export default function QuickStartWizard({
   onNavigate: (tab: "enrollees" | "schedule" | "reports", weekId?: number) => void;
 }) {
   const [step, setStep] = useState(1);
-  const totalSteps = 4;
+  const totalSteps = 5;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -33,35 +33,59 @@ export default function QuickStartWizard({
 
   // Step 1: Enrollees
   const [namesText, setNamesText] = useState("");
+  const [pendingEnrollees, setPendingEnrollees] = useState<Assignee[]>([]);
 
   async function handleAddEnrollees() {
     setError(null);
     const names = namesText.split("\n").map((n) => n.trim()).filter(Boolean);
     if (names.length === 0) {
-      setStep(2); // Skip if empty
+      setStep(3); // Skip to workbook import if empty
       return;
     }
+    
+    const newAssignees: Assignee[] = names.map((name) => ({
+      name,
+      gender: "M", // Default
+      baptised: true,
+      active: true,
+      isMinor: false,
+      privileges: [],
+      createdAt: Date.now(),
+    }));
+    setPendingEnrollees(newAssignees);
+    setStep(2);
+  }
+
+  // Step 2: Configure Privileges
+  function updatePendingEnrollee(index: number, updates: Partial<Assignee>) {
+    setPendingEnrollees(prev => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...updates };
+      return next;
+    });
+  }
+
+  function togglePrivilege(index: number, priv: Privilege) {
+    const enrollee = pendingEnrollees[index];
+    const privileges = enrollee.privileges.includes(priv)
+      ? enrollee.privileges.filter(p => p !== priv)
+      : [...enrollee.privileges, priv];
+    updatePendingEnrollee(index, { privileges });
+  }
+
+  async function savePendingEnrollees() {
     setBusy(true);
     try {
-      const newAssignees: Assignee[] = names.map((name) => ({
-        name,
-        gender: "M", // Default, users can edit later
-        baptised: true,
-        active: true,
-        isMinor: false,
-        privileges: [],
-        createdAt: Date.now(),
-      }));
-      await db.assignees.bulkAdd(newAssignees);
-      setStep(2);
+      await db.assignees.bulkAdd(pendingEnrollees);
+      setStep(3);
     } catch (err: any) {
-      setError(err.message || "Failed to add enrollees");
+      setError(err.message || "Failed to save enrollees");
     } finally {
       setBusy(false);
     }
   }
 
-  // Step 2: Workbook Import
+  // Step 3: Workbook Import
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importedWeeks, setImportedWeeks] = useState<Week[]>([]);
   
@@ -108,7 +132,7 @@ export default function QuickStartWizard({
 
   async function handleSaveWorkbook() {
     if (importedWeeks.length === 0) {
-      setStep(3);
+      setStep(4);
       return;
     }
     setBusy(true);
@@ -124,7 +148,7 @@ export default function QuickStartWizard({
         const saved = await db.weeks.where("weekOf").anyOf(weeksToSave.map(w => w.weekOf)).toArray();
         setImportedWeeks(saved);
       }
-      setStep(3);
+      setStep(4);
     } catch (err: any) {
       setError("Database error: " + err.message);
     } finally {
@@ -132,7 +156,7 @@ export default function QuickStartWizard({
     }
   }
 
-  // Step 3: Auto-Assign
+  // Step 4: Auto-Assign
   const [generatedWeeks, setGeneratedWeeks] = useState<Week[]>([]);
 
   async function handleAutoAssign() {
@@ -172,7 +196,7 @@ export default function QuickStartWizard({
       }
       
       setGeneratedWeeks(updatedWeeks);
-      setStep(4);
+      setStep(5);
     } catch (err: any) {
       setError(err.message || "Failed to auto-assign");
     } finally {
@@ -180,7 +204,7 @@ export default function QuickStartWizard({
     }
   }
 
-  // Step 4: Export
+  // Step 5: Export
   async function handleExport() {
     setBusy(true);
     try {
@@ -202,7 +226,7 @@ export default function QuickStartWizard({
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0">
           <div>
@@ -210,9 +234,10 @@ export default function QuickStartWizard({
             <p className="text-sm text-slate-500 mt-1">
               Step {step} of {totalSteps}: {" "}
               {step === 1 && "Add Enrollees"}
-              {step === 2 && "Import Workbook"}
-              {step === 3 && "Auto-Assign Parts"}
-              {step === 4 && "Export Schedule"}
+              {step === 2 && "Set Privileges"}
+              {step === 3 && "Import Workbook"}
+              {step === 4 && "Auto-Assign Parts"}
+              {step === 5 && "Export Schedule"}
             </p>
           </div>
           <button
@@ -257,6 +282,76 @@ export default function QuickStartWizard({
 
           {step === 2 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+              <h3 className="font-semibold text-lg">Assign Privileges</h3>
+              <p className="text-slate-600 text-sm">
+                Quickly set the gender and privileges for the enrollees you just added. This helps the auto-assigner know who can handle specific parts like Talks or Prayers.
+              </p>
+              
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700">Name</th>
+                      <th className="px-3 py-2 text-center font-semibold text-slate-700">Gender</th>
+                      <th className="px-3 py-2 text-center font-semibold text-slate-700">E</th>
+                      <th className="px-3 py-2 text-center font-semibold text-slate-700">MS</th>
+                      <th className="px-3 py-2 text-center font-semibold text-slate-700">RP</th>
+                      <th className="px-3 py-2 text-center font-semibold text-slate-700">CBSR</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {pendingEnrollees.map((enrollee, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50">
+                        <td className="px-3 py-2 font-medium">{enrollee.name}</td>
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${enrollee.gender === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}
+                            onClick={() => updatePendingEnrollee(idx, { gender: enrollee.gender === 'M' ? 'F' : 'M' })}
+                          >
+                            {enrollee.gender}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <input 
+                            type="checkbox" 
+                            checked={enrollee.privileges.includes('QE')} 
+                            onChange={() => togglePrivilege(idx, 'QE')}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <input 
+                            type="checkbox" 
+                            checked={enrollee.privileges.includes('MS')} 
+                            onChange={() => togglePrivilege(idx, 'MS')}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <input 
+                            type="checkbox" 
+                            checked={enrollee.privileges.includes('RP')} 
+                            onChange={() => togglePrivilege(idx, 'RP')}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <input 
+                            type="checkbox" 
+                            checked={enrollee.privileges.includes('CBSR')} 
+                            onChange={() => togglePrivilege(idx, 'CBSR')}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[11px] text-slate-400 italic">
+                * QE = Qualified Elder, MS = Ministerial Servant, RP = Regular Pioneer, CBSR = CBS Reader. You can add more detailed privileges later.
+              </p>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
               <h3 className="font-semibold text-lg">Import a Workbook</h3>
               <p className="text-slate-600 text-sm">
                 Upload a <strong>Life and Ministry Meeting Workbook (S-140) PDF</strong>. The system will automatically read the curriculum and generate the meeting parts for those weeks.
@@ -293,7 +388,7 @@ export default function QuickStartWizard({
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
               <h3 className="font-semibold text-lg">Generate Assignments</h3>
               <p className="text-slate-600 text-sm">
@@ -311,7 +406,7 @@ export default function QuickStartWizard({
             </div>
           )}
 
-          {step === 4 && (
+          {step === 5 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 text-center py-6">
               <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
                 ✓
@@ -343,7 +438,7 @@ export default function QuickStartWizard({
         </div>
 
         {/* Footer Actions */}
-        {step < 4 && (
+        {step < 5 && (
           <div className="p-5 border-t border-slate-100 bg-slate-50 shrink-0 flex justify-between items-center rounded-b-xl">
             <button
               className="text-slate-500 text-sm font-medium hover:text-slate-800"
@@ -355,10 +450,15 @@ export default function QuickStartWizard({
             <div className="flex gap-2">
               {step === 1 && (
                 <button className="btn" onClick={handleAddEnrollees} disabled={busy}>
-                  {namesText.trim() ? "Add Enrollees & Continue" : "Skip this step"}
+                  {namesText.trim() ? "Continue" : "Skip this step"}
                 </button>
               )}
               {step === 2 && (
+                <button className="btn" onClick={savePendingEnrollees} disabled={busy}>
+                  Save & Continue
+                </button>
+              )}
+              {step === 3 && (
                 <button 
                   className="btn" 
                   onClick={handleSaveWorkbook} 
@@ -367,7 +467,7 @@ export default function QuickStartWizard({
                   Continue
                 </button>
               )}
-              {/* Step 3 advances internally when auto-assign finishes */}
+              {/* Step 4 advances internally when auto-assign finishes */}
             </div>
           </div>
         )}

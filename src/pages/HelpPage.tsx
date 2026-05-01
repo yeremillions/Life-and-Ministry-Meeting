@@ -158,6 +158,7 @@ function OverviewSection() {
         <li>Creates weekly meeting schedules with all standard segments (Opening, Treasures, Ministry, Living)</li>
         <li>Imports meeting parts directly from the Meeting Workbook PDF or an existing S-140 schedule</li>
         <li>Automatically assigns qualified enrollees to parts, respecting eligibility rules and fair rotation</li>
+        <li><strong>Quick Start Wizard:</strong> A guided tool for new users to set up enrollees, import workbooks, and auto-assign parts in one flow.</li>
         <li>Exports completed schedules as S-140 Meeting Schedule PDFs ready for printing</li>
         <li>Tracks assignment history and provides reports on workload distribution</li>
       </ul>
@@ -225,7 +226,11 @@ function GettingStartedSection() {
       </div>
 
       <Tip>
-        The most common workflow is: Import Workbook PDF → Auto-Assign → Review & Adjust → Export PDF.
+        <strong>New to the app?</strong> Use the <strong>Guided Setup Wizard</strong> (found on the Dashboard) to complete Steps 2 through 4 in one easy, guided flow. It's the fastest way to get your first schedule ready.
+      </Tip>
+      
+      <Tip>
+        The most common manual workflow is: Import Workbook PDF → Auto-Assign → Review & Adjust → Export PDF.
         This can be done in under 5 minutes per two-month workbook period.
       </Tip>
     </div>
@@ -266,6 +271,13 @@ function SettingsSection() {
         label="Max assignments per month"
         desc="Maximum number of main parts a person can receive in any rolling 4-week period. Default: 2."
       />
+
+      <SubTitle>Optimization Thresholds</SubTitle>
+      <P>
+        These values control when the system suggests a "Better Option" for a part that is already assigned.
+        A higher threshold (e.g., 70) means the system will only suggest a change if the new candidate is
+        significantly better than the current one. A lower threshold (e.g., 20) will result in more suggestions.
+      </P>
 
       <SubTitle>Assignment Eligibility Rules</SubTitle>
       <P>
@@ -388,6 +400,13 @@ function ScheduleSection() {
         You will need to add parts manually for each segment.
       </Step>
 
+      <SubTitle>Guided Setup Wizard</SubTitle>
+      <P>
+        If you are starting a new congregation from scratch, use the <strong>Guided Setup Wizard</strong>
+        available on the Dashboard. It will walk you through adding enrollees, setting their privileges,
+        importing your first workbook, and running the auto-assigner for the first time.
+      </P>
+
       <SubTitle>The Week Editor</SubTitle>
       <P>
         Click any week in the left sidebar to open it in the editor. The editor shows all meeting parts
@@ -443,6 +462,7 @@ function AutoAssignSection() {
         <li><strong>Same-meeting uniqueness</strong> — No person is assigned two main parts in the same meeting</li>
         <li><strong>Individual Restrictions</strong> — The scheduler strictly ignores parts not in an enrollee's custom whitelist</li>
         <li><strong>Frequency Throttling</strong> — People marked as 'Infirmed' or 'Elderly' are assigned significantly less often</li>
+        <li><strong>Optimization Suggestions</strong> — When you manually edit a part, the system scores every eligible enrollee and suggests a better candidate if one exists above your configured threshold.</li>
       </ul>
 
       <Tip>
@@ -625,6 +645,13 @@ function FaqSection() {
         per month" values are set appropriately for your congregation size. A very small congregation
         with few qualified brothers may have limited options for certain parts like Chairman or CBS
         Conductor.
+      </FaqItem>
+
+      <FaqItem q="What is the 'Video' part type?">
+        The <strong>Video</strong> part type is used for Living as Christians segments that consist 
+        primarily of a video presentation. While the video is the main content, you can still assign 
+        a brother to introduce it or handle any subsequent discussion, and the scheduler will track 
+        this as an assignment for that brother.
       </FaqItem>
 
       <FaqItem q="Will I lose my data if I clear my browser history?">
