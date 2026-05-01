@@ -286,6 +286,10 @@ export default function QuickStartWizard({
               <p className="text-slate-600 text-sm">
                 Quickly set the gender and privileges for the enrollees you just added. This helps the auto-assigner know who can handle specific parts like Talks or Prayers.
               </p>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-[11px] text-slate-600">
+                <span className="font-bold">Legend:</span> QE = Qualified Elder, MS = Ministerial Servant, RP = Regular Pioneer, CBSR = CBS Reader.
+              </div>
               
               <div className="border border-slate-200 rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
@@ -293,7 +297,7 @@ export default function QuickStartWizard({
                     <tr>
                       <th className="px-3 py-2 text-left font-semibold text-slate-700">Name</th>
                       <th className="px-3 py-2 text-center font-semibold text-slate-700">Gender</th>
-                      <th className="px-3 py-2 text-center font-semibold text-slate-700">E</th>
+                      <th className="px-3 py-2 text-center font-semibold text-slate-700">QE</th>
                       <th className="px-3 py-2 text-center font-semibold text-slate-700">MS</th>
                       <th className="px-3 py-2 text-center font-semibold text-slate-700">RP</th>
                       <th className="px-3 py-2 text-center font-semibold text-slate-700">CBSR</th>
@@ -344,9 +348,6 @@ export default function QuickStartWizard({
                   </tbody>
                 </table>
               </div>
-              <p className="text-[11px] text-slate-400 italic">
-                * QE = Qualified Elder, MS = Ministerial Servant, RP = Regular Pioneer, CBSR = CBS Reader. You can add more detailed privileges later.
-              </p>
             </div>
           )}
 
@@ -440,13 +441,23 @@ export default function QuickStartWizard({
         {/* Footer Actions */}
         {step < 5 && (
           <div className="p-5 border-t border-slate-100 bg-slate-50 shrink-0 flex justify-between items-center rounded-b-xl">
-            <button
-              className="text-slate-500 text-sm font-medium hover:text-slate-800"
-              onClick={onClose}
-              disabled={busy}
-            >
-              Skip Wizard
-            </button>
+            {step === 1 ? (
+              <button
+                className="text-slate-500 text-sm font-medium hover:text-slate-800"
+                onClick={onClose}
+                disabled={busy}
+              >
+                Skip Wizard
+              </button>
+            ) : (
+              <button
+                className="text-slate-500 text-sm font-medium hover:text-slate-800 flex items-center gap-1"
+                onClick={() => setStep(step - 1)}
+                disabled={busy}
+              >
+                ← Back
+              </button>
+            )}
             <div className="flex gap-2">
               {step === 1 && (
                 <button className="btn" onClick={handleAddEnrollees} disabled={busy}>
