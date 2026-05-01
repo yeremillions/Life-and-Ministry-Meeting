@@ -4,7 +4,7 @@ import { extractPdfText, parseWorkbookText } from "../workbookParser";
 import { autoAssignWeek } from "../scheduler";
 import { exportSchedulePdf } from "../pdfExport";
 import { ensureRequiredParts } from "../meeting";
-import { DEFAULT_SETTINGS, type Week, type Assignee, type AppSettings, type Assignment } from "../types";
+import { DEFAULT_SETTINGS, type Week, type Assignee, type AppSettings, type Assignment, type Privilege } from "../types";
 import { weekRangeLabel, uid } from "../utils";
 import * as pdfjsLib from "pdfjs-dist";
 
