@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { db } from "../db";
 import { buildStats, dueSoon } from "../scheduler";
 import { SEGMENTS, segmentOf } from "../meeting";
-import { todayIso, weekRangeLabel } from "../utils";
+import { todayIso, weekRangeLabel, toIso, mondayOf } from "../utils";
 import type { Week, Assignee } from "../types";
 import QuickStartWizard from "../components/QuickStartWizard";
 
@@ -20,10 +20,11 @@ export default function Dashboard({
     useLiveQuery(() => db.weeks.orderBy("weekOf").toArray(), []) ?? [];
 
   const today = todayIso();
-  const upcoming = weeks.filter((w) => w.weekOf >= today).slice(0, 4);
+  const currentMonday = toIso(mondayOf(new Date()));
+  const upcoming = weeks.filter((w) => w.weekOf >= currentMonday).slice(0, 4);
   const thisWeek = upcoming.length > 0 ? upcoming[0] : null;
   const recent = [...weeks]
-    .filter((w) => w.weekOf < today)
+    .filter((w) => w.weekOf < currentMonday)
     .sort((a, b) => b.weekOf.localeCompare(a.weekOf))
     .slice(0, 3);
   const soon = dueSoon(assignees, weeks, today, 8);
