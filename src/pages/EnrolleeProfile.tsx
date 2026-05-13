@@ -9,10 +9,12 @@ export default function EnrolleeProfile({
   id,
   onBack,
   onNavigateToProfile,
+  onNavigateToSchedule,
 }: {
   id: number;
   onBack: () => void;
   onNavigateToProfile: (id: number) => void;
+  onNavigateToSchedule: (weekId: number) => void;
 }) {
   const enrollee = useLiveQuery(() => db.assignees.get(id), [id]);
   const allAssignees = useLiveQuery(() => db.assignees.toArray(), []);
@@ -183,8 +185,14 @@ export default function EnrolleeProfile({
                 {history.map(({ week, assignment, role }, idx) => {
                   const seg = segmentOf(assignment.segment);
                   return (
-                    <tr key={idx} className="hover:bg-indigo-50/30 transition-colors">
-                      <td className="px-4 py-4 whitespace-nowrap font-medium text-slate-600">{week.weekOf}</td>
+                    <tr 
+                      key={idx} 
+                      className={`transition-colors ${week.id ? 'hover:bg-indigo-50/50 cursor-pointer' : 'hover:bg-indigo-50/30'}`}
+                      onClick={() => week.id && onNavigateToSchedule(week.id)}
+                    >
+                      <td className="px-4 py-4 whitespace-nowrap font-medium text-indigo-600">
+                        {week.weekOf}
+                      </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-col">
                             <span className="font-bold text-slate-900">{assignment.partType}</span>

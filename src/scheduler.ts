@@ -261,7 +261,7 @@ export function scoreCandidate(
 
   // Prefer adult assistants when pairing with a minor main participant.
   if (role === "assistant" && isMinorMain && !a.isMinor) {
-    score += 30;
+    score += 50; // Increased priority
   }
 
   // ── Frequency throttling ────────────────────────────────────────────
@@ -294,6 +294,8 @@ export interface AutoAssignOptions {
   optimizationThresholdAssistant?: number;
   /** Custom eligibility rules. */
   assignmentRules: Record<string, AssignmentRule>;
+  /** If true, minors are not allowed to assist adults in ministry parts. */
+  preventMinorAssistantToAdult: boolean;
 }
 
 /**
@@ -482,11 +484,12 @@ function pickCandidate(args: PickArgs): Assignee | null {
     }
   }
 
+
   let eligiblePool = assignees.filter((a) => {
     if (used.has(a.id ?? -1)) return false;
     if (genderFilter && a.gender !== genderFilter) return false;
     // Hard eligibility check
-    if (!isEligible(a, part.partType, role, "auto", opts.assignmentRules)) {
+    if (!isEligible(a, part.partType, role, "auto", opts.assignmentRules, isMinorMain, opts.preventMinorAssistantToAdult)) {
       return false;
     }
     return true;

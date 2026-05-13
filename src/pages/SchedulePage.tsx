@@ -119,6 +119,7 @@ export default function SchedulePage({
       catchUpIntensity: settings.catchUpIntensity ?? 1,
       maxAssignmentsPerMonth: settings.maxAssignmentsPerMonth ?? 2,
       assignmentRules: settings.assignmentRules,
+      preventMinorAssistantToAdult: settings.preventMinorAssistantToAdult,
     });
     await saveWeek(updated);
     await addLog(
@@ -503,10 +504,17 @@ function WeekListGrouped({
 
   // If the selected week changes to a different group, switch to it.
   useEffect(() => {
-    if (selectedGroupKey) {
-      setOpenGroup(selectedGroupKey);
+    if (selectedId != null) {
+      const w = weeks.find((x) => x.id === selectedId);
+      if (w) {
+        const periodYear = parseInt(workbookPeriod(w.weekOf).key.slice(0, 4), 10);
+        if (periodYear !== activeYear) {
+          setActiveYear(periodYear);
+        }
+        setOpenGroup(workbookPeriod(w.weekOf).key);
+      }
     }
-  }, [selectedGroupKey]);
+  }, [selectedId, weeks, activeYear]);
 
   // When year changes, auto-open the best group for that year.
   useEffect(() => {

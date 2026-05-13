@@ -311,6 +311,23 @@ export default function SettingsPage({
             </p>
           </div>
 
+          <div className="flex items-center gap-2 pt-4">
+            <input
+              type="checkbox"
+              id="preventMinorAssistantToAdult"
+              className="checkbox w-5 h-5"
+              checked={draft.preventMinorAssistantToAdult}
+              onChange={(e) =>
+                setDraft({ ...draft, preventMinorAssistantToAdult: e.target.checked })
+              }
+            />
+            <label htmlFor="preventMinorAssistantToAdult" className="font-semibold text-slate-700 cursor-pointer">
+              Prevent minors from assisting adults
+            </label>
+          </div>
+          <p className="text-xs text-slate-500 col-span-full">
+            If enabled, the scheduler will never assign a minor as an assistant to an adult main participant in the field ministry section. Adults will also be strongly preferred as assistants for minors.
+          </p>
         </div>
 
         <div>

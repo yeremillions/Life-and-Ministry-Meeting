@@ -187,6 +187,7 @@ export default function QuickStartWizard({
             chairmanGapWeeks: settings.chairmanGapWeeks ?? 3,
             catchUpIntensity: settings.catchUpIntensity ?? 3,
             maxAssignmentsPerMonth: settings.maxAssignmentsPerMonth ?? 2,
+            preventMinorAssistantToAdult: settings.preventMinorAssistantToAdult,
           }
         );
         

@@ -538,19 +538,30 @@ function PartRow({
   allWeeks: Week[];
   partNumber?: number;
 }) {
+  const mainPerson = assignees.find((a) => a.id === assignment.assigneeId);
+
   const eligibleMain = useMemo(
     () => assignees.filter((a) => isEligible(a, assignment.partType, "main", "manual", settings.assignmentRules)),
     [assignees, assignment.partType, settings.assignmentRules]
   );
   const eligibleAssistant = useMemo(
     () =>
-      assignees.filter((a) => isEligible(a, assignment.partType, "assistant", "manual", settings.assignmentRules)),
-    [assignees, assignment.partType, settings.assignmentRules]
+      assignees.filter((a) =>
+        isEligible(
+          a,
+          assignment.partType,
+          "assistant",
+          "manual",
+          settings.assignmentRules,
+          mainPerson?.isMinor ?? false,
+          settings.preventMinorAssistantToAdult
+        )
+      ),
+    [assignees, assignment.partType, settings.assignmentRules, mainPerson, settings.preventMinorAssistantToAdult]
   );
 
   const seg = segmentOf(assignment.segment);
   const showAssistant = needsAssistant(assignment.partType);
-  const mainPerson = assignees.find((a) => a.id === assignment.assigneeId);
 
   // Household of the currently-selected main person (if any).
   const mainHousehold = useMemo(
@@ -714,11 +725,20 @@ function PartRow({
                 role="assistant"
                 weekOf={week.weekOf}
                 allWeeks={allWeeks}
+                mainIsMinor={mainPerson?.isMinor}
               />
             )}
           </>
         )}
       </div>
+      {settings.preventMinorAssistantToAdult && showAssistant && mainPerson && !mainPerson.isMinor && assignees.find(a => a.id === assignment.assistantId)?.isMinor && (
+        <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 flex items-center gap-1.5 animate-fade-in">
+          <span>⚠️</span>
+          <span>
+            <strong>Policy Reminder:</strong> Minors should not normally assist adults in ministry demonstrations, as adults do not preach to minors without parental approval in the field.
+          </span>
+        </div>
+      )}
       <div className="mt-3 flex items-center gap-3">
         <div className="flex-1">
           <input
@@ -767,6 +787,7 @@ function AssigneePicker({
   role,
   weekOf,
   allWeeks,
+  mainIsMinor,
 }: {
   label: string;
   value?: number;
@@ -783,6 +804,7 @@ function AssigneePicker({
   role: "main" | "assistant";
   weekOf: string;
   allWeeks: Week[];
+  mainIsMinor?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -1020,6 +1042,11 @@ function AssigneePicker({
                     <span className="text-[9px] font-medium text-slate-400 leading-none">
                       {weeksAgo}
                     </span>
+                    {settings.preventMinorAssistantToAdult && role === "assistant" && mainIsMinor === false && a.isMinor && (
+                      <span className="text-[8px] font-bold text-red-600 bg-red-50 px-1 rounded leading-tight border border-red-100" title="Violates minor-assistant policy">
+                        POLICY
+                      </span>
+                    )}
                     {hasNearby && (
                       <span className="text-[8px] font-bold text-amber-600 bg-amber-50 px-1 rounded leading-tight border border-amber-100">
                         NEARBY

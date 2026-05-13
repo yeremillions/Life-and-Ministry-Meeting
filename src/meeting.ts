@@ -159,7 +159,9 @@ export function isEligible(
   partType: PartType,
   role: "main" | "assistant" = "main",
   purpose: "auto" | "manual" = "manual",
-  rules: Record<string, AssignmentRule> = DEFAULT_ASSIGNMENT_RULES
+  rules: Record<string, AssignmentRule> = DEFAULT_ASSIGNMENT_RULES,
+  mainIsMinor?: boolean,
+  preventMinorAssistantToAdult?: boolean
 ): boolean {
   if (!a.active) return false;
 
@@ -183,6 +185,11 @@ export function isEligible(
   if (target.requiredPrivileges.length > 0) {
     const hasAny = target.requiredPrivileges.some((p) => a.privileges.includes(p));
     if (!hasAny) return false;
+  }
+
+  // Hard constraint: minor cannot assist adult if setting is on (Auto-only, manual allowed but warned)
+  if (purpose === "auto" && preventMinorAssistantToAdult && role === "assistant" && mainIsMinor === false && a.isMinor) {
+    return false;
   }
 
   // Specific hardcoded overrides that are harder to represent in simple rules

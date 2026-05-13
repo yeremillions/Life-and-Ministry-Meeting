@@ -116,6 +116,7 @@ export default function App() {
             id={profileEnrolleeId} 
             onBack={() => setTab("enrollees")} 
             onNavigateToProfile={navigateToProfile}
+            onNavigateToSchedule={(weekId) => navigate("schedule", weekId)}
           />
         )}
       </main>
