@@ -310,6 +310,11 @@ export function autoAssignWeek(
   historicalWeeks: Week[],
   opts: AutoAssignOptions
 ): Week {
+  // If this is a special week (Convention, Assembly, etc.), skip assignments.
+  if (week.specialEvent) {
+    return { ...week };
+  }
+
   // Clone assignments so we can mutate while computing.
   const assignments: Assignment[] = week.assignments.map((a) => ({ ...a }));
 

@@ -97,9 +97,12 @@ export interface Week {
   weeklyBibleReading?: string;
   assignments: Assignment[];
   locked?: boolean;
+  specialEvent?: SpecialEventType | null;
   createdAt: number;
   updatedAt: number;
 }
+
+export type SpecialEventType = "Convention" | "Assembly" | "Memorial" | "Other";
 
 /**
  * A household groups enrollees who live together (or are family members).

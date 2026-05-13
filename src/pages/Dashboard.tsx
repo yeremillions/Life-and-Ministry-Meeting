@@ -178,6 +178,38 @@ export default function Dashboard({
                   const isComplete = filled === total && total > 0;
                   const isThisWeek = w.id === thisWeek?.id;
 
+                  if (w.specialEvent) {
+                    return (
+                      <div
+                        key={w.id}
+                        className="border p-3 cursor-pointer transition-colors hover:bg-gray-50"
+                        style={{
+                          borderColor: isThisWeek ? 'var(--living)' : '#ddd',
+                          borderRadius: '3px',
+                        }}
+                        onClick={() => onNavigate("schedule", w.id)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold">{weekRangeLabel(w.weekOf)}</span>
+                            <span className="pill bg-slate-100 text-slate-600 text-[10px] font-bold uppercase border border-slate-200">
+                              {w.specialEvent}
+                            </span>
+                            {isThisWeek && (
+                              <span
+                                className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 text-white bg-slate-400"
+                                style={{ borderRadius: '2px' }}
+                              >
+                                This week
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-slate-400 font-medium italic">No regular meeting</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={w.id}
@@ -464,6 +496,40 @@ function ThisWeekCard({
   const chairmanName = chairman?.assigneeId
     ? assignees.find((p) => p.id === chairman.assigneeId)?.name
     : null;
+
+  if (week.specialEvent) {
+    return (
+      <div
+        className="card cursor-pointer hover:bg-slate-50 transition-colors border-l-4 border-slate-400"
+        onClick={onOpen}
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">
+              This Week's Meeting
+            </p>
+            <h2 className="text-lg font-bold">{weekRangeLabel(week.weekOf)}</h2>
+            <div className="mt-4 flex items-center gap-3">
+              <span className="text-3xl">🗓️</span>
+              <div>
+                <p className="font-bold text-slate-800 leading-none">
+                  {week.specialEvent === "Memorial" ? "Memorial Day" : 
+                   week.specialEvent === "Convention" ? "Regional Convention" :
+                   week.specialEvent === "Assembly" ? "Circuit Assembly" : "Special Event"}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  No Life and Ministry Meeting held this week.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-slate-100 text-slate-600 px-3 py-1 rounded font-bold text-xs uppercase tracking-widest">
+            Special
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -6,6 +6,7 @@ import type {
   PartType,
   SegmentId,
   Week,
+  SpecialEventType,
 } from "../types";
 import {
   SEGMENTS,
@@ -146,131 +147,175 @@ export default function WeekEditor(props: WeekEditorProps) {
             </div>
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
+            <button className="btn-secondary" onClick={() => props.onClear()}>
+              Clear all
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => props.onAutoFill(true)}
+              title="Fill empty slots only"
+            >
+              Auto-fill empty
+            </button>
+            <button
+              className="btn"
+              onClick={() => props.onAutoFill(false)}
+              title="Reassign everything from scratch"
+            >
+              Auto-assign all
+            </button>
+            <button className="btn-danger" onClick={() => props.onDelete()}>
+              Delete
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-end justify-between gap-3 border-t border-slate-100 pt-3">
+          <div className="flex-1">
+            <label className="label">Weekly Bible reading (optional)</label>
+            <input
+              className="input max-w-md font-bold text-slate-800"
+              value={week.weeklyBibleReading ?? ""}
+              onChange={(e) =>
+                props.onSave({
+                  ...week,
+                  weeklyBibleReading: e.target.value,
+                })
+              }
+              placeholder="e.g. Matthew 5-7"
+            />
+          </div>
+          <div className="w-48">
+            <label className="label">Special Event</label>
+            <select
+              className="input font-semibold"
+              style={{ color: week.specialEvent ? "var(--living)" : "inherit" }}
+              value={week.specialEvent ?? ""}
+              onChange={(e) =>
+                props.onSave({
+                  ...week,
+                  specialEvent: (e.target.value as SpecialEventType) || null,
+                })
+              }
+            >
+              <option value="">- Normal Meeting -</option>
+              <option value="Convention">Regional Convention</option>
+              <option value="Assembly">Circuit Assembly</option>
+              <option value="Memorial">Memorial</option>
+              <option value="Other">Other Special Event</option>
+            </select>
+          </div>
           <button
             className="btn-secondary"
-            onClick={() => props.onClear()}
+            onClick={handleReviewOptimization}
+            title="Review for compliance optimizations"
+            disabled={!!week.specialEvent}
           >
-            Clear all
-          </button>
-          <button
-            className="btn-secondary"
-            onClick={() => props.onAutoFill(true)}
-            title="Fill empty slots only"
-          >
-            Auto-fill empty
-          </button>
-          <button
-            className="btn"
-            onClick={() => props.onAutoFill(false)}
-            title="Reassign everything from scratch"
-          >
-            Auto-assign all
-          </button>
-          <button className="btn-danger" onClick={() => props.onDelete()}>
-            Delete
+            Review Optimization
           </button>
         </div>
-      </div>
-      <div className="mt-3 flex items-end justify-between gap-3">
-        <div className="flex-1">
-          <label className="label">Weekly Bible reading (optional)</label>
-          <input
-            className="input max-w-md font-bold text-slate-800"
-            value={week.weeklyBibleReading ?? ""}
-            onChange={(e) =>
-              props.onSave({
-                ...week,
-                weeklyBibleReading: e.target.value,
-              })
-            }
-            placeholder="e.g. Matthew 5-7"
-          />
-        </div>
-        <button
-          className="btn-secondary"
-          onClick={handleReviewOptimization}
-          title="Review for compliance optimizations"
-        >
-          Review Optimization
-        </button>
-      </div>
       </header>
 
       {/* Opening segment — always first, single Chairman slot */}
-      <SegmentCard
-        key="opening"
-        segment="opening"
-        title="Opening"
-        accent="#64748b"
-        assignments={bySegment.opening}
-        assignees={assignees}
-        households={households}
-        week={week}
-        onAddPart={(t) => props.onAddPart("opening", t)}
-        onRemovePart={props.onRemovePart}
-        onUpdateAssignment={props.onUpdateAssignment}
-        onNavigateToProfile={props.onNavigateToProfile}
-        onReorder={(dragged, onto) => {
-          const d = week.assignments.find(a => a.uid === dragged);
-          if (!d) return;
-          const remaining = week.assignments.filter(a => a.uid !== dragged);
-          const others = remaining.filter(a => a.segment !== "opening");
-          const thisSeg = remaining.filter(a => a.segment === "opening").sort((a,b) => a.order - b.order);
-          
-          let next: Assignment[];
-          if (onto) {
-            const idx = thisSeg.findIndex(a => a.uid === onto);
-            next = [...thisSeg];
-            next.splice(idx, 0, { ...d, segment: "opening" });
-          } else {
-            next = [...thisSeg, { ...d, segment: "opening" }];
-          }
-          props.onSave({ ...week, assignments: [...others, ...next.map((a,i) => ({...a, order: i+1}))] });
-        }}
-        stats={stats}
-        talkSplit={talkSplit}
-        settings={props.settings}
-        allWeeks={props.allWeeks}
-        partNumbers={partNumbers}
-      />
-      {SEGMENTS.filter((s) => s.id !== "opening").map((seg) => (
-        <SegmentCard
-          key={seg.id}
-          segment={seg.id}
-          title={seg.label}
-          accent={seg.color}
-          assignments={bySegment[seg.id]}
-          assignees={assignees}
-          households={households}
-          week={week}
-          onAddPart={(t) => props.onAddPart(seg.id, t)}
-          onRemovePart={props.onRemovePart}
-          onUpdateAssignment={props.onUpdateAssignment}
-          onNavigateToProfile={props.onNavigateToProfile}
-          onReorder={(dragged, onto) => {
-            const d = week.assignments.find(a => a.uid === dragged);
-            if (!d) return;
-            const remaining = week.assignments.filter(a => a.uid !== dragged);
-            const others = remaining.filter(a => a.segment !== seg.id);
-            const thisSeg = remaining.filter(a => a.segment === seg.id).sort((a,b) => a.order - b.order);
-            
-            let next: Assignment[];
-            if (onto) {
-              const idx = thisSeg.findIndex(a => a.uid === onto);
-              next = [...thisSeg];
-              next.splice(idx, 0, { ...d, segment: seg.id });
-            } else {
-              next = [...thisSeg, { ...d, segment: seg.id }];
-            }
-            props.onSave({ ...week, assignments: [...others, ...next.map((a,i) => ({...a, order: i+1}))] });
-          }}
-          stats={stats}
-          talkSplit={talkSplit}
-          settings={props.settings}
-          allWeeks={props.allWeeks}
-          partNumbers={partNumbers}
-        />
-      ))}
+      {week.specialEvent ? (
+        <div className="card bg-slate-50 border-slate-200 py-16 text-center animate-fade-in">
+          <div className="text-5xl mb-4">🗓️</div>
+          <h3 className="text-2xl font-bold text-slate-800">
+            {week.specialEvent === "Memorial" ? "Memorial Week" : 
+             week.specialEvent === "Convention" ? "Convention Week" :
+             week.specialEvent === "Assembly" ? "Assembly Week" : "Special Event"}
+          </h3>
+          <p className="text-slate-500 max-w-md mx-auto mt-2">
+            No Life and Ministry Meeting is scheduled for this week due to the {week.specialEvent.toLowerCase()}. 
+            Normal assignments are suspended.
+          </p>
+          <div className="mt-8">
+            <button 
+              className="btn-secondary"
+              onClick={() => props.onSave({ ...week, specialEvent: null })}
+            >
+              Switch back to normal meeting
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <SegmentCard
+            key="opening"
+            segment="opening"
+            title="Opening"
+            accent="#64748b"
+            assignments={bySegment.opening}
+            assignees={assignees}
+            households={households}
+            week={week}
+            onAddPart={(t) => props.onAddPart("opening", t)}
+            onRemovePart={props.onRemovePart}
+            onUpdateAssignment={props.onUpdateAssignment}
+            onNavigateToProfile={props.onNavigateToProfile}
+            onReorder={(dragged, onto) => {
+              const d = week.assignments.find(a => a.uid === dragged);
+              if (!d) return;
+              const remaining = week.assignments.filter(a => a.uid !== dragged);
+              const others = remaining.filter(a => a.segment !== "opening");
+              const thisSeg = remaining.filter(a => a.segment === "opening").sort((a,b) => a.order - b.order);
+              
+              let next: Assignment[];
+              if (onto) {
+                const idx = thisSeg.findIndex(a => a.uid === onto);
+                next = [...thisSeg];
+                next.splice(idx, 0, { ...d, segment: "opening" });
+              } else {
+                next = [...thisSeg, { ...d, segment: "opening" }];
+              }
+              props.onSave({ ...week, assignments: [...others, ...next.map((a,i) => ({...a, order: i+1}))] });
+            }}
+            stats={stats}
+            talkSplit={talkSplit}
+            settings={props.settings}
+            allWeeks={props.allWeeks}
+            partNumbers={partNumbers}
+          />
+          {SEGMENTS.filter((s) => s.id !== "opening").map((seg) => (
+            <SegmentCard
+              key={seg.id}
+              segment={seg.id}
+              title={seg.label}
+              accent={seg.color}
+              assignments={bySegment[seg.id]}
+              assignees={assignees}
+              households={households}
+              week={week}
+              onAddPart={(t) => props.onAddPart(seg.id, t)}
+              onRemovePart={props.onRemovePart}
+              onUpdateAssignment={props.onUpdateAssignment}
+              onNavigateToProfile={props.onNavigateToProfile}
+              onReorder={(dragged, onto) => {
+                const d = week.assignments.find(a => a.uid === dragged);
+                if (!d) return;
+                const remaining = week.assignments.filter(a => a.uid !== dragged);
+                const others = remaining.filter(a => a.segment !== seg.id);
+                const thisSeg = remaining.filter(a => a.segment === seg.id).sort((a,b) => a.order - b.order);
+                
+                let next: Assignment[];
+                if (onto) {
+                  const idx = thisSeg.findIndex(a => a.uid === onto);
+                  next = [...thisSeg];
+                  next.splice(idx, 0, { ...d, segment: seg.id });
+                } else {
+                  next = [...thisSeg, { ...d, segment: seg.id }];
+                }
+                props.onSave({ ...week, assignments: [...others, ...next.map((a,i) => ({...a, order: i+1}))] });
+              }}
+              stats={stats}
+              talkSplit={talkSplit}
+              settings={props.settings}
+              allWeeks={props.allWeeks}
+              partNumbers={partNumbers}
+            />
+          ))}
+        </>
+      )}
 
       {/* Navigation Footer */}
       <footer className="card flex items-center justify-between">
