@@ -614,11 +614,12 @@ function WeekListGrouped({
         const isOpen = openGroup === group.key;
         const isPast = group.key < todayKey;
 
-        // Period-level fill stats
-        const totalParts = group.weeks.reduce(
+        // Period-level fill stats (ignore special weeks)
+        const regularWeeks = group.weeks.filter(w => !w.specialEvent);
+        const totalParts = regularWeeks.reduce(
           (s, w) => s + w.assignments.length, 0
         );
-        const filledParts = group.weeks.reduce(
+        const filledParts = regularWeeks.reduce(
           (s, w) => s + w.assignments.filter((a) => a.assigneeId).length, 0
         );
         const fillPct = totalParts > 0 ? (filledParts / totalParts) * 100 : 0;
@@ -708,16 +709,24 @@ function WeekListGrouped({
                         <span className="text-sm font-medium flex-1">
                           {weekRangeLabel(w.weekOf)}
                         </span>
-                        {/* Only show fraction when incomplete */}
-                        {!complete && (
-                          <span className="text-[10px] text-slate-400 tabular-nums shrink-0">
-                            {filled}/{total}
+                        {w.specialEvent ? (
+                          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1 rounded uppercase tracking-tighter shrink-0">
+                            {w.specialEvent}
                           </span>
-                        )}
-                        {complete && (
-                          <span className="text-[10px] text-emerald-500 shrink-0" title="Fully assigned">
-                            ✓
-                          </span>
+                        ) : (
+                          <>
+                            {/* Only show fraction when incomplete */}
+                            {!complete && (
+                              <span className="text-[10px] text-slate-400 tabular-nums shrink-0">
+                                {filled}/{total}
+                              </span>
+                            )}
+                            {complete && (
+                              <span className="text-[10px] text-emerald-500 shrink-0" title="Fully assigned">
+                                ✓
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                     </li>
