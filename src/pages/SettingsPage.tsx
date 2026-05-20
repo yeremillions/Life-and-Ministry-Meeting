@@ -1,5 +1,5 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { db, ensureSettings } from "../db";
 import {
   DEFAULT_ASSIGNMENT_RULES,
@@ -28,6 +28,24 @@ export default function SettingsPage({
   const [includeSearch, setIncludeSearch] = useState("");
   const [excludeDropdownOpen, setExcludeDropdownOpen] = useState(false);
   const [includeDropdownOpen, setIncludeDropdownOpen] = useState(false);
+
+  const excludeRef = useRef<HTMLDivElement>(null);
+  const includeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (excludeRef.current && !excludeRef.current.contains(event.target as Node)) {
+        setExcludeDropdownOpen(false);
+      }
+      if (includeRef.current && !includeRef.current.contains(event.target as Node)) {
+        setIncludeDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     ensureSettings().then((s) => setDraft(s));
@@ -375,19 +393,8 @@ export default function SettingsPage({
         </div>
       </div>
 
-      {/* Backdrop to close search dropdowns when clicking outside */}
-      {(excludeDropdownOpen || includeDropdownOpen) && (
-        <div 
-          className="fixed inset-0 z-10 cursor-default" 
-          onClick={() => {
-            setExcludeDropdownOpen(false);
-            setIncludeDropdownOpen(false);
-          }}
-        />
-      )}
-
       {/* ── Prayer Overrides Section ── */}
-      <div className="card space-y-4 relative z-0">
+      <div className="card space-y-4 relative">
         <h2 className="text-xl font-bold text-slate-800">Manual Prayer Qualifications</h2>
         <p className="text-sm text-slate-500">
           Only Elders, Ministerial Servants, and Congregation Bible Study Readers (CBSR) are qualified to offer Opening and Closing Prayer by default. You can manually exclude privileged brothers, or manually include non-privileged brothers.
@@ -404,7 +411,7 @@ export default function SettingsPage({
             </h3>
             
             {/* Search and Add */}
-            <div className="relative">
+            <div ref={excludeRef} className="relative">
               <input
                 type="text"
                 placeholder="Search privileged brothers to exclude..."
@@ -495,7 +502,7 @@ export default function SettingsPage({
             </h3>
             
             {/* Search and Add */}
-            <div className="relative">
+            <div ref={includeRef} className="relative">
               <input
                 type="text"
                 placeholder="Search non-privileged brothers to include..."
