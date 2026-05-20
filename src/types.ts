@@ -33,6 +33,10 @@ export interface Assignee {
   allowedParts?: PartType[];
   /** Categorized restriction for frequency throttling and defaults. */
   restrictionType?: "infirmed" | "elderly" | "investigation" | "none" | "custom";
+  /** Manually exclude from prayer assignments regardless of privileges. */
+  excludeFromPrayers?: boolean;
+  /** Manually include for prayer assignments regardless of privileges. */
+  includeInPrayers?: boolean;
   createdAt: number;
 }
 
@@ -196,12 +200,12 @@ export const DEFAULT_ASSIGNMENT_RULES: Record<string, AssignmentRule> = {
   },
   "Opening Prayer": {
     allowedGenders: ["M"],
-    requiredPrivileges: [],
+    requiredPrivileges: ["E", "QE", "MS", "QMS", "CBSR"],
     mustBeBaptized: true,
   },
   "Closing Prayer": {
     allowedGenders: ["M"],
-    requiredPrivileges: [],
+    requiredPrivileges: ["E", "QE", "MS", "QMS", "CBSR"],
     mustBeBaptized: true,
   },
   Talk: {

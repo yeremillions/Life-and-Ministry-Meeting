@@ -10,6 +10,7 @@ import {
   type Privilege,
 } from "../types";
 import { addLog } from "../db";
+import { isPrivileged } from "../meeting";
 
 export default function SettingsPage({
   onNavigateToAdmin,
@@ -18,8 +19,15 @@ export default function SettingsPage({
 }) {
   const settings = useLiveQuery(() => db.settings.get("app"), []);
   const logs = useLiveQuery(() => db.logs.orderBy("timestamp").reverse().toArray(), []) ?? [];
+  const assignees = useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
   const [draft, setDraft] = useState<AppSettings | null>(null);
   const [saved, setSaved] = useState(false);
+
+  // Prayer overrides states
+  const [excludeSearch, setExcludeSearch] = useState("");
+  const [includeSearch, setIncludeSearch] = useState("");
+  const [excludeDropdownOpen, setExcludeDropdownOpen] = useState(false);
+  const [includeDropdownOpen, setIncludeDropdownOpen] = useState(false);
 
   useEffect(() => {
     ensureSettings().then((s) => setDraft(s));
@@ -113,6 +121,28 @@ export default function SettingsPage({
   }
 
   if (!draft) return null;
+
+  // Prayer overrides lists and candidates
+  const excludedBrothers = assignees.filter((a) => a.gender === "M" && a.excludeFromPrayers);
+  const includedBrothers = assignees.filter((a) => a.gender === "M" && a.includeInPrayers);
+
+  const excludeCandidates = assignees.filter((a) => {
+    if (a.gender !== "M" || !a.active) return false;
+    const hasPriv = isPrivileged(a) || a.privileges.includes("CBSR");
+    if (!hasPriv) return false;
+    if (a.excludeFromPrayers) return false;
+    if (!excludeSearch.trim()) return true;
+    return a.name.toLowerCase().includes(excludeSearch.toLowerCase());
+  });
+
+  const includeCandidates = assignees.filter((a) => {
+    if (a.gender !== "M" || !a.active) return false;
+    const hasPriv = isPrivileged(a) || a.privileges.includes("CBSR");
+    if (hasPriv) return false;
+    if (a.includeInPrayers) return false;
+    if (!includeSearch.trim()) return true;
+    return a.name.toLowerCase().includes(includeSearch.toLowerCase());
+  });
 
   return (
     <div className="space-y-6">
@@ -342,6 +372,194 @@ export default function SettingsPage({
               ✓ Settings saved
             </span>
           )}
+        </div>
+      </div>
+
+      {/* Backdrop to close search dropdowns when clicking outside */}
+      {(excludeDropdownOpen || includeDropdownOpen) && (
+        <div 
+          className="fixed inset-0 z-10 cursor-default" 
+          onClick={() => {
+            setExcludeDropdownOpen(false);
+            setIncludeDropdownOpen(false);
+          }}
+        />
+      )}
+
+      {/* ── Prayer Overrides Section ── */}
+      <div className="card space-y-4 relative z-0">
+        <h2 className="text-xl font-bold text-slate-800">Manual Prayer Qualifications</h2>
+        <p className="text-sm text-slate-500">
+          Only Elders, Ministerial Servants, and Congregation Bible Study Readers (CBSR) are qualified to offer Opening and Closing Prayer by default. You can manually exclude privileged brothers, or manually include non-privileged brothers.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+          {/* Exclude List */}
+          <div className="space-y-3 p-4 bg-slate-50/50 rounded-xl border border-slate-100 flex flex-col">
+            <h3 className="font-semibold text-slate-800 flex items-center justify-between">
+              <span>Manually Excluded (Privileged)</span>
+              <span className="pill bg-rose-50 text-rose-700 text-xs font-bold border border-rose-100">
+                {excludedBrothers.length} Excluded
+              </span>
+            </h3>
+            
+            {/* Search and Add */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search privileged brothers to exclude..."
+                className="input text-sm"
+                value={excludeSearch}
+                onChange={(e) => {
+                  setExcludeSearch(e.target.value);
+                  setExcludeDropdownOpen(true);
+                }}
+                onFocus={() => setExcludeDropdownOpen(true)}
+              />
+              {excludeDropdownOpen && excludeSearch.trim() && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {excludeCandidates.length === 0 ? (
+                    <div className="p-3 text-xs text-slate-400">No eligible brothers found.</div>
+                  ) : (
+                    excludeCandidates.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between"
+                        onClick={async () => {
+                          if (a.id != null) {
+                            await db.assignees.update(a.id, { excludeFromPrayers: true, includeInPrayers: false });
+                            await addLog("settings", `Manually excluded ${a.name} from prayers`);
+                          }
+                          setExcludeSearch("");
+                          setExcludeDropdownOpen(false);
+                        }}
+                      >
+                        <span className="font-medium text-slate-700">{a.name}</span>
+                        <div className="flex gap-1">
+                          {a.privileges.map((p) => (
+                            <span key={p} className="pill bg-slate-100 text-slate-600 text-[10px] font-semibold border border-slate-200">
+                              {p}
+                            </span>
+                          ))}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* List of currently excluded */}
+            <div className="min-h-[100px] max-h-56 overflow-y-auto border border-slate-200 rounded-lg bg-white divide-y divide-slate-100 custom-scrollbar flex-1">
+              {excludedBrothers.length === 0 ? (
+                <div className="p-4 text-center text-xs text-slate-400 italic">No manual exclusions.</div>
+              ) : (
+                excludedBrothers.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between p-2.5 hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-700">{a.name}</span>
+                      <div className="flex gap-0.5">
+                        {a.privileges.map((p) => (
+                          <span key={p} className="pill bg-amber-50 text-amber-700 text-[9px] font-bold border border-amber-100">
+                            {p}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-xs text-rose-500 hover:text-rose-700 font-semibold px-2 py-1 rounded hover:bg-rose-50 transition-colors"
+                      onClick={async () => {
+                        if (a.id != null) {
+                          await db.assignees.update(a.id, { excludeFromPrayers: false });
+                          await addLog("settings", `Removed prayer exclusion for ${a.name}`);
+                        }
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Include List */}
+          <div className="space-y-3 p-4 bg-slate-50/50 rounded-xl border border-slate-100 flex flex-col">
+            <h3 className="font-semibold text-slate-800 flex items-center justify-between">
+              <span>Manually Included (Non-Privileged)</span>
+              <span className="pill bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100">
+                {includedBrothers.length} Included
+              </span>
+            </h3>
+            
+            {/* Search and Add */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search non-privileged brothers to include..."
+                className="input text-sm"
+                value={includeSearch}
+                onChange={(e) => {
+                  setIncludeSearch(e.target.value);
+                  setIncludeDropdownOpen(true);
+                }}
+                onFocus={() => setIncludeDropdownOpen(true)}
+              />
+              {includeDropdownOpen && includeSearch.trim() && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {includeCandidates.length === 0 ? (
+                    <div className="p-3 text-xs text-slate-400">No eligible brothers found.</div>
+                  ) : (
+                    includeCandidates.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between"
+                        onClick={async () => {
+                          if (a.id != null) {
+                            await db.assignees.update(a.id, { includeInPrayers: true, excludeFromPrayers: false });
+                            await addLog("settings", `Manually included ${a.name} in prayers`);
+                          }
+                          setIncludeSearch("");
+                          setIncludeDropdownOpen(false);
+                        }}
+                      >
+                        <span className="font-medium text-slate-700">{a.name}</span>
+                        <span className="text-[10px] text-slate-400">Publisher</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* List of currently included */}
+            <div className="min-h-[100px] max-h-56 overflow-y-auto border border-slate-200 rounded-lg bg-white divide-y divide-slate-100 custom-scrollbar flex-1">
+              {includedBrothers.length === 0 ? (
+                <div className="p-4 text-center text-xs text-slate-400 italic">No manual inclusions.</div>
+              ) : (
+                includedBrothers.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between p-2.5 hover:bg-slate-50 transition-colors">
+                    <span className="text-sm font-medium text-slate-700">{a.name}</span>
+                    <button
+                      type="button"
+                      className="text-xs text-rose-500 hover:text-rose-700 font-semibold px-2 py-1 rounded hover:bg-rose-50 transition-colors"
+                      onClick={async () => {
+                        if (a.id != null) {
+                          await db.assignees.update(a.id, { includeInPrayers: false });
+                          await addLog("settings", `Removed prayer inclusion for ${a.name}`);
+                        }
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

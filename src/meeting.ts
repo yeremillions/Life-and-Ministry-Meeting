@@ -173,6 +173,11 @@ export function isEligible(
     return false;
   }
 
+  // Manual prayer exclusion override
+  if ((partType === "Opening Prayer" || partType === "Closing Prayer") && a.excludeFromPrayers) {
+    return false;
+  }
+
   const target = role === "assistant" && rule.assistant ? rule.assistant : rule;
 
   // Gender check
@@ -183,22 +188,17 @@ export function isEligible(
 
   // Privilege check
   if (target.requiredPrivileges.length > 0) {
-    const hasAny = target.requiredPrivileges.some((p) => a.privileges.includes(p));
-    if (!hasAny) return false;
+    const isPrayer = partType === "Opening Prayer" || partType === "Closing Prayer";
+    const manuallyIncluded = isPrayer && a.includeInPrayers;
+    if (!manuallyIncluded) {
+      const hasAny = target.requiredPrivileges.some((p) => a.privileges.includes(p));
+      if (!hasAny) return false;
+    }
   }
 
   // Hard constraint: minor cannot assist adult if setting is on (Auto-only, manual allowed but warned)
   if (purpose === "auto" && preventMinorAssistantToAdult && role === "assistant" && mainIsMinor === false && a.isMinor) {
     return false;
-  }
-
-  // Specific hardcoded overrides that are harder to represent in simple rules
-  // but could eventually be moved too.
-  if (partType === "Opening Prayer" || partType === "Closing Prayer") {
-    if (purpose === "auto") {
-      // In auto-assign, we prefer MS/E/CBSR for prayers.
-      return isMSorAbove(a) || a.privileges.includes("CBSR");
-    }
   }
 
   if (partType === "Video") return false;

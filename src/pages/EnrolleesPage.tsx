@@ -968,6 +968,8 @@ function EnrolleeModal({
   const [allowedParts, setAllowedParts] = useState<PartType[] | undefined>(
     initial?.allowedParts
   );
+  const [excludeFromPrayers, setExcludeFromPrayers] = useState(initial?.excludeFromPrayers ?? false);
+  const [includeInPrayers, setIncludeInPrayers] = useState(initial?.includeInPrayers ?? false);
 
   const canSubmit = name.trim().length > 0;
 
@@ -1067,6 +1069,38 @@ function EnrolleeModal({
             {" "}RP can be held by brothers and sisters.
           </p>
         </div>
+
+        {gender === "M" && (
+          <div className="pt-3 border-t border-slate-100 space-y-2">
+            <label className="label mb-1">Prayer Qualification Override</label>
+            <div className="flex gap-4 flex-wrap">
+              <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-slate-900 select-none">
+                <input
+                  type="checkbox"
+                  className="checkbox w-4 h-4"
+                  checked={excludeFromPrayers}
+                  onChange={(e) => {
+                    setExcludeFromPrayers(e.target.checked);
+                    if (e.target.checked) setIncludeInPrayers(false);
+                  }}
+                />
+                Exclude from Opening/Closing Prayer
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-slate-900 select-none">
+                <input
+                  type="checkbox"
+                  className="checkbox w-4 h-4"
+                  checked={includeInPrayers}
+                  onChange={(e) => {
+                    setIncludeInPrayers(e.target.checked);
+                    if (e.target.checked) setExcludeFromPrayers(false);
+                  }}
+                />
+                Include in Opening/Closing Prayer
+              </label>
+            </div>
+          </div>
+        )}
 
         <div className="pt-4 border-t border-slate-100">
           <div className="flex items-center justify-between mb-2">
@@ -1207,6 +1241,8 @@ function EnrolleeModal({
                 notes: notes.trim() || undefined,
                 allowedParts,
                 restrictionType,
+                excludeFromPrayers: gender === "M" ? excludeFromPrayers : false,
+                includeInPrayers: gender === "M" ? includeInPrayers : false,
               })
             }
           >
