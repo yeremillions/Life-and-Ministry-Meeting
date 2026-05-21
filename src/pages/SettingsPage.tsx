@@ -1,5 +1,5 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { db, ensureSettings } from "../db";
 import {
   DEFAULT_ASSIGNMENT_RULES,
@@ -188,6 +188,65 @@ export default function SettingsPage({
     window.location.reload();
   }
 
+  // Filter out and sanitize any potential null/undefined records
+  const validAssignees = useMemo(() => {
+    try {
+      return assignees
+        .filter((a): a is any => a != null)
+        .map((a) => ({
+          ...a,
+          id: typeof a.id === "number" ? a.id : undefined,
+          name: typeof a.name === "string" ? a.name : "Unknown Enrollee",
+          gender: a.gender === "M" || a.gender === "F" ? a.gender : "M",
+          baptised: typeof a.baptised === "boolean" ? a.baptised : false,
+          privileges: Array.isArray(a.privileges) ? a.privileges : [],
+          active: typeof a.active === "boolean" ? a.active : true,
+          excludeFromPrayers: typeof a.excludeFromPrayers === "boolean" ? a.excludeFromPrayers : false,
+          includeInPrayers: typeof a.includeInPrayers === "boolean" ? a.includeInPrayers : false,
+        }));
+    } catch (e) {
+      console.error("Error sanitizing assignees in Settings:", e);
+      return [];
+    }
+  }, [assignees]);
+
+  const validLogs = useMemo(() => {
+    try {
+      return logs
+        .filter((l): l is any => l != null)
+        .map((l) => ({
+          id: typeof l.id === "number" ? l.id : Math.random(),
+          timestamp: typeof l.timestamp === "number" ? l.timestamp : Date.now(),
+          category: typeof l.category === "string" ? l.category : "system",
+          action: typeof l.action === "string" ? l.action : "System event",
+          details: typeof l.details === "string" ? l.details : undefined,
+        }));
+    } catch (e) {
+      console.error("Error sanitizing logs in Settings:", e);
+      return [];
+    }
+  }, [logs]);
+
+  // Prayer overrides lists and candidates
+  let excludedBrothers: any[] = [];
+  let includedBrothers: any[] = [];
+  let excludeCandidates: any[] = [];
+  let includeCandidates: any[] = [];
+
+  // Pagination calculations
+  let totalItems = 0;
+  let totalPages = 1;
+  let startIndex = 0;
+  let endIndex = 0;
+  let paginatedLogs: any[] = [];
+  let pageNumbers: number[] = [];
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
   if (!draft) {
     return (
       <div className="card p-12 text-center flex flex-col items-center justify-center space-y-4">
@@ -200,58 +259,45 @@ export default function SettingsPage({
     );
   }
 
-  // Filter out any potential null/undefined records
-  const validAssignees = assignees.filter((a): a is any => a != null);
-  const validLogs = logs.filter((l): l is any => l != null);
-
-  // Prayer overrides lists and candidates
-  const excludedBrothers = validAssignees.filter((a) => a.gender === "M" && a.excludeFromPrayers);
-  const includedBrothers = validAssignees.filter((a) => a.gender === "M" && a.includeInPrayers);
-
-  const excludeCandidates = validAssignees.filter((a) => {
-    if (a.gender !== "M" || !a.active) return false;
-    const hasPriv = isPrivileged(a) || a.privileges?.includes("CBSR");
-    if (!hasPriv) return false;
-    if (a.excludeFromPrayers) return false;
-    if (!excludeSearch.trim()) return true;
-    return a.name.toLowerCase().includes(excludeSearch.toLowerCase());
-  });
-
-  const includeCandidates = validAssignees.filter((a) => {
-    if (a.gender !== "M" || !a.active) return false;
-    const hasPriv = isPrivileged(a) || a.privileges?.includes("CBSR");
-    if (hasPriv) return false;
-    if (a.includeInPrayers) return false;
-    if (!includeSearch.trim()) return true;
-    return a.name.toLowerCase().includes(includeSearch.toLowerCase());
-  });
-
-  // Pagination calculations
-  const totalItems = validLogs.length;
-  const totalPages = Math.ceil(totalItems / pageSize) || 1;
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [totalPages, currentPage]);
-
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const paginatedLogs = validLogs.slice(startIndex, endIndex);
-
-  const pageNumbers: number[] = [];
-  const maxVisiblePages = 5;
-  let startPage = Math.max(1, currentPage - 2);
-  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-  if (endPage - startPage + 1 < maxVisiblePages) {
-    startPage = Math.max(1, endPage - maxVisiblePages + 1);
-  }
-  for (let i = startPage; i <= endPage; i++) {
-    pageNumbers.push(i);
-  }
-
   try {
+    excludedBrothers = validAssignees.filter((a: any) => a.gender === "M" && a.excludeFromPrayers);
+    includedBrothers = validAssignees.filter((a: any) => a.gender === "M" && a.includeInPrayers);
+
+    excludeCandidates = validAssignees.filter((a: any) => {
+      if (a.gender !== "M" || !a.active) return false;
+      const hasPriv = isPrivileged(a) || a.privileges?.includes("CBSR");
+      if (!hasPriv) return false;
+      if (a.excludeFromPrayers) return false;
+      if (!excludeSearch.trim()) return true;
+      return a.name.toLowerCase().includes(excludeSearch.toLowerCase());
+    });
+
+    includeCandidates = validAssignees.filter((a: any) => {
+      if (a.gender !== "M" || !a.active) return false;
+      const hasPriv = isPrivileged(a) || a.privileges?.includes("CBSR");
+      if (hasPriv) return false;
+      if (a.includeInPrayers) return false;
+      if (!includeSearch.trim()) return true;
+      return a.name.toLowerCase().includes(includeSearch.toLowerCase());
+    });
+
+    totalItems = validLogs.length;
+    totalPages = Math.ceil(totalItems / pageSize) || 1;
+
+    startIndex = (currentPage - 1) * pageSize;
+    endIndex = startIndex + pageSize;
+    paginatedLogs = validLogs.slice(startIndex, endIndex);
+
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+
     return (
       <div className="space-y-6">
         <div className="card space-y-4">
@@ -883,27 +929,32 @@ export default function SettingsPage({
   } catch (renderError: any) {
     console.error("Crash during SettingsPage render:", renderError);
     return (
-      <div className="card p-6 border-rose-200 bg-rose-50 text-rose-800 space-y-4">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">⚠️</span>
-          <h3 className="text-lg font-bold">Settings Page Error</h3>
+      <div className="card p-6 border-[#4a6da7]/20 bg-slate-50 text-[#3d5b8e] space-y-4 shadow-md">
+        <div className="flex items-start gap-3">
+          <span className="text-2xl text-[#4a6da7]">⚠️</span>
+          <div>
+            <h3 className="text-lg font-bold text-[#4a6da7]">Settings Page Diagnostic Panel</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              A rendering anomaly was caught and isolated. Your settings remain completely safe.
+            </p>
+          </div>
         </div>
-        <p className="text-sm">The settings page encountered a rendering error. Please try restoring default settings or check the stack trace below:</p>
-        <pre className="p-4 bg-rose-100/50 rounded-lg text-xs font-mono overflow-auto max-h-80 border border-rose-200/50 text-rose-900">
+        <p className="text-sm text-slate-700">Please review the technical diagnostic details below. You can try reloading the page or restoring default settings to clear any corruption:</p>
+        <pre className="p-4 bg-slate-100 rounded-lg text-xs font-mono overflow-auto max-h-80 border border-slate-200 text-slate-800 leading-relaxed">
           {renderError?.stack || renderError?.message || String(renderError)}
         </pre>
         <div className="flex gap-2">
           <button 
-            className="btn-danger text-xs py-1.5 px-3" 
-            onClick={restoreDefaults}
-          >
-            Reset Settings to Defaults
-          </button>
-          <button 
-            className="btn-secondary text-xs py-1.5 px-3" 
+            className="btn text-xs py-1.5 px-3 bg-[#4a6da7] hover:bg-[#3d5b8e] text-white" 
             onClick={() => window.location.reload()}
           >
             Reload Page
+          </button>
+          <button 
+            className="btn-secondary text-xs py-1.5 px-3 border border-[#4a6da7]/35 text-[#4a6da7] hover:bg-slate-100" 
+            onClick={restoreDefaults}
+          >
+            Restore Default Settings
           </button>
         </div>
       </div>

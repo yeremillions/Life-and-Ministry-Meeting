@@ -45,13 +45,17 @@ export function buildStats(
   );
 
   for (const w of sortedWeeks) {
+    if (!w || !Array.isArray(w.assignments)) continue;
     for (const ass of w.assignments) {
+      if (!ass) continue;
       // Main assignee — counts toward main history only.
       if (ass.assigneeId != null) {
         const s = stats.get(ass.assigneeId);
         if (s) {
           s.totalMain += 1;
-          s.bySegmentMain[ass.segment] += 1;
+          if (ass.segment && s.bySegmentMain) {
+            s.bySegmentMain[ass.segment] = (s.bySegmentMain[ass.segment] || 0) + 1;
+          }
           if (!s.lastWeekMain || w.weekOf > s.lastWeekMain)
             s.lastWeekMain = w.weekOf;
           s.recentMainDates.push(w.weekOf);
