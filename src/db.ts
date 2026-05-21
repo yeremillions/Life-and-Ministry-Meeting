@@ -7,6 +7,7 @@ import {
   type Week,
   type AppSettings,
   type LogEntry,
+  type AssignmentRule,
   DEFAULT_SETTINGS,
 } from "./types";
 
@@ -118,18 +119,82 @@ export const db = new MeetingDB();
 
 /** Ensure the singleton settings row exists. */
 export async function ensureSettings(): Promise<AppSettings> {
-  const existing = await db.settings.get("app");
-  if (!existing) {
-    await db.settings.put(DEFAULT_SETTINGS);
+  try {
+    const existing = await db.settings.get("app");
+    if (!existing || typeof existing !== "object") {
+      await db.settings.put(DEFAULT_SETTINGS);
+      return DEFAULT_SETTINGS;
+    }
+
+    // Start with a clean copy of DEFAULT_SETTINGS
+    const updated: AppSettings = {
+      ...DEFAULT_SETTINGS,
+      ...existing,
+      assignmentRules: {
+        ...DEFAULT_SETTINGS.assignmentRules,
+      },
+    };
+
+    // Safely merge assignmentRules
+    const existingRules = existing.assignmentRules && typeof existing.assignmentRules === "object"
+      ? existing.assignmentRules
+      : {};
+
+    for (const partType of Object.keys(DEFAULT_SETTINGS.assignmentRules)) {
+      const defaultRule = DEFAULT_SETTINGS.assignmentRules[partType];
+      const existingRule = existingRules[partType];
+
+      if (existingRule && typeof existingRule === "object") {
+        const mergedRule: AssignmentRule = {
+          allowedGenders: Array.isArray(existingRule.allowedGenders)
+            ? existingRule.allowedGenders
+            : [...defaultRule.allowedGenders],
+          requiredPrivileges: Array.isArray(existingRule.requiredPrivileges)
+            ? existingRule.requiredPrivileges
+            : [...defaultRule.requiredPrivileges],
+          mustBeBaptized: typeof existingRule.mustBeBaptized === "boolean"
+            ? existingRule.mustBeBaptized
+            : defaultRule.mustBeBaptized,
+        };
+
+        if (defaultRule.assistant) {
+          const defaultAssistant = defaultRule.assistant;
+          const existingAssistant = existingRule.assistant;
+
+          if (existingAssistant && typeof existingAssistant === "object") {
+            mergedRule.assistant = {
+              allowedGenders: Array.isArray(existingAssistant.allowedGenders)
+                ? existingAssistant.allowedGenders
+                : [...defaultAssistant.allowedGenders],
+              requiredPrivileges: Array.isArray(existingAssistant.requiredPrivileges)
+                ? existingAssistant.requiredPrivileges
+                : [...defaultAssistant.requiredPrivileges],
+              mustBeBaptized: typeof existingAssistant.mustBeBaptized === "boolean"
+                ? existingAssistant.mustBeBaptized
+                : defaultAssistant.mustBeBaptized,
+            };
+          } else {
+            mergedRule.assistant = { ...defaultAssistant };
+          }
+        }
+
+        updated.assignmentRules[partType] = mergedRule;
+      } else {
+        updated.assignmentRules[partType] = { ...defaultRule };
+      }
+    }
+
+    // Save the cleaned/completed settings back to DB if they changed
+    if (JSON.stringify(existing) !== JSON.stringify(updated)) {
+      await db.settings.put(updated);
+      return updated;
+    }
+
+    return existing;
+  } catch (e) {
+    console.error("Error in ensureSettings, falling back to default settings:", e);
     return DEFAULT_SETTINGS;
   }
-  // Migration: If rules are missing (old DB), add them now.
-  if (!existing.assignmentRules) {
-    const updated = { ...existing, assignmentRules: DEFAULT_SETTINGS.assignmentRules };
-    await db.settings.put(updated);
-    return updated;
-  }
-  return existing;
 }
 
 /** Record an action in the change log. */

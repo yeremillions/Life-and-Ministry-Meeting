@@ -53,7 +53,11 @@ export default function SchedulePage({
   const households =
     useLiveQuery(() => db.households.orderBy("name").toArray(), []) ?? [];
   const settings = useLiveQuery(() => db.settings.get("app"), []) || null;
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(() => {
+    if (initialWeekId != null) return initialWeekId;
+    const saved = localStorage.getItem("schedule_week_id");
+    return saved ? parseInt(saved, 10) : null;
+  });
   const [creatingOpen, setCreatingOpen] = useState(false);
   const [importingWorkbook, setImportingWorkbook] = useState(false);
   const [importingS140, setImportingS140] = useState(false);
@@ -72,6 +76,14 @@ export default function SchedulePage({
       onConsumeInitialWeek?.();
     }
   }, [initialWeekId]);
+
+  useEffect(() => {
+    if (selectedId != null) {
+      localStorage.setItem("schedule_week_id", String(selectedId));
+    } else {
+      localStorage.removeItem("schedule_week_id");
+    }
+  }, [selectedId]);
 
   const selected = useMemo(
     () => weeks.find((w) => w.id === selectedId) ?? null,

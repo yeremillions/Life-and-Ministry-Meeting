@@ -12,6 +12,52 @@ import {
 import { addLog } from "../db";
 import { isPrivileged } from "../meeting";
 
+function sanitizeSettings(raw: any): AppSettings {
+  const base = { ...DEFAULT_SETTINGS, ...raw };
+  base.assignmentRules = { ...DEFAULT_SETTINGS.assignmentRules };
+  
+  const rawRules = raw?.assignmentRules && typeof raw.assignmentRules === "object"
+    ? raw.assignmentRules
+    : {};
+    
+  for (const partType of Object.keys(DEFAULT_SETTINGS.assignmentRules)) {
+    const defaultRule = DEFAULT_SETTINGS.assignmentRules[partType];
+    const rawRule = rawRules[partType];
+    
+    const rule: AssignmentRule = {
+      allowedGenders: Array.isArray(rawRule?.allowedGenders)
+        ? rawRule.allowedGenders
+        : [...defaultRule.allowedGenders],
+      requiredPrivileges: Array.isArray(rawRule?.requiredPrivileges)
+        ? rawRule.requiredPrivileges
+        : [...defaultRule.requiredPrivileges],
+      mustBeBaptized: typeof rawRule?.mustBeBaptized === "boolean"
+        ? rawRule.mustBeBaptized
+        : defaultRule.mustBeBaptized,
+    };
+    
+    if (defaultRule.assistant) {
+      const defaultAsst = defaultRule.assistant;
+      const rawAsst = rawRule?.assistant;
+      rule.assistant = {
+        allowedGenders: Array.isArray(rawAsst?.allowedGenders)
+          ? rawAsst.allowedGenders
+          : [...defaultAsst.allowedGenders],
+        requiredPrivileges: Array.isArray(rawAsst?.requiredPrivileges)
+          ? rawAsst.requiredPrivileges
+          : [...defaultAsst.requiredPrivileges],
+        mustBeBaptized: typeof rawAsst?.mustBeBaptized === "boolean"
+          ? rawAsst.mustBeBaptized
+          : defaultAsst.mustBeBaptized,
+      };
+    }
+    
+    base.assignmentRules[partType] = rule;
+  }
+  
+  return base as AppSettings;
+}
+
 export default function SettingsPage({
   onNavigateToAdmin,
 }: {
@@ -52,11 +98,11 @@ export default function SettingsPage({
   }, []);
 
   useEffect(() => {
-    ensureSettings().then((s) => setDraft(s));
+    ensureSettings().then((s) => setDraft(sanitizeSettings(s)));
   }, []);
 
   useEffect(() => {
-    if (settings) setDraft(settings);
+    if (settings) setDraft(sanitizeSettings(settings));
   }, [settings]);
 
   async function save() {

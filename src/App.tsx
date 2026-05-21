@@ -22,9 +22,38 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("dashboard");
-  const [scheduleWeekId, setScheduleWeekId] = useState<number | null>(null);
-  const [profileEnrolleeId, setProfileEnrolleeId] = useState<number | null>(null);
+  const [tab, setTab] = useState<Tab>(() => {
+    const saved = localStorage.getItem("current_tab");
+    return (saved as Tab) || "dashboard";
+  });
+  const [scheduleWeekId, setScheduleWeekId] = useState<number | null>(() => {
+    const saved = localStorage.getItem("schedule_week_id");
+    return saved ? parseInt(saved, 10) : null;
+  });
+  const [profileEnrolleeId, setProfileEnrolleeId] = useState<number | null>(() => {
+    const saved = localStorage.getItem("profile_enrollee_id");
+    return saved ? parseInt(saved, 10) : null;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("current_tab", tab);
+  }, [tab]);
+
+  useEffect(() => {
+    if (scheduleWeekId !== null) {
+      localStorage.setItem("schedule_week_id", String(scheduleWeekId));
+    } else {
+      localStorage.removeItem("schedule_week_id");
+    }
+  }, [scheduleWeekId]);
+
+  useEffect(() => {
+    if (profileEnrolleeId !== null) {
+      localStorage.setItem("profile_enrollee_id", String(profileEnrolleeId));
+    } else {
+      localStorage.removeItem("profile_enrollee_id");
+    }
+  }, [profileEnrolleeId]);
 
   useEffect(() => {
     ensureSettings().catch((e) => console.error("settings init", e));
