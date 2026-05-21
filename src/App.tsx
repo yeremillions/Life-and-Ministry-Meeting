@@ -42,8 +42,6 @@ export default function App() {
   useEffect(() => {
     if (scheduleWeekId !== null) {
       localStorage.setItem("schedule_week_id", String(scheduleWeekId));
-    } else {
-      localStorage.removeItem("schedule_week_id");
     }
   }, [scheduleWeekId]);
 
