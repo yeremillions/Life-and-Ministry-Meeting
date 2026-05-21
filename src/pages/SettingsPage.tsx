@@ -23,6 +23,10 @@ export default function SettingsPage({
   const [draft, setDraft] = useState<AppSettings | null>(null);
   const [saved, setSaved] = useState(false);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
+
   // Prayer overrides states
   const [excludeSearch, setExcludeSearch] = useState("");
   const [includeSearch, setIncludeSearch] = useState("");
@@ -161,6 +165,31 @@ export default function SettingsPage({
     if (!includeSearch.trim()) return true;
     return a.name.toLowerCase().includes(includeSearch.toLowerCase());
   });
+
+  // Pagination calculations
+  const totalItems = logs.length;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedLogs = logs.slice(startIndex, endIndex);
+
+  const pageNumbers: number[] = [];
+  const maxVisiblePages = 5;
+  let startPage = Math.max(1, currentPage - 2);
+  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+  if (endPage - startPage + 1 < maxVisiblePages) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+  for (let i = startPage; i <= endPage; i++) {
+    pageNumbers.push(i);
+  }
 
   return (
     <div className="space-y-6">
@@ -638,7 +667,7 @@ export default function SettingsPage({
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-slate-800">Change Log</h2>
           <span className="pill bg-slate-100 text-slate-600 text-xs font-semibold">
-            Last {logs.length} entries
+            Page {currentPage} of {totalPages} ({logs.length} entries)
           </span>
         </div>
 
@@ -649,47 +678,128 @@ export default function SettingsPage({
               <p className="text-slate-500">No activity logged yet.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar">
-              <table className="w-full text-sm border-collapse">
-                <thead className="sticky top-0 z-10">
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="py-3 px-5 text-left font-semibold text-slate-600 w-48">Date & Time</th>
-                    <th className="py-3 px-5 text-left font-semibold text-slate-600 w-32">Category</th>
-                    <th className="py-3 px-5 text-left font-semibold text-slate-600">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {logs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3 px-5 text-slate-500 font-mono text-[13px]">
-                        {new Date(log.timestamp).toLocaleString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </td>
-                      <td className="py-3 px-5">
-                        <span className={`pill text-[10px] font-bold uppercase tracking-wider ${
-                          log.category === "settings" ? "bg-amber-50 text-amber-700 border border-amber-100" :
-                          log.category === "schedule" ? "bg-indigo-50 text-indigo-700 border border-indigo-100" :
-                          log.category === "enrollees" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" :
-                          "bg-slate-50 text-slate-600 border border-slate-200"
-                        }`}>
-                          {log.category}
-                        </span>
-                      </td>
-                      <td className="py-3 px-5">
-                        <div className="font-medium text-slate-800">{log.action}</div>
-                        {log.details && (
-                          <div className="text-xs text-slate-500 mt-0.5">{log.details}</div>
-                        )}
-                      </td>
+            <>
+              <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar">
+                <table className="w-full text-sm border-collapse">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="py-3 px-5 text-left font-semibold text-slate-600 w-48">Date & Time</th>
+                      <th className="py-3 px-5 text-left font-semibold text-slate-600 w-32">Category</th>
+                      <th className="py-3 px-5 text-left font-semibold text-slate-600">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {paginatedLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3 px-5 text-slate-500 font-mono text-[13px]">
+                          {new Date(log.timestamp).toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                        <td className="py-3 px-5">
+                          <span className={`pill text-[10px] font-bold uppercase tracking-wider ${
+                            log.category === "settings" ? "bg-amber-50 text-amber-700 border border-amber-100" :
+                            log.category === "schedule" ? "bg-indigo-50 text-indigo-700 border border-indigo-100" :
+                            log.category === "enrollees" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" :
+                            "bg-slate-50 text-slate-600 border border-slate-200"
+                          }`}>
+                            {log.category}
+                          </span>
+                        </td>
+                        <td className="py-3 px-5">
+                          <div className="font-medium text-slate-800">{log.action}</div>
+                          {log.details && (
+                            <div className="text-xs text-slate-500 mt-0.5">{log.details}</div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Clean and beautiful pagination footer */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-4 py-3 sm:px-6">
+                  <div className="flex flex-1 justify-between sm:hidden">
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="btn-secondary text-xs py-1"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="btn-secondary text-xs py-1"
+                    >
+                      Next
+                    </button>
+                  </div>
+                  <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        Showing <span className="font-semibold text-slate-700">{startIndex + 1}</span> to{" "}
+                        <span className="font-semibold text-slate-700">
+                          {Math.min(endIndex, totalItems)}
+                        </span>{" "}
+                        of <span className="font-semibold text-slate-700">{totalItems}</span> entries
+                      </p>
+                    </div>
+                    <div>
+                      <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm bg-white" aria-label="Pagination">
+                        <button
+                          onClick={() => setCurrentPage(1)}
+                          disabled={currentPage === 1}
+                          className="relative inline-flex items-center rounded-l-md px-2 py-1.5 text-xs font-semibold text-slate-500 border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed bg-white"
+                        >
+                          « First
+                        </button>
+                        <button
+                          onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                          disabled={currentPage === 1}
+                          className="relative inline-flex items-center px-2 py-1.5 text-xs font-semibold text-slate-500 border-y border-r border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed bg-white"
+                        >
+                          ‹ Prev
+                        </button>
+                        {pageNumbers.map((page) => (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            style={page === currentPage ? { backgroundColor: 'var(--color-primary)', borderColor: 'var(--color-primary)' } : undefined}
+                            className={`relative inline-flex items-center px-3 py-1.5 text-xs font-semibold border-y border-r ${
+                              page === currentPage
+                                ? "z-10 text-white"
+                                : "text-slate-700 border-slate-200 hover:bg-slate-50 bg-white"
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        ))}
+                        <button
+                          onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                          disabled={currentPage === totalPages}
+                          className="relative inline-flex items-center px-2 py-1.5 text-xs font-semibold text-slate-500 border-y border-r border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed bg-white"
+                        >
+                          Next ›
+                        </button>
+                        <button
+                          onClick={() => setCurrentPage(totalPages)}
+                          disabled={currentPage === totalPages}
+                          className="relative inline-flex items-center rounded-r-md px-2 py-1.5 text-xs font-semibold text-slate-500 border-y border-r border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed bg-white"
+                        >
+                          Last »
+                        </button>
+                      </nav>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
         <p className="text-center text-[10px] text-slate-400 mt-4 italic">
