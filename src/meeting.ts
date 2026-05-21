@@ -72,15 +72,16 @@ export const SEGMENT_PART_TYPES: Record<SegmentId, PartType[]> = {
  *  doesn't count here. */
 export function isPrivileged(a: Assignee): boolean {
   return (
-    a.privileges.includes("E") ||
-    a.privileges.includes("QE") ||
-    a.privileges.includes("MS") ||
-    a.privileges.includes("QMS")
+    a.privileges?.includes("E") ||
+    a.privileges?.includes("QE") ||
+    a.privileges?.includes("MS") ||
+    a.privileges?.includes("QMS") ||
+    false
   );
 }
 
 export function hasPrivilege(a: Assignee, p: Privilege): boolean {
-  return a.privileges.includes(p);
+  return a.privileges?.includes(p) ?? false;
 }
 
 export function isElderLike(a: Assignee): boolean {
@@ -181,17 +182,17 @@ export function isEligible(
   const target = role === "assistant" && rule.assistant ? rule.assistant : rule;
 
   // Gender check
-  if (!target.allowedGenders.includes(a.gender)) return false;
+  if (!(target.allowedGenders ?? []).includes(a.gender)) return false;
 
   // Baptism check
   if (target.mustBeBaptized && !a.baptised) return false;
 
   // Privilege check
-  if (target.requiredPrivileges.length > 0) {
+  if ((target.requiredPrivileges ?? []).length > 0) {
     const isPrayer = partType === "Opening Prayer" || partType === "Closing Prayer";
     const manuallyIncluded = isPrayer && a.includeInPrayers;
     if (!manuallyIncluded) {
-      const hasAny = target.requiredPrivileges.some((p) => a.privileges.includes(p));
+      const hasAny = (target.requiredPrivileges ?? []).some((p) => a.privileges?.includes(p));
       if (!hasAny) return false;
     }
   }
@@ -213,12 +214,12 @@ export function isEligible(
  * specific* tag when both are present so the badge is meaningful.
  */
 export function privilegeLabel(a: Assignee): string | null {
-  if (a.privileges.includes("QE")) return "QE";
-  if (a.privileges.includes("E")) return "E";
-  if (a.privileges.includes("QMS")) return "QMS";
-  if (a.privileges.includes("MS")) return "MS";
-  if (a.privileges.includes("RP")) return "RP";
-  if (a.privileges.includes("CBSR")) return "CBSR";
+  if (a.privileges?.includes("QE")) return "QE";
+  if (a.privileges?.includes("E")) return "E";
+  if (a.privileges?.includes("QMS")) return "QMS";
+  if (a.privileges?.includes("MS")) return "MS";
+  if (a.privileges?.includes("RP")) return "RP";
+  if (a.privileges?.includes("CBSR")) return "CBSR";
   return null;
 }
 

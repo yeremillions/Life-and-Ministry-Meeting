@@ -81,8 +81,8 @@ export default function EnrolleeProfile({
             <div className="flex justify-between">
               <span className="text-slate-500">Privileges</span>
               <div className="flex flex-wrap justify-end gap-1">
-                {enrollee.privileges.length > 0 ? (
-                    enrollee.privileges.map(p => (
+                {(enrollee.privileges ?? []).length > 0 ? (
+                    (enrollee.privileges ?? []).map(p => (
                         <span key={p} className="pill bg-blue-50 text-blue-700 text-[10px] border border-blue-100">{p}</span>
                     ))
                 ) : <span className="text-slate-400">—</span>}
@@ -258,7 +258,7 @@ function calculateInsights(enrollee: Assignee, history: any[], stats: AssigneeSt
     }
 
     // 3. Specific suggestions
-    if (enrollee.gender === 'M' && enrollee.baptised && !enrollee.privileges.includes('MS')) {
+    if (enrollee.gender === 'M' && enrollee.baptised && !enrollee.privileges?.includes('MS')) {
         insights.push(`As a baptised brother, he could be encouraged toward Spiritual Gems or Bible Reading parts.`);
     }
 

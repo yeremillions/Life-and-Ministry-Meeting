@@ -150,7 +150,7 @@ export default function SettingsPage({
 
   const excludeCandidates = assignees.filter((a) => {
     if (a.gender !== "M" || !a.active) return false;
-    const hasPriv = isPrivileged(a) || a.privileges.includes("CBSR");
+    const hasPriv = isPrivileged(a) || a.privileges?.includes("CBSR");
     if (!hasPriv) return false;
     if (a.excludeFromPrayers) return false;
     if (!excludeSearch.trim()) return true;
@@ -159,7 +159,7 @@ export default function SettingsPage({
 
   const includeCandidates = assignees.filter((a) => {
     if (a.gender !== "M" || !a.active) return false;
-    const hasPriv = isPrivileged(a) || a.privileges.includes("CBSR");
+    const hasPriv = isPrivileged(a) || a.privileges?.includes("CBSR");
     if (hasPriv) return false;
     if (a.includeInPrayers) return false;
     if (!includeSearch.trim()) return true;
@@ -473,7 +473,7 @@ export default function SettingsPage({
                       >
                         <span className="font-medium text-slate-700">{a.name}</span>
                         <div className="flex gap-1">
-                          {a.privileges.map((p) => (
+                          {(a.privileges ?? []).map((p) => (
                             <span key={p} className="pill bg-slate-100 text-slate-600 text-[10px] font-semibold border border-slate-200">
                               {p}
                             </span>
@@ -496,7 +496,7 @@ export default function SettingsPage({
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-slate-700">{a.name}</span>
                       <div className="flex gap-0.5">
-                        {a.privileges.map((p) => (
+                        {(a.privileges ?? []).map((p) => (
                           <span key={p} className="pill bg-amber-50 text-amber-700 text-[9px] font-bold border border-amber-100">
                             {p}
                           </span>
@@ -856,11 +856,11 @@ function RuleRows({
               <input
                 type="checkbox"
                 className="checkbox"
-                checked={target.allowedGenders.includes(g as Gender)}
+                checked={(target?.allowedGenders ?? []).includes(g as Gender)}
                 onChange={(e) => {
                   const next = e.target.checked
-                    ? [...target.allowedGenders, g as Gender]
-                    : target.allowedGenders.filter((x) => x !== g);
+                    ? [...(target?.allowedGenders ?? []), g as Gender]
+                    : (target?.allowedGenders ?? []).filter((x) => x !== g);
                   update({ allowedGenders: next });
                 }}
               />
@@ -873,7 +873,7 @@ function RuleRows({
         <input
           type="checkbox"
           className="checkbox"
-          checked={target.mustBeBaptized}
+          checked={target?.mustBeBaptized ?? false}
           onChange={(e) => update({ mustBeBaptized: e.target.checked })}
         />
       </td>
@@ -887,11 +887,11 @@ function RuleRows({
               <input
                 type="checkbox"
                 className="checkbox w-3 h-3"
-                checked={target.requiredPrivileges.includes(p)}
+                checked={(target?.requiredPrivileges ?? []).includes(p)}
                 onChange={(e) => {
                   const next = e.target.checked
-                    ? [...target.requiredPrivileges, p]
-                    : target.requiredPrivileges.filter((x) => x !== p);
+                    ? [...(target?.requiredPrivileges ?? []), p]
+                    : (target?.requiredPrivileges ?? []).filter((x) => x !== p);
                   update({ requiredPrivileges: next });
                 }}
               />
@@ -906,7 +906,7 @@ function RuleRows({
   return (
     <>
       {renderRow(partType, rule, (fields) => onChange({ ...rule, ...fields }))}
-      {rule.assistant &&
+      {rule?.assistant &&
         renderRow(partType + "-assistant", rule.assistant, (fields) =>
           onChange({
             ...rule,

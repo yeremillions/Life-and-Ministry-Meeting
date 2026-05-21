@@ -67,9 +67,10 @@ export default function QuickStartWizard({
 
   function togglePrivilege(index: number, priv: Privilege) {
     const enrollee = pendingEnrollees[index];
-    const privileges = enrollee.privileges.includes(priv)
-      ? enrollee.privileges.filter(p => p !== priv)
-      : [...enrollee.privileges, priv];
+    const currentPrivs = enrollee.privileges ?? [];
+    const privileges = currentPrivs.includes(priv)
+      ? currentPrivs.filter(p => p !== priv)
+      : [...currentPrivs, priv];
     updatePendingEnrollee(index, { privileges });
   }
 
@@ -321,42 +322,42 @@ export default function QuickStartWizard({
                         <td className="px-3 py-2 text-center">
                           <input 
                             type="checkbox" 
-                            checked={enrollee.privileges.includes('E')} 
+                            checked={(enrollee.privileges ?? []).includes('E')} 
                             onChange={() => togglePrivilege(idx, 'E')}
                           />
                         </td>
                         <td className="px-3 py-2 text-center">
                           <input 
                             type="checkbox" 
-                            checked={enrollee.privileges.includes('QE')} 
+                            checked={(enrollee.privileges ?? []).includes('QE')} 
                             onChange={() => togglePrivilege(idx, 'QE')}
                           />
                         </td>
                         <td className="px-3 py-2 text-center">
                           <input 
                             type="checkbox" 
-                            checked={enrollee.privileges.includes('MS')} 
+                            checked={(enrollee.privileges ?? []).includes('MS')} 
                             onChange={() => togglePrivilege(idx, 'MS')}
                           />
                         </td>
                         <td className="px-3 py-2 text-center">
                           <input 
                             type="checkbox" 
-                            checked={enrollee.privileges.includes('QMS')} 
+                            checked={(enrollee.privileges ?? []).includes('QMS')} 
                             onChange={() => togglePrivilege(idx, 'QMS')}
                           />
                         </td>
                         <td className="px-3 py-2 text-center">
                           <input 
                             type="checkbox" 
-                            checked={enrollee.privileges.includes('RP')} 
+                            checked={(enrollee.privileges ?? []).includes('RP')} 
                             onChange={() => togglePrivilege(idx, 'RP')}
                           />
                         </td>
                         <td className="px-3 py-2 text-center">
                           <input 
                             type="checkbox" 
-                            checked={enrollee.privileges.includes('CBSR')} 
+                            checked={(enrollee.privileges ?? []).includes('CBSR')} 
                             onChange={() => togglePrivilege(idx, 'CBSR')}
                           />
                         </td>

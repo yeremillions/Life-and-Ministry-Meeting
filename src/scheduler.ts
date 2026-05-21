@@ -115,8 +115,8 @@ export function buildTalkSplit(
  * flags are present (rare), the person is counted as MS for sharing.
  */
 function tallyTalk(person: Assignee, split: TalkSplit): void {
-  const isE = person.privileges.includes("E");
-  const isMS = person.privileges.includes("MS");
+  const isE = person.privileges?.includes("E") ?? false;
+  const isMS = person.privileges?.includes("MS") ?? false;
   if (isMS) split.msCount += 1;
   else if (isE) split.elderCount += 1;
 }
@@ -226,13 +226,13 @@ export function scoreCandidate(
         part.partType === "Local Needs" ||
         part.partType === "Governing Body Update"
       ) {
-        if (a.privileges.includes("E")) score += 8;
-        else if (a.privileges.includes("QE")) score += 4;
+        if (a.privileges?.includes("E")) score += 8;
+        else if (a.privileges?.includes("QE")) score += 4;
       }
     } else if (part.segment === "treasures") {
       if (part.partType === "Talk") {
-        const isE = a.privileges.includes("E");
-        const isMS = a.privileges.includes("MS");
+        const isE = a.privileges?.includes("E") ?? false;
+        const isMS = a.privileges?.includes("MS") ?? false;
         const total = talkSplit.elderCount + talkSplit.msCount;
         if (isE || isMS) {
           if (total === 0) {
@@ -246,8 +246,8 @@ export function scoreCandidate(
         }
       }
       if (part.partType === "Spiritual Gems") {
-        const isMS = a.privileges.includes("MS");
-        const isE = a.privileges.includes("E");
+        const isMS = a.privileges?.includes("MS") ?? false;
+        const isE = a.privileges?.includes("E") ?? false;
         if (isMS && !isE) score += 6;
         else if (isMS && isE) score += 3;
         else if (isE) score += 2;

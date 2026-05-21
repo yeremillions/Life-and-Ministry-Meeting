@@ -72,7 +72,7 @@ export default function ReportsPage({
       r.assignee.name,
       r.assignee.gender,
       r.assignee.baptised ? "yes" : "no",
-      r.assignee.privileges.join("|"),
+      (r.assignee.privileges ?? []).join("|"),
       r.assignee.active ? "yes" : "no",
       String(r.stats.totalMain),
       fmtLastAssigned(r.stats),

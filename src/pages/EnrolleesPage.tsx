@@ -85,7 +85,7 @@ export default function EnrolleesPage({
       if (filter === "inactive" && a.active) return false;
       if (filter === "M" && a.gender !== "M") return false;
       if (filter === "F" && a.gender !== "F") return false;
-      if (privFilter !== "all" && !a.privileges.includes(privFilter)) return false;
+      if (privFilter !== "all" && !a.privileges?.includes(privFilter)) return false;
       if (
         search.trim() &&
         !a.name.toLowerCase().includes(search.trim().toLowerCase())
@@ -193,7 +193,7 @@ export default function EnrolleesPage({
         const a = await db.assignees.get(id);
         if (!a) continue;
         if (priv !== "RP" && a.gender !== "M") continue;
-        const updated = normalizePrivileges([...new Set([...a.privileges, priv])]);
+        const updated = normalizePrivileges([...new Set([...(a.privileges ?? []), priv])]);
         await db.assignees.update(id, { privileges: updated });
       }
     });
@@ -206,7 +206,7 @@ export default function EnrolleesPage({
       for (const id of ids) {
         const a = await db.assignees.get(id);
         if (!a) continue;
-        const updated = normalizePrivileges(a.privileges.filter((p) => p !== priv));
+        const updated = normalizePrivileges((a.privileges ?? []).filter((p) => p !== priv));
         await db.assignees.update(id, { privileges: updated });
       }
     });
@@ -220,7 +220,7 @@ export default function EnrolleesPage({
       Gender: a.gender === "M" ? "Brother" : "Sister",
       Age: a.isMinor ? "Minor" : "Adult",
       Baptised: a.baptised ? "Yes" : "No",
-      Privileges: a.privileges.join(", ") || "",
+      Privileges: (a.privileges ?? []).join(", ") || "",
       Status: a.active ? "Active" : "Inactive",
       Notes: a.notes ?? "",
     }));
@@ -418,7 +418,7 @@ export default function EnrolleesPage({
                         await db.assignees.update(id, {
                           gender: "F",
                           privileges: normalizePrivileges(
-                            a.privileges.filter((p) => p === "RP")
+                            (a.privileges ?? []).filter((p) => p === "RP")
                           ),
                         });
                       }
@@ -578,11 +578,11 @@ export default function EnrolleesPage({
                         {a.baptised ? "Yes" : "No"}
                       </td>
                       <td className="py-2 pr-3">
-                        {a.privileges.length === 0 ? (
+                        {(a.privileges ?? []).length === 0 ? (
                           <span className="text-slate-400">—</span>
                         ) : (
                           <div className="flex gap-1 flex-wrap">
-                            {a.privileges.map((p) => (
+                            {(a.privileges ?? []).map((p) => (
                               <span
                                 key={p}
                                 className="pill bg-amber-100 text-amber-800"
@@ -1344,7 +1344,7 @@ function ImportModal({
                     </td>
                     <td className="py-1 px-2">{p.baptised ? "Y" : "N"}</td>
                     <td className="py-1 px-2">
-                      {p.privileges.join(", ") || "—"}
+                      {(p.privileges ?? []).join(", ") || "—"}
                     </td>
                   </tr>
                 ))}
