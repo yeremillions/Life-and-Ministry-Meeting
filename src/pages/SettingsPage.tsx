@@ -422,6 +422,77 @@ export default function SettingsPage({
               </p>
             </div>
 
+            <div className="space-y-4 border-t border-slate-100 pt-4">
+              <h4 className="text-sm font-semibold text-slate-700">Treasures Talk & Spiritual Gems Assignments Balance</h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Control the percentage split of combined 10-min opening Talks and Spiritual Gems parts. The remaining portion is automatically allocated to Elders. Default is 0% for both (100% to Elders).
+              </p>
+
+              <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                {/* MS Slider */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-slate-600">Ministerial Servants (MS) Share</span>
+                    <span className="text-xs font-semibold text-slate-700 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-200 min-w-[3rem] text-center font-mono">
+                      {draft.msTreasuresRatio ?? 0}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    value={draft.msTreasuresRatio ?? 0}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const clampedQms = Math.min(draft.qmsTreasuresRatio ?? 0, 100 - val);
+                      setDraft({
+                        ...draft,
+                        msTreasuresRatio: val,
+                        qmsTreasuresRatio: clampedQms,
+                      });
+                    }}
+                  />
+                </div>
+
+                {/* QMS Slider */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-slate-600">Qualified MS (QMS) Share</span>
+                    <span className="text-xs font-semibold text-slate-700 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-200 min-w-[3rem] text-center font-mono">
+                      {draft.qmsTreasuresRatio ?? 0}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    value={draft.qmsTreasuresRatio ?? 0}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const clampedMs = Math.min(draft.msTreasuresRatio ?? 0, 100 - val);
+                      setDraft({
+                        ...draft,
+                        qmsTreasuresRatio: val,
+                        msTreasuresRatio: clampedMs,
+                      });
+                    }}
+                  />
+                </div>
+
+                {/* Elders Read-only Share */}
+                <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-xs font-medium text-slate-600">
+                  <span>Calculated Elders Share</span>
+                  <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 min-w-[3rem] text-center font-mono">
+                    {Math.max(0, 100 - (draft.msTreasuresRatio ?? 0) - (draft.qmsTreasuresRatio ?? 0))}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div>
               <label className="label">Max assignments per month</label>
               <input

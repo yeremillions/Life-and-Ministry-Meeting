@@ -126,6 +126,43 @@ function tallyTalk(person: Assignee, split: TalkSplit): void {
 }
 
 /**
+ * Aggregate counts used to balance Treasures Talk and Spiritual Gems parts
+ * between MS/QMS and Elders.
+ */
+export interface TreasuresSplit {
+  msCount: number;      // Regular MS (MS but not QMS)
+  qmsCount: number;     // Qualified MS (QMS)
+  elderCount: number;   // Elders (E or QE)
+}
+
+/** Tally past Treasures Talk and Spiritual Gems assignments by group. */
+export function buildTreasuresSplit(
+  assignees: Assignee[],
+  weeks: Week[]
+): TreasuresSplit {
+  const split: TreasuresSplit = { msCount: 0, qmsCount: 0, elderCount: 0 };
+  for (const w of weeks) {
+    if (!w || !Array.isArray(w.assignments)) continue;
+    for (const a of w.assignments) {
+      if (a.partType !== "Talk" && a.partType !== "Spiritual Gems") continue;
+      if (a.assigneeId == null) continue;
+      const person = assignees.find((p) => p.id === a.assigneeId);
+      if (person) tallyTreasures(person, split);
+    }
+  }
+  return split;
+}
+
+export function tallyTreasures(person: Assignee, split: TreasuresSplit): void {
+  const isQMS = person.privileges?.includes("QMS") ?? false;
+  const isMS = !isQMS && (person.privileges?.includes("MS") ?? false);
+  const isE = person.privileges?.includes("E") ?? false;
+  if (isQMS) split.qmsCount += 1;
+  else if (isMS) split.msCount += 1;
+  else if (isE) split.elderCount += 1;
+}
+
+/**
  * Score a candidate for an assignment. Higher = better.
  *
  * Main role scoring uses main-only history (days since last main,
@@ -143,10 +180,12 @@ export function scoreCandidate(
   seed: number,
   privilegedMinistryShare: number,
   talkSplit: TalkSplit,
+  treasuresSplit: TreasuresSplit,
   role: "main" | "assistant",
-  opts: Pick<AutoAssignOptions, "minGapWeeks" | "catchUpIntensity">,
+  opts: Pick<AutoAssignOptions, "minGapWeeks" | "catchUpIntensity" | "msTreasuresRatio" | "qmsTreasuresRatio">,
   isMinorMain?: boolean
 ): number {
+  void talkSplit;
   let score = 0;
 
   // ── Gap-based scoring ────────────────────────────────────────────────
@@ -234,27 +273,54 @@ export function scoreCandidate(
         else if (a.privileges?.includes("QE")) score += 4;
       }
     } else if (part.segment === "treasures") {
-      if (part.partType === "Talk") {
-        const isE = a.privileges?.includes("E") ?? false;
-        const isMS = a.privileges?.includes("MS") ?? false;
-        const total = talkSplit.elderCount + talkSplit.msCount;
-        if (isE || isMS) {
+      if (part.partType === "Talk" || part.partType === "Spiritual Gems") {
+        const candIsQMS = a.privileges?.includes("QMS") ?? false;
+        const candIsMS = !candIsQMS && (a.privileges?.includes("MS") ?? false);
+        const candIsE = a.privileges?.includes("E") ?? false;
+
+        if (candIsQMS || candIsMS || candIsE) {
+          const targetMsShare = (opts.msTreasuresRatio ?? 0) / 100;
+          const targetQmsShare = (opts.qmsTreasuresRatio ?? 0) / 100;
+          const targetElderShare = Math.max(0, 1 - targetMsShare - targetQmsShare);
+
+          const total = treasuresSplit.msCount + treasuresSplit.qmsCount + treasuresSplit.elderCount;
           if (total === 0) {
-            score += 4;
+            // First assignment: use the target share directly to bias
+            if (candIsQMS) {
+              score += (targetQmsShare - 0.33) * 40;
+            } else if (candIsMS) {
+              score += (targetMsShare - 0.33) * 40;
+            } else if (candIsE) {
+              score += (targetElderShare - 0.34) * 40;
+            }
           } else {
-            const elderShare = talkSplit.elderCount / total;
-            const bias = (0.5 - elderShare) * 20;
-            if (isMS && !isE) score -= bias;
-            else if (isE && !isMS) score += bias;
+            const currentMsShare = treasuresSplit.msCount / total;
+            const currentQmsShare = treasuresSplit.qmsCount / total;
+            const currentElderShare = treasuresSplit.elderCount / total;
+
+            if (candIsQMS) {
+              const diff = targetQmsShare - currentQmsShare;
+              score += diff * 50;
+            } else if (candIsMS) {
+              const diff = targetMsShare - currentMsShare;
+              score += diff * 50;
+            } else if (candIsE) {
+              const diff = targetElderShare - currentElderShare;
+              score += diff * 50;
+            }
+          }
+
+          // Hard boundary constraints:
+          if (candIsMS && targetMsShare === 0) {
+            score -= 5000;
+          }
+          if (candIsQMS && targetQmsShare === 0) {
+            score -= 5000;
+          }
+          if (candIsE && targetElderShare === 0) {
+            score -= 5000;
           }
         }
-      }
-      if (part.partType === "Spiritual Gems") {
-        const isMS = a.privileges?.includes("MS") ?? false;
-        const isE = a.privileges?.includes("E") ?? false;
-        if (isMS && !isE) score += 6;
-        else if (isMS && isE) score += 3;
-        else if (isE) score += 2;
       }
       if (part.partType === "Bible Reading") {
         // Prefer non-privileged brothers.
@@ -300,6 +366,10 @@ export interface AutoAssignOptions {
   assignmentRules: Record<string, AssignmentRule>;
   /** If true, minors are not allowed to assist adults in ministry parts. */
   preventMinorAssistantToAdult: boolean;
+  /** Custom balance ratio for Treasures parts between regular MS and Elders. */
+  msTreasuresRatio?: number;
+  /** Custom balance ratio for Treasures parts between QMS and Elders. */
+  qmsTreasuresRatio?: number;
 }
 
 /**
@@ -349,11 +419,9 @@ export function autoAssignWeek(
     if (isPrivileged(person)) ministryPrivileged += 1;
   }
 
-  // Track running 50/50 split for the Treasures opening Talk — seeded
-  // from history only. Pre-existing Talks in the current draft (when
-  // preserveExisting=true) are counted as we encounter them in the
-  // loop below, alongside newly assigned ones.
+  // Track running splits — seeded from history only.
   const talkSplit: TalkSplit = buildTalkSplit(assignees, workingWeeks);
+  const treasuresSplit: TreasuresSplit = buildTreasuresSplit(assignees, workingWeeks);
 
   // Order parts so Treasures is filled before Ministry (which depends on
   // the privileged-share counter) — the array is already in this order.
@@ -389,6 +457,7 @@ export function autoAssignWeek(
         ministryTotal,
         ministryPrivileged,
         talkSplit,
+        treasuresSplit,
         opts,
       });
       if (candidate) {
@@ -401,11 +470,19 @@ export function autoAssignWeek(
         if (assignment.partType === "Talk") {
           tallyTalk(candidate, talkSplit);
         }
+        if (assignment.partType === "Talk" || assignment.partType === "Spiritual Gems") {
+          tallyTreasures(candidate, treasuresSplit);
+        }
       }
-    } else if (assignment.partType === "Talk") {
-      // Preserved manual Talk — count it toward the running 50/50 split.
-      const person = assignees.find((p) => p.id === assignment.assigneeId);
-      if (person) tallyTalk(person, talkSplit);
+    } else {
+      if (assignment.partType === "Talk") {
+        const person = assignees.find((p) => p.id === assignment.assigneeId);
+        if (person) tallyTalk(person, talkSplit);
+      }
+      if (assignment.partType === "Talk" || assignment.partType === "Spiritual Gems") {
+        const person = assignees.find((p) => p.id === assignment.assigneeId);
+        if (person) tallyTreasures(person, treasuresSplit);
+      }
     }
 
     // Secondary participant (householder / reader).
@@ -428,6 +505,7 @@ export function autoAssignWeek(
           ministryTotal,
           ministryPrivileged,
           talkSplit,
+          treasuresSplit,
           opts,
         });
         if (candidate) {
@@ -453,6 +531,7 @@ interface PickArgs {
   ministryTotal: number;
   ministryPrivileged: number;
   talkSplit: TalkSplit;
+  treasuresSplit: TreasuresSplit;
   isMinorMain?: boolean;
   opts: AutoAssignOptions;
 }
@@ -470,6 +549,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
     ministryTotal,
     ministryPrivileged,
     talkSplit,
+    treasuresSplit,
     opts,
   } = args;
 
@@ -560,6 +640,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
     seed,
     privilegedMinistryShare,
     talkSplit,
+    treasuresSplit,
     role,
     opts,
     isMinorMain
@@ -574,8 +655,9 @@ function rankAndPick(
   seed: number,
   privilegedMinistryShare: number,
   talkSplit: TalkSplit,
+  treasuresSplit: TreasuresSplit,
   role: "main" | "assistant",
-  opts: Pick<AutoAssignOptions, "minGapWeeks" | "catchUpIntensity">,
+  opts: Pick<AutoAssignOptions, "minGapWeeks" | "catchUpIntensity" | "msTreasuresRatio" | "qmsTreasuresRatio">,
   isMinorMain?: boolean
 ): Assignee {
   const empty: AssigneeStats = {
@@ -596,6 +678,7 @@ function rankAndPick(
         seed,
         privilegedMinistryShare,
         talkSplit,
+        treasuresSplit,
         role,
         opts,
         isMinorMain
@@ -608,6 +691,7 @@ function rankAndPick(
         seed,
         privilegedMinistryShare,
         talkSplit,
+        treasuresSplit,
         role,
         opts,
         isMinorMain
@@ -683,6 +767,7 @@ export function analyzeWeekOptimization(
   const workingWeeks = historicalWeeks.filter((w) => w.id !== week.id);
   const seed = parseInt(week.weekOf.replace(/-/g, ""), 10) || 1;
   const talkSplit = buildTalkSplit(assignees, workingWeeks);
+  const treasuresSplit = buildTreasuresSplit(assignees, workingWeeks);
   const stats = buildStats(assignees, workingWeeks);
 
   const usedMainsThisWeek = new Set<number>();
@@ -715,12 +800,12 @@ export function analyzeWeekOptimization(
           totalAssistant: 0, recentMainDates: []
         };
         const currentScore = scoreCandidate(
-          currentPerson, a, week.weekOf, s, seed, opts.privilegedMinistryShare, talkSplit, "main", opts
+          currentPerson, a, week.weekOf, s, seed, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "main", opts
         );
 
         const best = pickCandidate({
           part: a, role: "main", assignees, stats, weekOf: week.weekOf, seed, used: usedForPick,
-          privilegedMinistryShare: opts.privilegedMinistryShare, ministryTotal, ministryPrivileged, talkSplit, opts
+          privilegedMinistryShare: opts.privilegedMinistryShare, ministryTotal, ministryPrivileged, talkSplit, treasuresSplit, opts
         });
 
         if (best && best.id !== currentPerson.id) {
@@ -729,7 +814,7 @@ export function analyzeWeekOptimization(
             totalAssistant: 0, recentMainDates: []
           };
           const bestScore = scoreCandidate(
-            best, a, week.weekOf, bestStats, seed, opts.privilegedMinistryShare, talkSplit, "main", opts
+            best, a, week.weekOf, bestStats, seed, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "main", opts
           );
 
           const threshold = opts.optimizationThresholdMain ?? 50;
@@ -758,12 +843,12 @@ export function analyzeWeekOptimization(
         };
 
         const currentScore = scoreCandidate(
-          currentAssistant, a, week.weekOf, s, seed + 1, opts.privilegedMinistryShare, talkSplit, "assistant", opts, isMinorMain
+          currentAssistant, a, week.weekOf, s, seed + 1, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "assistant", opts, isMinorMain
         );
 
         const bestAss = pickCandidate({
           part: a, role: "assistant", assignees, stats, weekOf: week.weekOf, seed: seed + 1, used: usedForAssistant,
-          privilegedMinistryShare: opts.privilegedMinistryShare, ministryTotal, ministryPrivileged, talkSplit, opts, isMinorMain
+          privilegedMinistryShare: opts.privilegedMinistryShare, ministryTotal, ministryPrivileged, talkSplit, treasuresSplit, opts, isMinorMain
         });
 
         if (bestAss && bestAss.id !== currentAssistant.id) {
@@ -772,7 +857,7 @@ export function analyzeWeekOptimization(
             totalAssistant: 0, recentMainDates: []
           };
           const bestScore = scoreCandidate(
-            bestAss, a, week.weekOf, bestAssStats, seed + 1, opts.privilegedMinistryShare, talkSplit, "assistant", opts, isMinorMain
+            bestAss, a, week.weekOf, bestAssStats, seed + 1, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "assistant", opts, isMinorMain
           );
 
           const threshold = opts.optimizationThresholdAssistant ?? 40;

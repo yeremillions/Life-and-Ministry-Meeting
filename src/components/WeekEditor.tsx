@@ -21,10 +21,12 @@ import { weekRangeLabel } from "../utils";
 import {
   buildStats,
   buildTalkSplit,
+  buildTreasuresSplit,
   scoreCandidate,
   analyzeWeekOptimization,
   type AssigneeStats,
   type TalkSplit,
+  type TreasuresSplit,
   type OptimizationSuggestion,
 } from "../scheduler";
 import type { AppSettings } from "../types";
@@ -64,11 +66,12 @@ export default function WeekEditor(props: WeekEditorProps) {
   }, [week.assignments]);
 
   // Compute stats and talkSplit based on weeks BEFORE this one.
-  const { stats, talkSplit } = useMemo(() => {
+  const { stats, talkSplit, treasuresSplit } = useMemo(() => {
     const before = props.allWeeks.filter((w) => w.weekOf < week.weekOf);
     return {
       stats: buildStats(assignees, before),
       talkSplit: buildTalkSplit(assignees, before),
+      treasuresSplit: buildTreasuresSplit(assignees, before),
     };
   }, [props.allWeeks, week.weekOf, assignees]);
 
@@ -272,6 +275,7 @@ export default function WeekEditor(props: WeekEditorProps) {
             }}
             stats={stats}
             talkSplit={talkSplit}
+            treasuresSplit={treasuresSplit}
             settings={props.settings}
             allWeeks={props.allWeeks}
             partNumbers={partNumbers}
@@ -309,6 +313,7 @@ export default function WeekEditor(props: WeekEditorProps) {
               }}
               stats={stats}
               talkSplit={talkSplit}
+              treasuresSplit={treasuresSplit}
               settings={props.settings}
               allWeeks={props.allWeeks}
               partNumbers={partNumbers}
@@ -439,6 +444,7 @@ function SegmentCard({
   onReorder,
   stats,
   talkSplit,
+  treasuresSplit,
   settings,
   allWeeks,
   partNumbers,
@@ -457,6 +463,7 @@ function SegmentCard({
   onReorder: (draggedUid: string, ontoUid?: string) => void;
   stats: Map<number, AssigneeStats>;
   talkSplit: TalkSplit;
+  treasuresSplit: TreasuresSplit;
   settings: AppSettings;
   allWeeks: Week[];
   partNumbers: Map<string, number>;
@@ -543,6 +550,7 @@ function SegmentCard({
               onDropOnto={(dragged) => onReorder(dragged, a.uid)}
               stats={stats}
               talkSplit={talkSplit}
+              treasuresSplit={treasuresSplit}
               settings={settings}
               allWeeks={allWeeks}
               partNumber={partNumbers.get(a.uid)}
@@ -565,6 +573,7 @@ function PartRow({
   onDropOnto,
   stats,
   talkSplit,
+  treasuresSplit,
   settings,
   allWeeks,
   partNumber,
@@ -579,6 +588,7 @@ function PartRow({
   onDropOnto: (draggedUid: string) => void;
   stats: Map<number, AssigneeStats>;
   talkSplit: TalkSplit;
+  treasuresSplit: TreasuresSplit;
   settings: AppSettings;
   allWeeks: Week[];
   partNumber?: number;
@@ -717,6 +727,7 @@ function PartRow({
               onNavigateToProfile={onNavigateToProfile}
               stats={stats}
               talkSplit={talkSplit}
+              treasuresSplit={treasuresSplit}
               settings={settings}
               assignment={assignment}
               role="main"
@@ -765,6 +776,7 @@ function PartRow({
                 onNavigateToProfile={onNavigateToProfile}
                 stats={stats}
                 talkSplit={talkSplit}
+                treasuresSplit={treasuresSplit}
                 settings={settings}
                 assignment={assignment}
                 role="assistant"
@@ -827,6 +839,7 @@ function AssigneePicker({
   onNavigateToProfile,
   stats,
   talkSplit,
+  treasuresSplit,
   settings,
   assignment,
   role,
@@ -844,6 +857,7 @@ function AssigneePicker({
   onNavigateToProfile: (id: number) => void;
   stats: Map<number, AssigneeStats>;
   talkSplit: TalkSplit;
+  treasuresSplit: TreasuresSplit;
   settings: AppSettings;
   assignment: Assignment;
   role: "main" | "assistant";
@@ -893,10 +907,13 @@ function AssigneePicker({
         0, // seed
         settings.privilegedMinistryShare,
         talkSplit,
+        treasuresSplit,
         role,
         {
           minGapWeeks: settings.minGapWeeks ?? 2,
           catchUpIntensity: settings.catchUpIntensity ?? 1,
+          msTreasuresRatio: settings.msTreasuresRatio ?? 0,
+          qmsTreasuresRatio: settings.qmsTreasuresRatio ?? 0,
         }
       );
 
@@ -930,7 +947,7 @@ function AssigneePicker({
       item.a.name.toLowerCase().includes(q) ||
       (privilegeLabel(item.a) ?? "").toLowerCase().includes(q)
     );
-  }, [options, query, stats, talkSplit, settings, assignment, weekOf, role, allWeeks]);
+  }, [options, query, stats, talkSplit, treasuresSplit, settings, assignment, weekOf, role, allWeeks]);
 
   function selectOption(id: number | undefined) {
     onChange(id);
