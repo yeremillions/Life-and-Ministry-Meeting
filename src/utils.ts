@@ -112,3 +112,16 @@ export function detectYear(text: string, filename?: string): number {
   // 3. Fallback
   return new Date().getFullYear();
 }
+
+/**
+ * Calculate the exact meeting date for a given week (Monday-based YYYY-MM-DD string)
+ * and congregation midweek meeting night.
+ */
+export function getMeetingDate(weekOf: string, meetingDay: string): string {
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const offset = days.indexOf(meetingDay);
+  const date = new Date(weekOf + "T00:00:00");
+  date.setDate(date.getDate() + (offset >= 0 ? offset : 3)); // defaults to Thursday (+3)
+  return toIso(date);
+}
+

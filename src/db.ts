@@ -112,6 +112,15 @@ class MeetingDB extends Dexie {
       households: "++id, name, createdAt",
       logs:       "++id, timestamp, category",
     });
+
+    // v6: support for publisher availability ranges and day selections.
+    this.version(6).stores({
+      assignees:  "++id, name, gender, active, createdAt",
+      weeks:      "++id, weekOf, createdAt",
+      settings:   "id",
+      households: "++id, name, createdAt",
+      logs:       "++id, timestamp, category",
+    });
   }
 }
 

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
 import { AppSettings, Assignee, Week, Assignment, PartType } from "../types";
@@ -23,6 +24,35 @@ export default function EnrolleeProfile({
   const settings = useLiveQuery(() => db.settings.get("app"), []) || null;
 
   if (!enrollee || !weeks || !allAssignees || !households) return <div className="p-8 text-center text-slate-500">Loading...</div>;
+
+  const [newStart, setNewStart] = useState("");
+  const [newEnd, setNewEnd] = useState("");
+  const [newReason, setNewReason] = useState("");
+
+  async function handleAddTravel() {
+    if (!enrollee) return;
+    if (!newStart || !newEnd) return;
+    if (newStart > newEnd) {
+      alert("Start date must be before or equal to end date.");
+      return;
+    }
+    const updatedRanges = [
+      ...(enrollee.unavailableRanges ?? []),
+      { start: newStart, end: newEnd, reason: newReason.trim() || undefined }
+    ];
+    await db.assignees.update(id, { unavailableRanges: updatedRanges });
+    setNewStart("");
+    setNewEnd("");
+    setNewReason("");
+  }
+
+  async function handleRemoveTravel(idx: number) {
+    if (!enrollee) return;
+    const updatedRanges = (enrollee.unavailableRanges ?? []).filter((_, i) => i !== idx);
+    await db.assignees.update(id, { 
+      unavailableRanges: updatedRanges.length > 0 ? updatedRanges : undefined 
+    });
+  }
 
   const myHouseholds = households.filter((h) => h.memberIds.includes(enrollee.id!));
   const housemates = Array.from(new Set(myHouseholds.flatMap(h => h.memberIds))).filter(mid => mid !== enrollee.id);
@@ -61,7 +91,7 @@ export default function EnrolleeProfile({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Basic Info */}
         <div className="card space-y-4">
           <h2 className="font-semibold text-slate-900 border-b border-slate-100 pb-2">Information</h2>
@@ -115,6 +145,113 @@ export default function EnrolleeProfile({
               <p className="text-sm text-slate-600 italic leading-relaxed">"{enrollee.notes}"</p>
             </div>
           )}
+        </div>
+
+        {/* Availability & Travel */}
+        <div className="card space-y-4">
+          <h2 className="font-semibold text-slate-900 border-b border-slate-100 pb-2">Availability & Travel</h2>
+          
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Weekly Availability</span>
+            <div className="flex gap-1 flex-wrap pt-1">
+              {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => {
+                const label = day.slice(0, 3);
+                const isAvailable = !enrollee.availableDays || enrollee.availableDays.length === 0 || enrollee.availableDays.includes(day);
+                const isExplicit = enrollee.availableDays?.includes(day);
+                return (
+                  <span
+                    key={day}
+                    className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
+                      isExplicit
+                        ? "bg-indigo-600 border-indigo-700 text-white shadow-sm font-bold"
+                        : isAvailable
+                        ? "bg-slate-50 border-slate-200 text-slate-600"
+                        : "bg-rose-50 border-rose-100 text-rose-500 opacity-60 line-through"
+                    }`}
+                    title={isExplicit ? `Explicitly available on ${day}` : isAvailable ? `Available on ${day} (default)` : `Unavailable on ${day}`}
+                  >
+                    {label}
+                  </span>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
+              {!enrollee.availableDays || enrollee.availableDays.length === 0
+                ? "✓ Available every day of the week by default."
+                : `Restricted to selected meeting days.`}
+            </p>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Out of Town Periods</span>
+            {(!enrollee.unavailableRanges || enrollee.unavailableRanges.length === 0) ? (
+              <p className="text-xs text-slate-500 italic">No travel dates recorded.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar">
+                {enrollee.unavailableRanges.map((range, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-slate-50 px-2 py-1 rounded border border-slate-200/50 text-[11px]">
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-slate-700">✈️ {range.start} to {range.end}</span>
+                      {range.reason && <span className="text-[9px] text-slate-500 font-medium">{range.reason}</span>}
+                    </div>
+                    <button
+                      onClick={() => handleRemoveTravel(idx)}
+                      className="text-rose-500 hover:text-rose-700 font-bold hover:bg-rose-50 px-1 py-0.5 rounded transition-colors text-[10px]"
+                      title="Delete travel period"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Inline Quick Add form */}
+            <div className="pt-2 border-t border-slate-100 space-y-1.5 bg-slate-50/20 p-2 rounded-lg border border-slate-200/40">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide block">Quick Add Travel</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                <div>
+                  <label className="text-[8px] uppercase font-bold text-slate-400">Start</label>
+                  <input
+                    type="date"
+                    className="input text-[10px] py-0.5 px-1.5 h-6"
+                    value={newStart}
+                    onChange={(e) => setNewStart(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] uppercase font-bold text-slate-400">End</label>
+                  <input
+                    type="date"
+                    className="input text-[10px] py-0.5 px-1.5 h-6"
+                    value={newEnd}
+                    onChange={(e) => setNewEnd(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[8px] uppercase font-bold text-slate-400 block">Reason (optional)</label>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="Vacation, etc."
+                    className="input text-[10px] py-0.5 px-1.5 h-6"
+                    value={newReason}
+                    onChange={(e) => setNewReason(e.target.value)}
+                  />
+                  <button
+                    disabled={!newStart || !newEnd}
+                    onClick={handleAddTravel}
+                    className={`btn text-[10px] px-2 py-0.5 shrink-0 h-6 flex items-center justify-center ${
+                      (!newStart || !newEnd) ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Statistics */}
@@ -225,6 +362,25 @@ export default function EnrolleeProfile({
 function calculateInsights(enrollee: Assignee, history: any[], stats: AssigneeStats, settings: AppSettings | null): string[] {
     const insights: string[] = [];
     const today = todayIso();
+
+    // 0. Availability & Travel Alerts
+    const ranges = enrollee.unavailableRanges ?? [];
+    const activeRanges = ranges.filter((r) => today <= r.end);
+    const currentRange = ranges.find((r) => today >= r.start && today <= r.end);
+    if (currentRange) {
+        insights.push(`⚠️ Currently away on travel (${currentRange.start} to ${currentRange.end}${currentRange.reason ? `: ${currentRange.reason}` : ""}).`);
+    } else if (activeRanges.length > 0) {
+        const sortedUpcoming = [...activeRanges].sort((a, b) => a.start.localeCompare(b.start));
+        const nextRange = sortedUpcoming[0];
+        insights.push(`✈️ Scheduled to be out of town from ${nextRange.start} to ${nextRange.end}${nextRange.reason ? ` (${nextRange.reason})` : ""}.`);
+    }
+    
+    if (enrollee.availableDays && enrollee.availableDays.length > 0) {
+        const DAY_LABELS: Record<string, string> = {
+          Monday: "Mon", Tuesday: "Tue", Wednesday: "Wed", Thursday: "Thu", Friday: "Fri", Saturday: "Sat", Sunday: "Sun"
+        };
+        insights.push(`💼 Only available on specific days: ${enrollee.availableDays.map(d => DAY_LABELS[d] || d).join(", ")}.`);
+    }
 
     // 1. Last assigned
     if (!stats.lastWeekMain) {

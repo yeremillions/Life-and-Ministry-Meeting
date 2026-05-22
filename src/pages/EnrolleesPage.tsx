@@ -8,6 +8,7 @@ import type {
   Household,
   PartType,
   Privilege,
+  UnavailableRange,
 } from "../types";
 import { parseAssigneeFile, parsedToAssignee, parseTextList } from "../importers";
 import { isEligible, normalizePrivileges } from "../meeting";
@@ -971,6 +972,52 @@ function EnrolleeModal({
   const [excludeFromPrayers, setExcludeFromPrayers] = useState(initial?.excludeFromPrayers ?? false);
   const [includeInPrayers, setIncludeInPrayers] = useState(initial?.includeInPrayers ?? false);
 
+  const [availableDays, setAvailableDays] = useState<string[]>(initial?.availableDays ?? []);
+  const [unavailableRanges, setUnavailableRanges] = useState<UnavailableRange[]>(initial?.unavailableRanges ?? []);
+  const [newStart, setNewStart] = useState("");
+  const [newEnd, setNewEnd] = useState("");
+  const [newReason, setNewReason] = useState("");
+
+  const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const DAY_LABELS: Record<string, string> = {
+    Monday: "Mon",
+    Tuesday: "Tue",
+    Wednesday: "Wed",
+    Thursday: "Thu",
+    Friday: "Fri",
+    Saturday: "Sat",
+    Sunday: "Sun"
+  };
+
+  function toggleAvailableDay(day: string) {
+    setAvailableDays((prev) => {
+      if (prev.includes(day)) {
+        return prev.filter((d) => d !== day);
+      } else {
+        return [...prev, day];
+      }
+    });
+  }
+
+  function addRange() {
+    if (!newStart || !newEnd) return;
+    if (newStart > newEnd) {
+      alert("Start date must be before or equal to end date.");
+      return;
+    }
+    setUnavailableRanges((prev) => [
+      ...prev,
+      { start: newStart, end: newEnd, reason: newReason.trim() || undefined }
+    ]);
+    setNewStart("");
+    setNewEnd("");
+    setNewReason("");
+  }
+
+  function removeRange(index: number) {
+    setUnavailableRanges((prev) => prev.filter((_, i) => i !== index));
+  }
+
   const canSubmit = name.trim().length > 0;
 
   function togglePriv(p: Privilege) {
@@ -1204,6 +1251,112 @@ function EnrolleeModal({
           </p>
         </div>
 
+        {/* Recurring Day Availability & Travel Ranges */}
+        <div className="pt-3 border-t border-slate-100 space-y-3">
+          <div>
+            <label className="label">Recurring Weekly Availability</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {DAYS_OF_WEEK.map((day) => {
+                const isSelected = availableDays.includes(day);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleAvailableDay(day)}
+                    className={
+                      "px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer " +
+                      (isSelected
+                        ? "bg-indigo-600 border-indigo-700 text-white shadow-sm"
+                        : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700")
+                    }
+                  >
+                    {DAY_LABELS[day]}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">
+              {availableDays.length === 0
+                ? "✓ Available every day by default. Click days to select only specific days when they are available."
+                : `Available only on: ${availableDays.map(d => DAY_LABELS[d]).join(", ")}.`}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="label mb-1">Travel & Vacation Ranges</label>
+            
+            {unavailableRanges.length > 0 && (
+              <div className="space-y-1.5 max-h-36 overflow-y-auto border border-slate-100 rounded-lg p-2 bg-slate-50/50 custom-scrollbar">
+                {unavailableRanges.map((range, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded border border-slate-200/60 shadow-sm text-xs">
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-slate-700">
+                        ✈️ {range.start} to {range.end}
+                      </span>
+                      {range.reason && (
+                        <span className="text-[10px] text-slate-500 font-medium">{range.reason}</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeRange(idx)}
+                      className="text-rose-500 hover:text-rose-700 font-bold hover:bg-rose-50 px-2 py-0.5 rounded transition-colors text-[11px]"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="p-3 border border-slate-200/80 rounded-xl bg-slate-50/30 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[9px] uppercase font-bold text-slate-400">Start Date</label>
+                  <input
+                    type="date"
+                    className="input text-xs py-1"
+                    value={newStart}
+                    onChange={(e) => setNewStart(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] uppercase font-bold text-slate-400">End Date</label>
+                  <input
+                    type="date"
+                    className="input text-xs py-1"
+                    value={newEnd}
+                    onChange={(e) => setNewEnd(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[9px] uppercase font-bold text-slate-400">Reason (optional)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. Vacation, Work trip"
+                    className="input text-xs py-1"
+                    value={newReason}
+                    onChange={(e) => setNewReason(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    disabled={!newStart || !newEnd}
+                    onClick={addRange}
+                    className={
+                      "btn px-3 py-1 text-xs shrink-0 " +
+                      ((!newStart || !newEnd) ? "opacity-50 cursor-not-allowed" : "")
+                    }
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div>
           <label className="label">Notes (optional)</label>
           <textarea
@@ -1243,6 +1396,8 @@ function EnrolleeModal({
                 restrictionType,
                 excludeFromPrayers: gender === "M" ? excludeFromPrayers : false,
                 includeInPrayers: gender === "M" ? includeInPrayers : false,
+                availableDays: availableDays.length > 0 ? availableDays : undefined,
+                unavailableRanges: unavailableRanges.length > 0 ? unavailableRanges : undefined,
               })
             }
           >

@@ -9,6 +9,7 @@ import {
   Week,
   AssignmentRule,
 } from "./types";
+import { getMeetingDate } from "./utils";
 
 export interface AssigneeStats {
   /** Main (direct) assignment history. */
@@ -370,6 +371,8 @@ export interface AutoAssignOptions {
   msTreasuresRatio?: number;
   /** Custom balance ratio for Treasures parts between QMS and Elders. */
   qmsTreasuresRatio?: number;
+  /** The weekday that the midweek meeting is held. */
+  midweekMeetingDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 }
 
 /**
@@ -574,9 +577,27 @@ function pickCandidate(args: PickArgs): Assignee | null {
   }
 
 
+  // --- Check publisher availability for the midweek meeting ---
+  const meetingDay = opts.midweekMeetingDay || "Thursday";
+  const meetingDateStr = getMeetingDate(weekOf, meetingDay);
+
   let eligiblePool = assignees.filter((a) => {
     if (used.has(a.id ?? -1)) return false;
     if (genderFilter && a.gender !== genderFilter) return false;
+
+    // 1. Calendar out-of-town ranges check
+    if (a.unavailableRanges && a.unavailableRanges.length > 0) {
+      const isAway = a.unavailableRanges.some((range) => {
+        return meetingDateStr >= range.start && meetingDateStr <= range.end;
+      });
+      if (isAway) return false;
+    }
+
+    // 2. Day-of-week availability check
+    if (a.availableDays && a.availableDays.length > 0) {
+      if (!a.availableDays.includes(meetingDay)) return false;
+    }
+
     // Hard eligibility check
     if (!isEligible(a, part.partType, role, "auto", opts.assignmentRules, isMinorMain, opts.preventMinorAssistantToAdult)) {
       return false;

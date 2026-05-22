@@ -17,7 +17,7 @@ import {
   segmentOf,
   byOrder,
 } from "../meeting";
-import { weekRangeLabel } from "../utils";
+import { weekRangeLabel, getMeetingDate } from "../utils";
 import {
   buildStats,
   buildTalkSplit,
@@ -891,7 +891,10 @@ function AssigneePicker({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    // Pre-calculate scores for all options
+    const meetingDay = settings.midweekMeetingDay || "Thursday";
+    const meetingDateStr = getMeetingDate(weekOf, meetingDay);
+
+    // Pre-calculate scores and availability for all options
     const scored = options.map((a) => {
       const s = stats.get(a.id!) || {
         totalMain: 0,
@@ -936,11 +939,31 @@ function AssigneePicker({
         return w.assignments.some((ass: Assignment) => ass.assigneeId === a.id || ass.assistantId === a.id);
       });
 
-      return { a, score, weeksAgo, hasNearby };
+      // --- Check out-of-town ranges ---
+      let awayReason: string | undefined = undefined;
+      if (a.unavailableRanges && a.unavailableRanges.length > 0) {
+        const matchingRange = a.unavailableRanges.find((range) => {
+          return meetingDateStr >= range.start && meetingDateStr <= range.end;
+        });
+        if (matchingRange) {
+          awayReason = matchingRange.reason || "Out of town";
+        }
+      }
+
+      // --- Check recurring day availability ---
+      const isWorkConflict = !!(a.availableDays && a.availableDays.length > 0 && !a.availableDays.includes(meetingDay));
+
+      return { a, score, weeksAgo, hasNearby, awayReason, isWorkConflict };
     });
 
-    // Sort by score descending (highest score = most due)
-    scored.sort((a, b) => b.score - a.score);
+    // Sort: available enrollees first, then by score descending (highest score = most due)
+    scored.sort((x, y) => {
+      const xUnavailable = !!(x.awayReason || x.isWorkConflict);
+      const yUnavailable = !!(y.awayReason || y.isWorkConflict);
+      if (xUnavailable && !yUnavailable) return 1;
+      if (!xUnavailable && yUnavailable) return -1;
+      return y.score - x.score;
+    });
 
     if (!q) return scored;
     return scored.filter((item) =>
@@ -1059,7 +1082,7 @@ function AssigneePicker({
               No matches
             </div>
           ) : (
-            filtered.map(({ a, weeksAgo, hasNearby }) => {
+            filtered.map(({ a, weeksAgo, hasNearby, awayReason, isWorkConflict }) => {
               const optLabel = [
                 a.name,
                 privilegeLabel(a) ? `(${privilegeLabel(a)})` : null,
@@ -1069,6 +1092,7 @@ function AssigneePicker({
               const alreadyUsed = a.id != null && usedIds.has(a.id);
               const isSelected = a.id === value;
               const isHousehold = a.id != null && householdIds?.includes(a.id);
+              const meetingDay = settings.midweekMeetingDay || "Thursday";
               
               return (
                 <div
@@ -1082,6 +1106,7 @@ function AssigneePicker({
                     display: "flex",
                     alignItems: "center",
                     gap: "0.4rem",
+                    opacity: awayReason || isWorkConflict ? 0.75 : 1,
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = isSelected ? "#eef2ff" : "")}
@@ -1112,6 +1137,22 @@ function AssigneePicker({
                     {hasNearby && (
                       <span className="text-[8px] font-bold text-amber-600 bg-amber-50 px-1 rounded leading-tight border border-amber-100">
                         NEARBY
+                      </span>
+                    )}
+                    {awayReason && (
+                      <span 
+                        className="text-[8px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded leading-tight border border-rose-100" 
+                        title={`Away: ${awayReason}`}
+                      >
+                        ✈️ AWAY
+                      </span>
+                    )}
+                    {isWorkConflict && (
+                      <span 
+                        className="text-[8px] font-bold text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded leading-tight border border-sky-100" 
+                        title={`Unavailable on ${meetingDay}`}
+                      >
+                        💼 WORK
                       </span>
                     )}
                   </div>

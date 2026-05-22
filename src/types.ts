@@ -16,6 +16,12 @@ export type Gender = "M" | "F";
  */
 export type Privilege = "E" | "QE" | "MS" | "QMS" | "RP" | "CBSR";
 
+export interface UnavailableRange {
+  start: string; // YYYY-MM-DD
+  end: string;   // YYYY-MM-DD
+  reason?: string;
+}
+
 export interface Assignee {
   id?: number;
   name: string;
@@ -38,6 +44,10 @@ export interface Assignee {
   /** Manually include for prayer assignments regardless of privileges. */
   includeInPrayers?: boolean;
   createdAt: number;
+  /** Date ranges when this publisher is out of town or unavailable. */
+  unavailableRanges?: UnavailableRange[];
+  /** Weekdays when this publisher is available (e.g. ["Monday", "Thursday"]). Empty means all days. */
+  availableDays?: string[];
 }
 
 /** Which segment an assignment belongs to. */
@@ -189,6 +199,8 @@ export interface AppSettings {
    * The default is 0% (always assign to Elders).
    */
   qmsTreasuresRatio: number;
+  /** The weekday that the midweek meeting is held. Defaults to "Thursday". */
+  midweekMeetingDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 }
 
 export interface AssignmentRule {
@@ -331,4 +343,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   preventMinorAssistantToAdult: true,
   msTreasuresRatio: 0,
   qmsTreasuresRatio: 0,
+  midweekMeetingDay: "Thursday",
 };

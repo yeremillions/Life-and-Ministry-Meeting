@@ -318,6 +318,27 @@ export default function SettingsPage({
             />
           </div>
           <div>
+            <label className="label">Midweek Meeting Night</label>
+            <select
+              className="input max-w-md"
+              value={draft.midweekMeetingDay ?? "Thursday"}
+              onChange={(e) =>
+                setDraft({ ...draft, midweekMeetingDay: e.target.value as any })
+              }
+            >
+              <option value="Monday">Monday</option>
+              <option value="Tuesday">Tuesday</option>
+              <option value="Wednesday">Wednesday</option>
+              <option value="Thursday">Thursday</option>
+              <option value="Friday">Friday</option>
+              <option value="Saturday">Saturday</option>
+              <option value="Sunday">Sunday</option>
+            </select>
+            <p className="text-xs text-slate-500 mt-1">
+              Select the weekday your midweek meeting is held. The system uses this to verify publisher availability for meeting dates.
+            </p>
+          </div>
+          <div>
             <label className="label">
               Share of Field Ministry parts that may go to E / QE / MS / QMS (%)
             </label>

@@ -132,6 +132,7 @@ export default function SchedulePage({
       maxAssignmentsPerMonth: settings.maxAssignmentsPerMonth ?? 2,
       assignmentRules: settings.assignmentRules,
       preventMinorAssistantToAdult: settings.preventMinorAssistantToAdult,
+      midweekMeetingDay: settings.midweekMeetingDay ?? "Thursday",
     });
     await saveWeek(updated);
     await addLog(
