@@ -54,7 +54,7 @@ export default function EnrolleeProfile({
     onConfirm: () => {},
   });
 
-  if (!enrollee || !weeks || !allAssignees || !households) return <div className="p-8 text-center text-slate-500">Loading...</div>;
+  if (!enrollee || enrollee.id !== id || !weeks || !allAssignees || !households) return <div className="p-8 text-center text-slate-500">Loading...</div>;
 
   async function handleAddTravel() {
     if (!enrollee) return;
