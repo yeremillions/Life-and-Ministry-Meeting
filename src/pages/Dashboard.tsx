@@ -7,6 +7,7 @@ import { todayIso, weekRangeLabel, toIso, mondayOf, getMeetingDate } from "../ut
 import type { Week, Assignee, AppSettings, Household } from "../types";
 import { DEFAULT_ASSIGNMENT_RULES } from "../types";
 import QuickStartWizard from "../components/QuickStartWizard";
+import ConfirmationModal from "../components/ConfirmationModal";
 
 export interface Conflict {
   id: string;
@@ -507,16 +508,39 @@ export default function Dashboard({
 
   const [showWizard, setShowWizard] = useState(false);
 
-  const handleIgnoreConflict = async (conflictId: string) => {
-    if (!window.confirm("Are you sure you want to ignore this scheduling conflict? It will be hidden from the dashboard.")) {
-      return;
-    }
-    const currentIgnored = settings?.ignoredConflicts ?? [];
-    if (!currentIgnored.includes(conflictId)) {
-      await db.settings.update("app", {
-        ignoredConflicts: [...currentIgnored, conflictId],
-      });
-    }
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: React.ReactNode;
+    confirmText?: string;
+    cancelText?: string;
+    type?: "danger" | "warning" | "info";
+    onConfirm: () => void | Promise<void>;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
+  const handleIgnoreConflict = (conflictId: string) => {
+    setConfirmState({
+      isOpen: true,
+      title: "Ignore Conflict",
+      message: "Are you sure you want to ignore this scheduling conflict? It will be hidden from the dashboard.",
+      confirmText: "Ignore",
+      cancelText: "Cancel",
+      type: "warning",
+      onConfirm: async () => {
+        const currentIgnored = settings?.ignoredConflicts ?? [];
+        if (!currentIgnored.includes(conflictId)) {
+          await db.settings.update("app", {
+            ignoredConflicts: [...currentIgnored, conflictId],
+          });
+        }
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
   };
 
   const handleResetIgnored = async () => {
@@ -1156,6 +1180,17 @@ export default function Dashboard({
             </div>
           </section>
         )}
+
+        <ConfirmationModal
+          isOpen={confirmState.isOpen}
+          title={confirmState.title}
+          message={confirmState.message}
+          confirmText={confirmState.confirmText}
+          cancelText={confirmState.cancelText}
+          type={confirmState.type}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
+        />
       </div>
     );
   } catch (renderError: any) {

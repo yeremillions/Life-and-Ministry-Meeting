@@ -11,6 +11,7 @@ import {
 } from "../types";
 import { addLog } from "../db";
 import { isPrivileged } from "../meeting";
+import ConfirmationModal from "../components/ConfirmationModal";
 
 function sanitizeSettings(raw: any): AppSettings {
   const base = { ...DEFAULT_SETTINGS, ...raw };
@@ -129,6 +130,22 @@ export default function SettingsPage({
   const [draft, setDraft] = useState<AppSettings | null>(null);
   const [saved, setSaved] = useState(false);
 
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: React.ReactNode;
+    confirmText?: string;
+    cancelText?: string;
+    type?: "danger" | "warning" | "info";
+    showCancel?: boolean;
+    onConfirm: () => void | Promise<void>;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 25;
@@ -218,28 +235,42 @@ export default function SettingsPage({
   }
 
   async function wipeAll() {
-    if (
-      !confirm(
-        "Erase ALL enrollees, weeks, and settings? This cannot be undone."
-      )
-    )
-      return;
-    await db.transaction("rw", db.assignees, db.weeks, db.settings, async () => {
-      await db.assignees.clear();
-      await db.weeks.clear();
-      await db.settings.clear();
+    setConfirmState({
+      isOpen: true,
+      title: "Wipe Database",
+      message: "CRITICAL WARNING: This will permanently erase ALL enrollees, meeting schedules, and custom settings. This action cannot be undone. Are you absolutely sure?",
+      confirmText: "Wipe Database",
+      cancelText: "Cancel",
+      type: "danger",
+      onConfirm: async () => {
+        await db.transaction("rw", db.assignees, db.weeks, db.settings, async () => {
+          await db.assignees.clear();
+          await db.weeks.clear();
+          await db.settings.clear();
+        });
+        await ensureSettings();
+        window.location.reload();
+      },
     });
-    await ensureSettings();
-    window.location.reload();
   }
 
   async function restoreDefaults() {
-    if (!confirm("Reset all settings to defaults? Rules will be restored.")) return;
-    setDraft(DEFAULT_SETTINGS);
-    await db.settings.put(DEFAULT_SETTINGS);
-    await addLog("settings", "Restored default settings");
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setConfirmState({
+      isOpen: true,
+      title: "Reset Settings",
+      message: "Are you sure you want to reset all settings to defaults? Your custom rules will be restored to original platform values, but your enrollees and weekly schedules will not be touched.",
+      confirmText: "Reset Defaults",
+      cancelText: "Cancel",
+      type: "warning",
+      onConfirm: async () => {
+        setDraft(DEFAULT_SETTINGS);
+        await db.settings.put(DEFAULT_SETTINGS);
+        await addLog("settings", "Restored default settings");
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
   }
 
   async function exportBackup() {
@@ -270,26 +301,41 @@ export default function SettingsPage({
     try {
       parsed = JSON.parse(text);
     } catch {
-      alert("Invalid backup file.");
+      setConfirmState({
+        isOpen: true,
+        title: "Invalid Backup File",
+        message: "The selected backup file appears to be corrupted or invalid.",
+        confirmText: "OK",
+        showCancel: false,
+        type: "danger",
+        onConfirm: () => setConfirmState((prev) => ({ ...prev, isOpen: false }))
+      });
       return;
     }
-    if (!confirm("Replace all current data with contents of this backup?")) return;
-    await db.transaction("rw", db.assignees, db.weeks, db.settings, async () => {
-      await db.assignees.clear();
-      await db.weeks.clear();
-      await db.settings.clear();
-      if (Array.isArray(parsed.assignees))
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await db.assignees.bulkAdd(parsed.assignees as any[]);
-      if (Array.isArray(parsed.weeks))
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await db.weeks.bulkAdd(parsed.weeks as any[]);
-      if (Array.isArray(parsed.settings))
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await db.settings.bulkAdd(parsed.settings as any[]);
+
+    setConfirmState({
+      isOpen: true,
+      title: "Restore Backup",
+      message: "Are you sure you want to replace all current data with the contents of this backup? This will overwrite all enrollees, weeks, and custom settings.",
+      confirmText: "Restore Backup",
+      cancelText: "Cancel",
+      type: "danger",
+      onConfirm: async () => {
+        await db.transaction("rw", db.assignees, db.weeks, db.settings, async () => {
+          await db.assignees.clear();
+          await db.weeks.clear();
+          await db.settings.clear();
+          if (Array.isArray(parsed.assignees))
+            await db.assignees.bulkAdd(parsed.assignees as any[]);
+          if (Array.isArray(parsed.weeks))
+            await db.weeks.bulkAdd(parsed.weeks as any[]);
+          if (Array.isArray(parsed.settings))
+            await db.settings.bulkAdd(parsed.settings as any[]);
+        });
+        await ensureSettings();
+        window.location.reload();
+      }
     });
-    await ensureSettings();
-    window.location.reload();
   }
 
   // Filter out and sanitize any potential null/undefined records
@@ -1136,6 +1182,18 @@ export default function SettingsPage({
             </button>
           </div>
         )}
+
+        <ConfirmationModal
+          isOpen={confirmState.isOpen}
+          title={confirmState.title}
+          message={confirmState.message}
+          confirmText={confirmState.confirmText}
+          cancelText={confirmState.cancelText}
+          type={confirmState.type}
+          showCancel={confirmState.showCancel}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
+        />
       </div>
     );
   } catch (renderError: any) {

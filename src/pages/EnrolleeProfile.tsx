@@ -36,6 +36,7 @@ export default function EnrolleeProfile({
     confirmText?: string;
     cancelText?: string;
     type?: "danger" | "warning" | "info";
+    showCancel?: boolean;
     onConfirm: () => void | Promise<void>;
   }>({
     isOpen: false,
@@ -50,7 +51,15 @@ export default function EnrolleeProfile({
     if (!enrollee) return;
     if (!newStart || !newEnd) return;
     if (newStart > newEnd) {
-      alert("Start date must be before or equal to end date.");
+      setConfirmState({
+        isOpen: true,
+        title: "Invalid Dates",
+        message: "Start date must be before or equal to end date.",
+        confirmText: "OK",
+        showCancel: false,
+        type: "warning",
+        onConfirm: () => setConfirmState((prev) => ({ ...prev, isOpen: false })),
+      });
       return;
     }
     const updatedRanges = [
@@ -434,6 +443,7 @@ export default function EnrolleeProfile({
         confirmText={confirmState.confirmText}
         cancelText={confirmState.cancelText}
         type={confirmState.type}
+        showCancel={confirmState.showCancel}
         onConfirm={async () => {
           await confirmState.onConfirm();
         }}

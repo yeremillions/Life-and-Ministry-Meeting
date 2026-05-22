@@ -1168,10 +1168,24 @@ function EnrolleeModal({
   const [newEnd, setNewEnd] = useState("");
   const [newReason, setNewReason] = useState("");
 
+  const [modalAlert, setModalAlert] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+  });
+
   function addRange() {
     if (!newStart || !newEnd) return;
     if (newStart > newEnd) {
-      alert("Start date must be before or equal to end date.");
+      setModalAlert({
+        isOpen: true,
+        title: "Invalid Dates",
+        message: "Start date must be before or equal to end date.",
+      });
       return;
     }
     setUnavailableRanges((prev) => [
@@ -1554,6 +1568,15 @@ function EnrolleeModal({
           </button>
         </div>
       </div>
+      <ConfirmationModal
+        isOpen={modalAlert.isOpen}
+        title={modalAlert.title}
+        message={modalAlert.message}
+        confirmText="OK"
+        showCancel={false}
+        type="warning"
+        onConfirm={() => setModalAlert((prev) => ({ ...prev, isOpen: false }))}
+      />
     </Modal>
   );
 }

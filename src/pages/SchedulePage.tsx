@@ -18,7 +18,7 @@ import WorkbookImportModal from "../components/WorkbookImportModal";
 import S140ImportModal from "../components/S140ImportModal";
 import ExportPdfModal from "../components/ExportPdfModal";
 import CompletionModal from "../components/CompletionModal";
-import { ensureSettings as getSettings } from "../db";
+import ConfirmationModal from "../components/ConfirmationModal";
 
 function buildEmptyWeek(weekOf: string): Week {
   const now = Date.now();
@@ -65,9 +65,26 @@ export default function SchedulePage({
   const [lastImportCount, setLastImportCount] = useState<number | null>(null);
   const [congregationName, setCongregationName] = useState("");
 
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: React.ReactNode;
+    confirmText?: string;
+    cancelText?: string;
+    type?: "danger" | "warning" | "info";
+    showCancel?: boolean;
+    onConfirm: () => void | Promise<void>;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
+
   // Load congregation name once (needed for PDF header).
   useEffect(() => {
-    getSettings().then((s) => setCongregationName(s.congregationName ?? ""));
+    ensureSettings().then((s) => setCongregationName(s.congregationName ?? ""));
   }, []);
 
   useEffect(() => {
@@ -115,9 +132,19 @@ export default function SchedulePage({
   }
 
   async function deleteWeek(id: number) {
-    if (!confirm("Delete this week's schedule?")) return;
-    await db.weeks.delete(id);
-    if (selectedId === id) setSelectedId(null);
+    setConfirmState({
+      isOpen: true,
+      title: "Delete Week's Schedule",
+      message: "Are you sure you want to delete this week's schedule? This action cannot be undone.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      type: "danger",
+      onConfirm: async () => {
+        await db.weeks.delete(id);
+        if (selectedId === id) setSelectedId(null);
+        setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+      },
+    });
   }
 
   async function autoFill(week: Week, preserveExisting: boolean) {
@@ -330,6 +357,17 @@ export default function SchedulePage({
           onClose={() => setExportingPdf(false)}
         />
       )}
+      <ConfirmationModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+        type={confirmState.type}
+        showCancel={confirmState.showCancel}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState((prev: any) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }
@@ -396,6 +434,23 @@ function WeekListGrouped({
   const [notifiedPeriods, setNotifiedPeriods] = useState<Set<string>>(new Set());
   const todayIso = new Date().toISOString().slice(0, 10);
   const todayKey = workbookPeriod(todayIso).key;
+
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: React.ReactNode;
+    confirmText?: string;
+    cancelText?: string;
+    type?: "danger" | "warning" | "info";
+    showCancel?: boolean;
+    onConfirm: () => void | Promise<void>;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
 
   // ── Year selector ────────────────────────────────────────────────────
   const availableYears = useMemo(() => {
@@ -548,39 +603,86 @@ function WeekListGrouped({
 
   async function moveGroupToYear(group: { key: string; label: string; weeks: Week[] }) {
     const currentYear = group.key.slice(0, 4);
-    const targetYear = window.prompt(
-      `Move "${group.label}" to a different year?\n\n` +
-      `Currently assigned to: ${currentYear}\n` +
-      `This will update all weeks in this period to the year you enter below.`,
-      currentYear
-    );
 
-    if (!targetYear || targetYear === currentYear) return;
-    const yearNum = parseInt(targetYear, 10);
-    if (isNaN(yearNum) || yearNum < 2000 || yearNum > 2100) {
-      alert("Please enter a valid 4-digit year.");
-      return;
-    }
+    const showMoveModal = (initialVal: string) => {
+      setConfirmState({
+        isOpen: true,
+        title: "Change Schedule Year",
+        message: (
+          <div className="space-y-4">
+            <p className="text-slate-600 text-sm">
+              Move <strong>"{group.label}"</strong> to a different year?
+              This will shift all <strong>{group.weeks.length} weeks</strong> in this period to the year you enter below.
+            </p>
+            <div className="flex flex-col items-center">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Target Year</label>
+              <input
+                type="text"
+                id="move-year-input"
+                className="input text-center max-w-[120px] font-bold text-lg h-10 border-2 focus:border-indigo-500 rounded-xl"
+                defaultValue={initialVal}
+                maxLength={4}
+              />
+            </div>
+          </div>
+        ),
+        confirmText: "Move Weeks",
+        cancelText: "Cancel",
+        type: "warning",
+        onConfirm: async () => {
+          const targetYearVal = (document.getElementById("move-year-input") as HTMLInputElement)?.value || initialVal;
+          const targetYear = targetYearVal.trim();
+          if (!targetYear || targetYear === currentYear) {
+            setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+            return;
+          }
+          const yearNum = parseInt(targetYear, 10);
+          if (isNaN(yearNum) || yearNum < 2000 || yearNum > 2100) {
+            setConfirmState({
+              isOpen: true,
+              title: "Invalid Year",
+              message: "Please enter a valid 4-digit year between 2000 and 2100.",
+              confirmText: "OK",
+              showCancel: false,
+              type: "warning",
+              onConfirm: () => showMoveModal(targetYear),
+            });
+            return;
+          }
 
-    if (!window.confirm(`Are you sure you want to move these ${group.weeks.length} weeks to ${targetYear}?`)) {
-      return;
-    }
+          setConfirmState({
+            isOpen: true,
+            title: "Confirm Year Shift",
+            message: `Are you sure you want to move these ${group.weeks.length} weeks to ${targetYear}?`,
+            confirmText: "Yes, Move",
+            cancelText: "Cancel",
+            type: "danger",
+            onConfirm: async () => {
+              try {
+                for (const w of group.weeks) {
+                  const newWeekOf = targetYear + w.weekOf.slice(4);
+                  await db.weeks.update(w.id!, { weekOf: newWeekOf });
+                }
+                window.location.reload();
+              } catch (err) {
+                console.error(err);
+                setConfirmState({
+                  isOpen: true,
+                  title: "Shift Failed",
+                  message: "Failed to move weeks. See console for details.",
+                  confirmText: "OK",
+                  showCancel: false,
+                  type: "danger",
+                  onConfirm: () => setConfirmState((prev: any) => ({ ...prev, isOpen: false })),
+                });
+              }
+            }
+          });
+        }
+      });
+    };
 
-    try {
-      for (const w of group.weeks) {
-        // Construct new date string by replacing the year part
-        const newWeekOf = targetYear + w.weekOf.slice(4);
-        // Note: we don't strictly re-snap to Monday here because we assume
-        // the relative month/day structure of the workbook is what matters,
-        // and replacing the year is the most direct "fix" for a wrong-year import.
-        await db.weeks.update(w.id!, { weekOf: newWeekOf });
-      }
-      // Refreshing the page is the simplest way to reload the complex grouped state
-      window.location.reload();
-    } catch (err) {
-      console.error(err);
-      alert("Failed to move weeks. See console for details.");
-    }
+    showMoveModal(currentYear);
   }
 
   function toggleGroup(key: string) {
@@ -759,6 +861,18 @@ function WeekListGrouped({
           onClose={() => setCompletionPeriod(null)}
         />
       )}
+
+      <ConfirmationModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+        type={confirmState.type}
+        showCancel={confirmState.showCancel}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState((prev: any) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

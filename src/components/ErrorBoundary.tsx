@@ -10,6 +10,15 @@ interface State {
   hasError: boolean;
   error: Error | null;
   errorInfo: ErrorInfo | null;
+  
+  // Custom Rescue Screen Modal State
+  dialogOpen: boolean;
+  dialogTitle: string;
+  dialogMessage: string;
+  dialogType: "danger" | "warning" | "info";
+  dialogConfirmText: string;
+  dialogShowCancel: boolean;
+  dialogOnConfirm: (() => void | Promise<void>) | null;
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
@@ -17,6 +26,14 @@ export default class ErrorBoundary extends Component<Props, State> {
     hasError: false,
     error: null,
     errorInfo: null,
+    
+    dialogOpen: false,
+    dialogTitle: "",
+    dialogMessage: "",
+    dialogType: "info",
+    dialogConfirmText: "Confirm",
+    dialogShowCancel: true,
+    dialogOnConfirm: null,
   };
 
   public static getDerivedStateFromError(error: Error): Partial<State> {
@@ -32,30 +49,104 @@ export default class ErrorBoundary extends Component<Props, State> {
     window.location.reload();
   };
 
-  private handleResetSettings = async () => {
-    if (!confirm("Are you sure you want to reset settings to defaults? Your enrollees and schedules will not be touched.")) return;
-    try {
-      await db.settings.put(DEFAULT_SETTINGS);
-      alert("Settings successfully reset to defaults. The page will now reload.");
-      window.location.reload();
-    } catch (e) {
-      alert("Failed to reset settings: " + String(e));
-    }
+  private showDialog = (params: {
+    title: string;
+    message: string;
+    type: "danger" | "warning" | "info";
+    confirmText?: string;
+    showCancel?: boolean;
+    onConfirm: () => void | Promise<void>;
+  }) => {
+    this.setState({
+      dialogOpen: true,
+      dialogTitle: params.title,
+      dialogMessage: params.message,
+      dialogType: params.type,
+      dialogConfirmText: params.confirmText ?? "Confirm",
+      dialogShowCancel: params.showCancel ?? true,
+      dialogOnConfirm: params.onConfirm,
+    });
   };
 
-  private handleWipeDB = async () => {
-    if (!confirm("CRITICAL WARNING: This will permanently erase ALL enrollees, meeting weeks, and settings. This cannot be undone. Are you absolutely sure?")) return;
-    try {
-      await db.transaction("rw", db.assignees, db.weeks, db.settings, async () => {
-        await db.assignees.clear();
-        await db.weeks.clear();
-        await db.settings.clear();
-      });
-      alert("Database wiped successfully. The page will now reload.");
-      window.location.reload();
-    } catch (e) {
-      alert("Failed to wipe database: " + String(e));
-    }
+  private closeDialog = () => {
+    this.setState({
+      dialogOpen: false,
+      dialogOnConfirm: null,
+    });
+  };
+
+  private handleResetSettings = () => {
+    this.showDialog({
+      title: "Reset Settings to Defaults?",
+      message: "Are you sure you want to reset settings to defaults? Your enrollees and schedules will not be touched.",
+      type: "warning",
+      confirmText: "Reset Settings",
+      showCancel: true,
+      onConfirm: async () => {
+        this.closeDialog();
+        try {
+          await db.settings.put(DEFAULT_SETTINGS);
+          this.showDialog({
+            title: "Settings Reset",
+            message: "Settings successfully reset to defaults. The page will now reload.",
+            type: "info",
+            confirmText: "OK",
+            showCancel: false,
+            onConfirm: () => {
+              window.location.reload();
+            }
+          });
+        } catch (e) {
+          this.showDialog({
+            title: "Error Resetting Settings",
+            message: "Failed to reset settings: " + String(e),
+            type: "danger",
+            confirmText: "OK",
+            showCancel: false,
+            onConfirm: () => this.closeDialog()
+          });
+        }
+      }
+    });
+  };
+
+  private handleWipeDB = () => {
+    this.showDialog({
+      title: "CRITICAL WARNING: Wipe All Data?",
+      message: "This will permanently erase ALL enrollees, meeting weeks, and settings. This cannot be undone. Are you absolutely sure?",
+      type: "danger",
+      confirmText: "Permanently Wipe Everything",
+      showCancel: true,
+      onConfirm: async () => {
+        this.closeDialog();
+        try {
+          await db.transaction("rw", db.assignees, db.weeks, db.settings, async () => {
+            await db.assignees.clear();
+            await db.weeks.clear();
+            await db.settings.clear();
+          });
+          this.showDialog({
+            title: "Database Wiped",
+            message: "Database wiped successfully. The page will now reload.",
+            type: "info",
+            confirmText: "OK",
+            showCancel: false,
+            onConfirm: () => {
+              window.location.reload();
+            }
+          });
+        } catch (e) {
+          this.showDialog({
+            title: "Error Wiping Database",
+            message: "Failed to wipe database: " + String(e),
+            type: "danger",
+            confirmText: "OK",
+            showCancel: false,
+            onConfirm: () => this.closeDialog()
+          });
+        }
+      }
+    });
   };
 
   private handleExportBackup = async () => {
@@ -78,14 +169,31 @@ export default class ErrorBoundary extends Component<Props, State> {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert("Failed to export backup: " + String(e));
+      this.showDialog({
+        title: "Error Exporting Backup",
+        message: "Failed to export backup: " + String(e),
+        type: "danger",
+        confirmText: "OK",
+        showCancel: false,
+        onConfirm: () => this.closeDialog()
+      });
     }
   };
 
   public render() {
     if (this.state.hasError) {
+      const {
+        dialogOpen,
+        dialogTitle,
+        dialogMessage,
+        dialogType,
+        dialogConfirmText,
+        dialogShowCancel,
+        dialogOnConfirm
+      } = this.state;
+
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6">
+        <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6 relative">
           <div className="w-full max-w-2xl card bg-white shadow-xl border-t-4 border-rose-500 space-y-6">
             <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
               <span className="text-4xl">⚠️</span>
@@ -149,6 +257,71 @@ export default class ErrorBoundary extends Component<Props, State> {
               </button>
             </div>
           </div>
+
+          {/* Fallback inline Rescue Dialog */}
+          {dialogOpen && (
+            <div
+              className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-[150] animate-in fade-in duration-200"
+              onClick={() => {
+                if (dialogShowCancel) {
+                  this.closeDialog();
+                } else if (dialogOnConfirm) {
+                  dialogOnConfirm();
+                }
+              }}
+            >
+              <div
+                className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center relative overflow-hidden animate-in zoom-in-95 duration-200"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Decorative Top Border based on type */}
+                <div className={`absolute top-0 left-0 w-full h-1.5 ${
+                  dialogType === "danger" ? "bg-rose-500" : dialogType === "warning" ? "bg-amber-500" : "bg-indigo-500"
+                }`} />
+
+                {/* Modal Icon Header */}
+                <div className={`inline-flex items-center justify-center w-14 h-14 rounded-full mb-4 ${
+                  dialogType === "danger" ? "bg-rose-50 text-rose-600" : dialogType === "warning" ? "bg-amber-50 text-amber-600" : "bg-indigo-50 text-indigo-600"
+                }`}>
+                  <span className="text-2xl">
+                    {dialogType === "danger" ? "⚠️" : dialogType === "warning" ? "🔔" : "ℹ️"}
+                  </span>
+                </div>
+
+                <h3 className="text-xl font-bold text-slate-800 mb-2">{dialogTitle}</h3>
+                <div className="text-slate-600 mb-6 text-sm leading-relaxed whitespace-pre-line text-center">
+                  {dialogMessage}
+                </div>
+
+                <div className="flex gap-3 justify-center">
+                  {dialogShowCancel && (
+                    <button
+                      onClick={this.closeDialog}
+                      className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      if (dialogOnConfirm) {
+                        dialogOnConfirm();
+                      }
+                    }}
+                    className={`px-5 py-2 text-sm font-semibold rounded-xl transition-all cursor-pointer text-white shadow-lg ${
+                      dialogType === "danger"
+                        ? "bg-rose-600 hover:bg-rose-700 shadow-rose-200"
+                        : dialogType === "warning"
+                        ? "bg-amber-600 hover:bg-amber-700 shadow-amber-200"
+                        : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200"
+                    }`}
+                  >
+                    {dialogConfirmText}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     }

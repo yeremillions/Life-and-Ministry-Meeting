@@ -13,8 +13,9 @@ interface Props {
   confirmText?: string;
   cancelText?: string;
   type?: "danger" | "warning" | "info";
+  showCancel?: boolean;
   onConfirm: () => void | Promise<void>;
-  onCancel: () => void;
+  onCancel?: () => void;
 }
 
 export default function ConfirmationModal({
@@ -24,6 +25,7 @@ export default function ConfirmationModal({
   confirmText = "Confirm",
   cancelText = "Cancel",
   type = "info",
+  showCancel = true,
   onConfirm,
   onCancel,
 }: Props) {
@@ -39,10 +41,18 @@ export default function ConfirmationModal({
   const iconEmoji = 
     type === "danger" ? "⚠️" : type === "warning" ? "🔔" : "ℹ️";
 
+  const handleOverlayClick = () => {
+    if (showCancel && onCancel) {
+      onCancel();
+    } else {
+      onConfirm();
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-[150] animate-in fade-in duration-200"
-      onClick={onCancel}
+      onClick={handleOverlayClick}
     >
       <div
         className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center relative overflow-hidden animate-in zoom-in-95 duration-200"
@@ -66,12 +76,14 @@ export default function ConfirmationModal({
         </div>
 
         <div className="flex gap-3 justify-center">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition-all cursor-pointer"
-          >
-            {cancelText}
-          </button>
+          {showCancel && onCancel && (
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition-all cursor-pointer"
+            >
+              {cancelText}
+            </button>
+          )}
           <button
             onClick={onConfirm}
             className={`px-5 py-2 text-sm font-semibold rounded-xl transition-all cursor-pointer ${btnClass}`}
