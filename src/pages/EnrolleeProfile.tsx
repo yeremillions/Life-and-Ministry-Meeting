@@ -23,11 +23,11 @@ export default function EnrolleeProfile({
   const households = useLiveQuery(() => db.households.toArray(), []);
   const settings = useLiveQuery(() => db.settings.get("app"), []) || null;
 
-  if (!enrollee || !weeks || !allAssignees || !households) return <div className="p-8 text-center text-slate-500">Loading...</div>;
-
   const [newStart, setNewStart] = useState("");
   const [newEnd, setNewEnd] = useState("");
   const [newReason, setNewReason] = useState("");
+
+  if (!enrollee || !weeks || !allAssignees || !households) return <div className="p-8 text-center text-slate-500">Loading...</div>;
 
   async function handleAddTravel() {
     if (!enrollee) return;
