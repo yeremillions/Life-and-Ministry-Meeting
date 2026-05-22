@@ -2,10 +2,442 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo, useState } from "react";
 import { db } from "../db";
 import { buildStats, dueSoon } from "../scheduler";
-import { SEGMENTS, segmentOf } from "../meeting";
-import { todayIso, weekRangeLabel, toIso, mondayOf } from "../utils";
-import type { Week, Assignee } from "../types";
+import { SEGMENTS, segmentOf, needsAssistant } from "../meeting";
+import { todayIso, weekRangeLabel, toIso, mondayOf, getMeetingDate } from "../utils";
+import type { Week, Assignee, AppSettings, Household } from "../types";
+import { DEFAULT_ASSIGNMENT_RULES } from "../types";
 import QuickStartWizard from "../components/QuickStartWizard";
+
+export interface Conflict {
+  id: string;
+  weekId: number;
+  weekOf: string;
+  partUid: string;
+  partType: string;
+  partTitle: string;
+  ruleName: string;
+  message: string;
+  severity: "error" | "warning";
+  assigneeId?: number;
+  assistantId?: number;
+}
+
+export function findWeekConflicts(
+  week: Week,
+  assignees: Assignee[],
+  households: Household[],
+  settings: AppSettings | null
+): Conflict[] {
+  if (week.specialEvent) return [];
+
+  const conflicts: Conflict[] = [];
+  const assignments = week.assignments;
+  const rules = settings?.assignmentRules || DEFAULT_ASSIGNMENT_RULES;
+  const preventMinorAssistantToAdult = settings?.preventMinorAssistantToAdult ?? true;
+  const mode = settings?.availabilityMode || "unavailable";
+  const meetingDay = settings?.midweekMeetingDay || "Thursday";
+  const meetingDateStr = getMeetingDate(week.weekOf, meetingDay);
+
+  // Double Booking count
+  const idCounts = new Map<number, number>();
+  for (const a of assignments) {
+    if (a.assigneeId != null) {
+      idCounts.set(a.assigneeId, (idCounts.get(a.assigneeId) || 0) + 1);
+    }
+    if (a.assistantId != null) {
+      idCounts.set(a.assistantId, (idCounts.get(a.assistantId) || 0) + 1);
+    }
+  }
+
+  for (const a of assignments) {
+    const main = a.assigneeId != null ? assignees.find((p) => p.id === a.assigneeId) : null;
+    const assistant = a.assistantId != null ? assignees.find((p) => p.id === a.assistantId) : null;
+    const rule = rules[a.partType] || DEFAULT_ASSIGNMENT_RULES[a.partType];
+
+    // Main assignee rules
+    if (main) {
+      // 1. Inactive Assignee
+      if (!main.active) {
+        conflicts.push({
+          id: `${week.id}-${a.uid}-main-inactive`,
+          weekId: week.id!,
+          weekOf: week.weekOf,
+          partUid: a.uid,
+          partType: a.partType,
+          partTitle: a.title,
+          ruleName: "Inactive Assignee",
+          message: `${main.name} is currently inactive but is assigned to a part.`,
+          severity: "error",
+          assigneeId: main.id,
+        });
+      }
+
+      // 2. Double Booking
+      if ((idCounts.get(main.id!) || 0) > 1) {
+        conflicts.push({
+          id: `${week.id}-${a.uid}-main-doublebooking`,
+          weekId: week.id!,
+          weekOf: week.weekOf,
+          partUid: a.uid,
+          partType: a.partType,
+          partTitle: a.title,
+          ruleName: "Double Booking",
+          message: `${main.name} is scheduled for multiple parts in the same week.`,
+          severity: "warning",
+          assigneeId: main.id,
+        });
+      }
+
+      // 3. Calendar Availability
+      const ranges = main.unavailableRanges ?? [];
+      const overlapsAny = ranges.some((range) => {
+        return meetingDateStr >= range.start && meetingDateStr <= range.end;
+      });
+      if (mode === "available") {
+        if (ranges.length > 0 && !overlapsAny) {
+          conflicts.push({
+            id: `${week.id}-${a.uid}-main-avail`,
+            weekId: week.id!,
+            weekOf: week.weekOf,
+            partUid: a.uid,
+            partType: a.partType,
+            partTitle: a.title,
+            ruleName: "Calendar Availability",
+            message: `${main.name} is assigned on a date (${meetingDateStr}) when they are not available.`,
+            severity: "warning",
+            assigneeId: main.id,
+          });
+        }
+      } else {
+        if (overlapsAny) {
+          conflicts.push({
+            id: `${week.id}-${a.uid}-main-avail`,
+            weekId: week.id!,
+            weekOf: week.weekOf,
+            partUid: a.uid,
+            partType: a.partType,
+            partTitle: a.title,
+            ruleName: "Calendar Availability",
+            message: `${main.name} is assigned on a date (${meetingDateStr}) that overlaps with their away/travel dates.`,
+            severity: "warning",
+            assigneeId: main.id,
+          });
+        }
+      }
+
+      // 4. Allowed Parts Restriction
+      if (main.allowedParts && !main.allowedParts.includes(a.partType)) {
+        conflicts.push({
+          id: `${week.id}-${a.uid}-main-allowedparts`,
+          weekId: week.id!,
+          weekOf: week.weekOf,
+          partUid: a.uid,
+          partType: a.partType,
+          partTitle: a.title,
+          ruleName: "Profile Allowed Parts",
+          message: `${main.name}'s profile restricts them from being assigned to '${a.partType}'.`,
+          severity: "error",
+          assigneeId: main.id,
+        });
+      }
+
+      // 5. Prayer Exclusions
+      const isPrayer = a.partType === "Opening Prayer" || a.partType === "Closing Prayer";
+      if (isPrayer && main.excludeFromPrayers) {
+        conflicts.push({
+          id: `${week.id}-${a.uid}-main-prayer-exclusion`,
+          weekId: week.id!,
+          weekOf: week.weekOf,
+          partUid: a.uid,
+          partType: a.partType,
+          partTitle: a.title,
+          ruleName: "Prayer Exclusions",
+          message: `${main.name} is manually excluded from prayer assignments in their profile.`,
+          severity: "error",
+          assigneeId: main.id,
+        });
+      }
+
+      // 6. Gender Matching
+      if (rule && !rule.allowedGenders.includes(main.gender)) {
+        conflicts.push({
+          id: `${week.id}-${a.uid}-main-gender`,
+          weekId: week.id!,
+          weekOf: week.weekOf,
+          partUid: a.uid,
+          partType: a.partType,
+          partTitle: a.title,
+          ruleName: "Gender Matching",
+          message: `${main.name} (${main.gender === "M" ? "brother" : "sister"}) is assigned to '${a.partType}', which requires a ${rule.allowedGenders.map(g => g === "M" ? "brother" : "sister").join(" or ")}.`,
+          severity: "error",
+          assigneeId: main.id,
+        });
+      }
+
+      // 7. Baptism Requirement
+      if (rule && rule.mustBeBaptized && !main.baptised) {
+        conflicts.push({
+          id: `${week.id}-${a.uid}-main-bapt`,
+          weekId: week.id!,
+          weekOf: week.weekOf,
+          partUid: a.uid,
+          partType: a.partType,
+          partTitle: a.title,
+          ruleName: "Baptism Requirement",
+          message: `${main.name} is unbaptized but assigned to '${a.partType}', which requires baptism.`,
+          severity: "error",
+          assigneeId: main.id,
+        });
+      }
+
+      // 8. Privilege Requirements
+      if (rule && rule.requiredPrivileges.length > 0) {
+        const manuallyIncluded = isPrayer && main.includeInPrayers;
+        if (!manuallyIncluded) {
+          const hasPriv = rule.requiredPrivileges.some(p => main.privileges.includes(p));
+          if (!hasPriv) {
+            conflicts.push({
+              id: `${week.id}-${a.uid}-main-priv`,
+              weekId: week.id!,
+              weekOf: week.weekOf,
+              partUid: a.uid,
+              partType: a.partType,
+              partTitle: a.title,
+              ruleName: "Privilege Requirements",
+              message: `${main.name} does not have required privileges (${rule.requiredPrivileges.join(", ")}) for '${a.partType}'.`,
+              severity: "error",
+              assigneeId: main.id,
+            });
+          }
+        }
+      }
+    }
+
+    // Assistant rules
+    if (assistant) {
+      // 1. Inactive Assignee (Assistant)
+      if (!assistant.active) {
+        conflicts.push({
+          id: `${week.id}-${a.uid}-assistant-inactive`,
+          weekId: week.id!,
+          weekOf: week.weekOf,
+          partUid: a.uid,
+          partType: a.partType,
+          partTitle: a.title,
+          ruleName: "Inactive Assignee",
+          message: `${assistant.name} is currently inactive but is assigned as assistant.`,
+          severity: "error",
+          assistantId: assistant.id,
+        });
+      }
+
+      // 2. Double Booking (Assistant)
+      if ((idCounts.get(assistant.id!) || 0) > 1) {
+        conflicts.push({
+          id: `${week.id}-${a.uid}-assistant-doublebooking`,
+          weekId: week.id!,
+          weekOf: week.weekOf,
+          partUid: a.uid,
+          partType: a.partType,
+          partTitle: a.title,
+          ruleName: "Double Booking",
+          message: `${assistant.name} (assistant) is scheduled for multiple parts in the same week.`,
+          severity: "warning",
+          assistantId: assistant.id,
+        });
+      }
+
+      // 3. Calendar Availability (Assistant)
+      const ranges = assistant.unavailableRanges ?? [];
+      const overlapsAny = ranges.some((range) => {
+        return meetingDateStr >= range.start && meetingDateStr <= range.end;
+      });
+      if (mode === "available") {
+        if (ranges.length > 0 && !overlapsAny) {
+          conflicts.push({
+            id: `${week.id}-${a.uid}-assistant-avail`,
+            weekId: week.id!,
+            weekOf: week.weekOf,
+            partUid: a.uid,
+            partType: a.partType,
+            partTitle: a.title,
+            ruleName: "Calendar Availability",
+            message: `${assistant.name} (assistant) is assigned on a date (${meetingDateStr}) when they are not available.`,
+            severity: "warning",
+            assistantId: assistant.id,
+          });
+        }
+      } else {
+        if (overlapsAny) {
+          conflicts.push({
+            id: `${week.id}-${a.uid}-assistant-avail`,
+            weekId: week.id!,
+            weekOf: week.weekOf,
+            partUid: a.uid,
+            partType: a.partType,
+            partTitle: a.title,
+            ruleName: "Calendar Availability",
+            message: `${assistant.name} (assistant) is assigned on a date (${meetingDateStr}) that overlaps with their away/travel dates.`,
+            severity: "warning",
+            assistantId: assistant.id,
+          });
+        }
+      }
+
+      // 4. Allowed Parts Restriction (Assistant)
+      if (assistant.allowedParts && !assistant.allowedParts.includes(a.partType)) {
+        conflicts.push({
+          id: `${week.id}-${a.uid}-assistant-allowedparts`,
+          weekId: week.id!,
+          weekOf: week.weekOf,
+          partUid: a.uid,
+          partType: a.partType,
+          partTitle: a.title,
+          ruleName: "Profile Allowed Parts",
+          message: `${assistant.name}'s profile restricts them from being assigned to '${a.partType}' as assistant.`,
+          severity: "error",
+          assistantId: assistant.id,
+        });
+      }
+
+      // 5. Prayer Exclusions (Assistant - safety fallback)
+      const isPrayer = a.partType === "Opening Prayer" || a.partType === "Closing Prayer";
+      if (isPrayer && assistant.excludeFromPrayers) {
+        conflicts.push({
+          id: `${week.id}-${a.uid}-assistant-prayer-exclusion`,
+          weekId: week.id!,
+          weekOf: week.weekOf,
+          partUid: a.uid,
+          partType: a.partType,
+          partTitle: a.title,
+          ruleName: "Prayer Exclusions",
+          message: `${assistant.name} (assistant) is manually excluded from prayer assignments in their profile.`,
+          severity: "error",
+          assistantId: assistant.id,
+        });
+      }
+
+      // 6. Gender Matching (Assistant)
+      if (rule && rule.assistant && !rule.assistant.allowedGenders.includes(assistant.gender)) {
+        if (a.partType === "Congregation Bible Study") {
+          // 10. Congregation Bible Study Reader specific warning
+          conflicts.push({
+            id: `${week.id}-${a.uid}-assistant-cbs-reader`,
+            weekId: week.id!,
+            weekOf: week.weekOf,
+            partUid: a.uid,
+            partType: a.partType,
+            partTitle: a.title,
+            ruleName: "Congregation Bible Study Reader",
+            message: `The Congregation Bible Study reader must be a brother, but ${assistant.name} (sister) is assigned.`,
+            severity: "error",
+            assistantId: assistant.id,
+          });
+        } else {
+          conflicts.push({
+            id: `${week.id}-${a.uid}-assistant-gender`,
+            weekId: week.id!,
+            weekOf: week.weekOf,
+            partUid: a.uid,
+            partType: a.partType,
+            partTitle: a.title,
+            ruleName: "Gender Matching",
+            message: `${assistant.name} (assistant) does not match gender requirements for '${a.partType}'.`,
+            severity: "error",
+            assistantId: assistant.id,
+          });
+        }
+      }
+
+      // 7. Baptism Requirement (Assistant)
+      if (rule && rule.assistant && rule.assistant.mustBeBaptized && !assistant.baptised) {
+        conflicts.push({
+          id: `${week.id}-${a.uid}-assistant-bapt`,
+          weekId: week.id!,
+          weekOf: week.weekOf,
+          partUid: a.uid,
+          partType: a.partType,
+          partTitle: a.title,
+          ruleName: "Baptism Requirement",
+          message: `${assistant.name} (assistant) is unbaptized but assigned to '${a.partType}', which requires baptism.`,
+          severity: "error",
+          assistantId: assistant.id,
+        });
+      }
+
+      // 8. Privilege Requirements (Assistant)
+      if (rule && rule.assistant && rule.assistant.requiredPrivileges.length > 0) {
+        const hasPriv = rule.assistant.requiredPrivileges.some(p => assistant.privileges.includes(p));
+        if (!hasPriv) {
+          conflicts.push({
+            id: `${week.id}-${a.uid}-assistant-priv`,
+            weekId: week.id!,
+            weekOf: week.weekOf,
+            partUid: a.uid,
+            partType: a.partType,
+            partTitle: a.title,
+            ruleName: "Privilege Requirements",
+            message: `${assistant.name} (assistant) does not have required privileges (${rule.assistant.requiredPrivileges.join(", ")}) for '${a.partType}'.`,
+            severity: "error",
+            assistantId: assistant.id,
+          });
+        }
+      }
+    }
+
+    // Main & Assistant combined rules
+    if (main && assistant) {
+      // 9. Same-Sex Demo Match
+      const isMinistryDemo = a.segment === "ministry" && needsAssistant(a.partType);
+      if (isMinistryDemo) {
+        if (main.gender !== assistant.gender) {
+          // Check household bypass
+          const inSameHousehold = households.some(
+            (h) => h.memberIds.includes(main.id!) && h.memberIds.includes(assistant.id!)
+          );
+          if (!inSameHousehold) {
+            conflicts.push({
+              id: `${week.id}-${a.uid}-demo-gender`,
+              weekId: week.id!,
+              weekOf: week.weekOf,
+              partUid: a.uid,
+              partType: a.partType,
+              partTitle: a.title,
+              ruleName: "Same-Sex Demo Match",
+              message: `${main.name} (${main.gender === "M" ? "brother" : "sister"}) and assistant ${assistant.name} (${assistant.gender === "M" ? "brother" : "sister"}) genders do not match in a demonstration, and they are not in the same household.`,
+              severity: "error",
+              assigneeId: main.id,
+              assistantId: assistant.id,
+            });
+          }
+        }
+      }
+
+      // 11. Age Constraints
+      if (preventMinorAssistantToAdult && a.segment === "ministry") {
+        const mainIsMinor = main.isMinor ?? false;
+        const assIsMinor = assistant.isMinor ?? false;
+        if (!mainIsMinor && assIsMinor) {
+          conflicts.push({
+            id: `${week.id}-${a.uid}-age-constraint`,
+            weekId: week.id!,
+            weekOf: week.weekOf,
+            partUid: a.uid,
+            partType: a.partType,
+            partTitle: a.title,
+            ruleName: "Age Constraints",
+            message: `Minor ${assistant.name} is assigned as assistant to adult ${main.name} in a ministry part.`,
+            severity: "warning",
+            assigneeId: main.id,
+            assistantId: assistant.id,
+          });
+        }
+      }
+    }
+  }
+
+  return conflicts;
+}
 
 export default function Dashboard({
   onNavigate,
@@ -18,6 +450,10 @@ export default function Dashboard({
     useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
   const rawWeeks =
     useLiveQuery(() => db.weeks.orderBy("weekOf").toArray(), []) ?? [];
+  const settings =
+    useLiveQuery(() => db.settings.get("app"), []) ?? null;
+  const households =
+    useLiveQuery(() => db.households.toArray(), []) ?? [];
 
   const assignees = useMemo(() => {
     try {
@@ -143,6 +579,16 @@ export default function Dashboard({
 
     isBrandNew = assignees.length === 0 && weeks.length === 0;
 
+    const conflictsByWeek = upcoming.reduce<{ weekId: number; weekOf: string; list: Conflict[] }[]>((acc, w) => {
+      const list = findWeekConflicts(w, assignees, households, settings);
+      if (list.length > 0) {
+        acc.push({ weekId: w.id!, weekOf: w.weekOf, list });
+      }
+      return acc;
+    }, []);
+
+    const allConflicts = conflictsByWeek.flatMap((g) => g.list);
+
     return (
       <div className="space-y-5">
         {/* ── Wizard Overlay ─────────────────────────────────────────── */}
@@ -215,6 +661,104 @@ export default function Dashboard({
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Upcoming weeks column */}
           <div className="lg:col-span-2 space-y-5">
+            {allConflicts.length > 0 && (
+              <div className="card border-red-200 bg-red-50/20 p-5 space-y-4 animate-fade-in" style={{ borderLeft: '4px solid #ef4444' }}>
+                <div className="flex items-center justify-between border-b border-red-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xl">⚠️</span>
+                    <div>
+                      <h2 className="font-bold text-slate-900 leading-none flex items-center gap-2">
+                        Rule Conflicts & Warnings
+                        <span className="text-[11px] font-extrabold px-2 py-0.5 bg-red-100 text-red-800 rounded-full border border-red-200 shadow-sm animate-pulse">
+                          {allConflicts.length} {allConflicts.length === 1 ? "Issue" : "Issues"}
+                        </span>
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Scanning 4 upcoming weeks. Click on enrollees or schedule editor to resolve.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
+                  {conflictsByWeek.map((group) => (
+                    <div key={group.weekOf} className="bg-white border border-slate-200 rounded shadow-sm overflow-hidden">
+                      <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                        <span className="font-semibold text-xs text-slate-700 uppercase tracking-wider">
+                          Week of {weekRangeLabel(group.weekOf)}
+                        </span>
+                        <button
+                          onClick={() => onNavigate("schedule", group.weekId)}
+                          className="text-[11px] font-bold hover:underline transition-all flex items-center gap-1"
+                          style={{ color: 'var(--color-primary)' }}
+                        >
+                          <span>Fix Schedule</span>
+                          <span className="text-xs">🗓️</span>
+                        </button>
+                      </div>
+
+                      <div className="divide-y divide-slate-100">
+                        {group.list.map((c) => {
+                          const assigneeName = c.assigneeId
+                            ? assignees.find((p) => p.id === c.assigneeId)?.name
+                            : null;
+                          const assistantName = c.assistantId
+                            ? assignees.find((p) => p.id === c.assistantId)?.name
+                            : null;
+                          const isError = c.severity === "error";
+
+                          return (
+                            <div key={c.id} className="p-3 flex items-start gap-3 hover:bg-slate-50/50 transition-colors">
+                              <span className={`text-base shrink-0 mt-0.5 ${isError ? "text-rose-500" : "text-amber-500"}`}>
+                                {isError ? "🛑" : "⚠️"}
+                              </span>
+                              <div className="flex-1 space-y-1.5 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-bold text-slate-800 text-xs shrink-0 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                                    {c.partTitle || c.partType}
+                                  </span>
+                                  <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                                    isError 
+                                      ? "bg-rose-50 border-rose-200 text-rose-700" 
+                                      : "bg-amber-50 border-amber-200 text-amber-700"
+                                  }`}>
+                                    {c.ruleName}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-600 font-medium leading-relaxed break-words">
+                                  {c.message}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                  {assigneeName && c.assigneeId && (
+                                    <button
+                                      onClick={() => onNavigateToProfile(c.assigneeId!)}
+                                      className="text-[10px] font-semibold bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-0.5 transition-all flex items-center gap-1"
+                                      style={{ color: 'var(--color-primary)' }}
+                                    >
+                                      <span>👤 {assigneeName}</span>
+                                    </button>
+                                  )}
+                                  {assistantName && c.assistantId && (
+                                    <button
+                                      onClick={() => onNavigateToProfile(c.assistantId!)}
+                                      className="text-[10px] font-semibold bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-0.5 transition-all flex items-center gap-1"
+                                      style={{ color: 'var(--color-primary)' }}
+                                    >
+                                      <span>👥 Assistant: {assistantName}</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="card">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-semibold">Upcoming Weeks</h2>
