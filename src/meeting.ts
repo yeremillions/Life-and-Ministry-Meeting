@@ -164,7 +164,7 @@ export function isEligible(
   mainIsMinor?: boolean,
   preventMinorAssistantToAdult?: boolean
 ): boolean {
-  if (!a.active) return false;
+  if (a.archived || !a.active) return false;
 
   const rule = rules[partType] || DEFAULT_ASSIGNMENT_RULES[partType];
   if (!rule) return false;

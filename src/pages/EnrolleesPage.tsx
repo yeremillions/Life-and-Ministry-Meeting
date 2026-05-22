@@ -54,9 +54,9 @@ export default function EnrolleesPage({
     useLiveQuery(() => db.households.orderBy("name").toArray(), []) ?? [];
 
   const [tab, setTab] = useState<"enrollees" | "households">("enrollees");
-  const [filter, setFilter] = useState<"all" | "active" | "inactive" | "M" | "F">(
-    "active"
-  );
+  const [filter, setFilter] = useState<
+    "all" | "active" | "inactive" | "M" | "F" | "archived"
+  >("active");
   const [privFilter, setPrivFilter] = useState<"all" | Privilege>("all");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Assignee | null>(null);
@@ -82,10 +82,15 @@ export default function EnrolleesPage({
 
   const filtered = useMemo(() => {
     return assignees.filter((a) => {
-      if (filter === "active" && !a.active) return false;
-      if (filter === "inactive" && a.active) return false;
-      if (filter === "M" && a.gender !== "M") return false;
-      if (filter === "F" && a.gender !== "F") return false;
+      if (filter === "archived") {
+        if (!a.archived) return false;
+      } else {
+        if (a.archived) return false;
+        if (filter === "active" && !a.active) return false;
+        if (filter === "inactive" && a.active) return false;
+        if (filter === "M" && a.gender !== "M") return false;
+        if (filter === "F" && a.gender !== "F") return false;
+      }
       if (privFilter !== "all" && !a.privileges?.includes(privFilter)) return false;
       if (
         search.trim() &&
@@ -146,18 +151,82 @@ export default function EnrolleesPage({
 
   async function deleteSelected() {
     if (selected.size === 0) return;
-    const names = assignees
-      .filter((a) => a.id != null && selected.has(a.id))
-      .map((a) => a.name);
-    const preview = names.slice(0, 5).join(", ") + (names.length > 5 ? ", …" : "");
-    if (
-      !confirm(
-        `Delete ${selected.size} enrollee${selected.size === 1 ? "" : "s"}?\n\n${preview}\n\nThis cannot be undone.`
-      )
-    )
-      return;
-    await db.assignees.bulkDelete([...selected]);
-    setSelected(new Set());
+    
+    const weeks = await db.weeks.toArray();
+    const activeSelected = assignees.filter((a) => a.id != null && selected.has(a.id));
+    
+    const toDelete: Assignee[] = [];
+    const toArchive: Assignee[] = [];
+    
+    for (const a of activeSelected) {
+      const hasHistory = weeks.some(w => 
+        w.assignments.some(assign => assign.assigneeId === a.id || assign.assistantId === a.id)
+      );
+      if (hasHistory) {
+        toArchive.push(a);
+      } else {
+        toDelete.push(a);
+      }
+    }
+    
+    if (toDelete.length > 0 && toArchive.length > 0) {
+      const deleteNames = toDelete.map(a => a.name).slice(0, 5).join(", ") + (toDelete.length > 5 ? ", …" : "");
+      const archiveNames = toArchive.map(a => a.name).slice(0, 5).join(", ") + (toArchive.length > 5 ? ", …" : "");
+      if (
+        confirm(
+          `You selected ${selected.size} publisher(s) for removal.\n\n` +
+          `• The following will be PERMANENTLY DELETED (no past history):\n  ${deleteNames}\n\n` +
+          `• The following will be ARCHIVED to preserve historic schedules:\n  ${archiveNames}\n\n` +
+          `Do you want to proceed?`
+        )
+      ) {
+        // Bulk delete
+        const deleteIds = toDelete.map(a => a.id!).filter(id => id != null);
+        await db.assignees.bulkDelete(deleteIds);
+        for (const a of toDelete) {
+          await addLog("enrollees", `Deleted enrollee: ${a.name}`);
+        }
+        
+        // Bulk archive
+        await db.transaction("rw", db.assignees, async () => {
+          for (const a of toArchive) {
+            await db.assignees.update(a.id!, { archived: true, active: false });
+            await addLog("enrollees", `Archived enrollee: ${a.name}`);
+          }
+        });
+        
+        setSelected(new Set());
+      }
+    } else if (toArchive.length > 0) {
+      const archiveNames = toArchive.map(a => a.name).slice(0, 5).join(", ") + (toArchive.length > 5 ? ", …" : "");
+      if (
+        confirm(
+          `"${archiveNames}" ${toArchive.length === 1 ? "has" : "have"} past scheduled assignments. To preserve your historic schedules and reports, ${toArchive.length === 1 ? "this publisher" : "these publishers"} will be archived instead of permanently deleted.\n\nDo you want to archive ${toArchive.length === 1 ? "this publisher" : "these publishers"}?`
+        )
+      ) {
+        await db.transaction("rw", db.assignees, async () => {
+          for (const a of toArchive) {
+            await db.assignees.update(a.id!, { archived: true, active: false });
+            await addLog("enrollees", `Archived enrollee: ${a.name}`);
+          }
+        });
+        setSelected(new Set());
+      }
+    } else if (toDelete.length > 0) {
+      const deleteNames = toDelete.map(a => a.name).slice(0, 5).join(", ") + (toDelete.length > 5 ? ", …" : "");
+      if (
+        confirm(
+          `Are you sure you want to permanently delete ${toDelete.length} publisher${toDelete.length === 1 ? "" : "s"}? This cannot be undone.\n\n${deleteNames}`
+        )
+      ) {
+        const deleteIds = toDelete.map(a => a.id!).filter(id => id != null);
+        await db.assignees.bulkDelete(deleteIds);
+        for (const a of toDelete) {
+          await addLog("enrollees", `Deleted enrollee: ${a.name}`);
+        }
+        setSelected(new Set());
+      }
+    }
   }
 
   async function bulkUpdate(changes: Partial<Omit<Assignee, "id" | "createdAt">>) {
@@ -366,6 +435,7 @@ export default function EnrolleesPage({
           >
             <option value="active">Active only</option>
             <option value="inactive">Inactive only</option>
+            <option value="archived">Archived</option>
             <option value="all">All</option>
             <option value="M">Brothers</option>
             <option value="F">Sisters</option>
@@ -498,7 +568,30 @@ export default function EnrolleesPage({
                   <option value="clear">Clear all privileges</option>
                 </optgroup>
               </select>
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-2">
+                {filter === "archived" && (
+                  <button
+                    className="btn bg-indigo-600 hover:bg-indigo-700 text-white text-xs py-1 px-3 rounded font-semibold flex items-center gap-1 h-[26px]"
+                    onClick={async () => {
+                      if (selected.size === 0) return;
+                      if (confirm(`Unarchive and restore ${selected.size} selected publisher(s) to active status?`)) {
+                        const ids = [...selected];
+                        await db.transaction("rw", db.assignees, async () => {
+                          for (const id of ids) {
+                            await db.assignees.update(id, { archived: false, active: true });
+                            const a = await db.assignees.get(id);
+                            if (a) {
+                              await addLog("enrollees", `Unarchived enrollee: ${a.name}`);
+                            }
+                          }
+                        });
+                        setSelected(new Set());
+                      }
+                    }}
+                  >
+                    🔄 Restore selected
+                  </button>
+                )}
                 <button className="btn-danger text-xs py-1" onClick={deleteSelected}>
                   Delete selected
                 </button>
@@ -595,7 +688,11 @@ export default function EnrolleesPage({
                         )}
                       </td>
                       <td className="py-2 pr-3">
-                        {a.active ? (
+                        {a.archived ? (
+                          <span className="pill bg-slate-200 text-slate-700 border border-slate-300">
+                            Archived
+                          </span>
+                        ) : a.active ? (
                           <span className="pill bg-emerald-100 text-emerald-800">
                             Active
                           </span>
@@ -724,10 +821,23 @@ export default function EnrolleesPage({
           onDelete={async () => {
             if (editing.id != null) {
               const name = editing.name;
-              if (confirm(`Remove ${name}?`)) {
-                await db.assignees.delete(editing.id);
-                await addLog("enrollees", `Deleted enrollee: ${name}`);
-                setEditing(null);
+              const weeks = await db.weeks.toArray();
+              const hasPastHistory = weeks.some(w => 
+                w.assignments.some(assign => assign.assigneeId === editing.id || assign.assistantId === editing.id)
+              );
+              
+              if (!hasPastHistory) {
+                if (confirm(`Are you sure you want to permanently delete the publisher "${name}"? This cannot be undone.`)) {
+                  await db.assignees.delete(editing.id);
+                  await addLog("enrollees", `Deleted enrollee: ${name}`);
+                  setEditing(null);
+                }
+              } else {
+                if (confirm(`"${name}" has past scheduled assignments. To preserve your historic schedules and reports, they will be archived instead of permanently deleted.\n\nDo you want to archive this publisher?`)) {
+                  await db.assignees.update(editing.id, { archived: true, active: false });
+                  await addLog("enrollees", `Archived enrollee: ${name}`);
+                  setEditing(null);
+                }
               }
             }
           }}

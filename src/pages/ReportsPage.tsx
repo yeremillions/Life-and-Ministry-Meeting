@@ -34,8 +34,10 @@ export default function ReportsPage({
   );
 
   const rows = useMemo(() => {
-    const arr = assignees.map((a) => ({
-      assignee: a,
+    const arr = assignees
+      .filter((a) => !a.archived)
+      .map((a) => ({
+        assignee: a,
       stats: stats.get(a.id!) ?? {
         totalMain: 0,
         bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },

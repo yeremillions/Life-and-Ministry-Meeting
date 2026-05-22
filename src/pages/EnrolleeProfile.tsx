@@ -85,32 +85,60 @@ export default function EnrolleeProfile({
           &larr; Back
         </button>
         <h1 className="text-2xl font-bold">{enrollee.name}</h1>
-        <button
-          onClick={async () => {
-            await db.assignees.update(id, { active: !enrollee.active });
-          }}
-          title="Click to toggle active status"
-          className={
-            "pill transition-all cursor-pointer font-semibold hover:scale-105 active:scale-95 select-none " +
-            (enrollee.active
-              ? "bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200 hover:text-emerald-900"
-              : "bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 hover:text-slate-900")
-          }
-        >
-          {enrollee.active ? "🟢 Active" : "⚫ Inactive"}
-        </button>
-        <button
-          onClick={async () => {
-            if (window.confirm(`Are you sure you want to permanently delete the enrollee "${enrollee.name}"? This cannot be undone.`)) {
-              await db.assignees.delete(id);
-              await addLog("enrollees", `Deleted enrollee: ${enrollee.name}`);
-              onBack();
+        {enrollee.archived ? (
+          <span className="pill bg-slate-200 text-slate-800 border border-slate-300 font-semibold select-none">
+            ⚫ Archived
+          </span>
+        ) : (
+          <button
+            onClick={async () => {
+              await db.assignees.update(id, { active: !enrollee.active });
+            }}
+            title="Click to toggle active status"
+            className={
+              "pill transition-all cursor-pointer font-semibold hover:scale-105 active:scale-95 select-none " +
+              (enrollee.active
+                ? "bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200 hover:text-emerald-900"
+                : "bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 hover:text-slate-900")
             }
-          }}
-          className="btn-danger ml-auto"
-        >
-          🗑️ Delete Enrollee
-        </button>
+          >
+            {enrollee.active ? "🟢 Active" : "⚫ Inactive"}
+          </button>
+        )}
+        {enrollee.archived ? (
+          <button
+            onClick={async () => {
+              if (window.confirm(`Unarchive and restore "${enrollee.name}" to active status?`)) {
+                await db.assignees.update(id, { archived: false, active: true });
+                await addLog("enrollees", `Unarchived enrollee: ${enrollee.name}`);
+              }
+            }}
+            className="btn bg-indigo-600 hover:bg-indigo-700 text-white ml-auto font-semibold flex items-center gap-1.5 h-9 rounded"
+          >
+            🔄 Unarchive Enrollee
+          </button>
+        ) : (
+          <button
+            onClick={async () => {
+              if (history.length === 0) {
+                if (window.confirm(`Are you sure you want to permanently delete the publisher "${enrollee.name}"? This cannot be undone.`)) {
+                  await db.assignees.delete(id);
+                  await addLog("enrollees", `Deleted enrollee: ${enrollee.name}`);
+                  onBack();
+                }
+              } else {
+                if (window.confirm(`"${enrollee.name}" has past scheduled assignments. To preserve your historic schedules and reports, they will be archived instead of permanently deleted.\n\nDo you want to archive this publisher?`)) {
+                  await db.assignees.update(id, { archived: true, active: false });
+                  await addLog("enrollees", `Archived enrollee: ${enrollee.name}`);
+                  onBack();
+                }
+              }
+            }}
+            className="btn-danger ml-auto"
+          >
+            🗑️ Delete Enrollee
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

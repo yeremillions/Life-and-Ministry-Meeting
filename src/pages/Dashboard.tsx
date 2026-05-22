@@ -560,7 +560,7 @@ export default function Dashboard({
       (sum, s) => sum + s.totalMain,
       0
     );
-    activeAssignees = assignees.filter((a) => a.active);
+    activeAssignees = assignees.filter((a) => a.active && !a.archived);
     activeBrothers = activeAssignees.filter(
       (a) => a.gender === "M" && a.baptised
     );
@@ -569,7 +569,7 @@ export default function Dashboard({
       const s = stats.get(a.id!);
       return !s || !s.lastWeekMain;
     });
-    inactiveAssignees = assignees.filter((a) => !a.active);
+    inactiveAssignees = assignees.filter((a) => !a.active && !a.archived);
 
     // Overall fill rate for upcoming weeks
     let filled = 0, total = 0;

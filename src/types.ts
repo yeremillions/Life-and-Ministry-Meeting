@@ -46,6 +46,8 @@ export interface Assignee {
   createdAt: number;
   /** Date ranges when this publisher is out of town or unavailable. */
   unavailableRanges?: UnavailableRange[];
+  /** True when the enrollee has been soft-deleted/archived to preserve past history. */
+  archived?: boolean;
 }
 
 /** Which segment an assignment belongs to. */
