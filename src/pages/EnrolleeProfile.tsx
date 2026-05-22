@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "../db";
+import { db, addLog } from "../db";
 import { AppSettings, Assignee, Week, Assignment, PartType } from "../types";
 import { segmentOf, isEligible } from "../meeting";
 import { todayIso } from "../utils";
@@ -98,6 +98,18 @@ export default function EnrolleeProfile({
           }
         >
           {enrollee.active ? "🟢 Active" : "⚫ Inactive"}
+        </button>
+        <button
+          onClick={async () => {
+            if (window.confirm(`Are you sure you want to permanently delete the enrollee "${enrollee.name}"? This cannot be undone.`)) {
+              await db.assignees.delete(id);
+              await addLog("enrollees", `Deleted enrollee: ${enrollee.name}`);
+              onBack();
+            }
+          }}
+          className="btn-danger ml-auto"
+        >
+          🗑️ Delete Enrollee
         </button>
       </div>
 

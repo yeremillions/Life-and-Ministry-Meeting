@@ -508,6 +508,9 @@ export default function Dashboard({
   const [showWizard, setShowWizard] = useState(false);
 
   const handleIgnoreConflict = async (conflictId: string) => {
+    if (!window.confirm("Are you sure you want to ignore this scheduling conflict? It will be hidden from the dashboard.")) {
+      return;
+    }
     const currentIgnored = settings?.ignoredConflicts ?? [];
     if (!currentIgnored.includes(conflictId)) {
       await db.settings.update("app", {
