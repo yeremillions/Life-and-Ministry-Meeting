@@ -58,6 +58,66 @@ function sanitizeSettings(raw: any): AppSettings {
   return base as AppSettings;
 }
 
+function addDays(dateStr: string, days: number): string {
+  const date = new Date(dateStr + "T00:00:00");
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function invertRanges(
+  ranges: { start: string; end: string; reason?: string }[],
+  startLimit: string,
+  endLimit: string,
+  toAvailable: boolean
+): { start: string; end: string; reason?: string }[] {
+  const sorted = [...ranges].sort((a, b) => a.start.localeCompare(b.start));
+  const merged: { start: string; end: string; reason?: string }[] = [];
+  
+  for (const r of sorted) {
+    if (merged.length === 0) {
+      merged.push({ ...r });
+    } else {
+      const last = merged[merged.length - 1];
+      if (r.start <= addDays(last.end, 1)) {
+        if (r.end > last.end) {
+          last.end = r.end;
+        }
+      } else {
+        merged.push({ ...r });
+      }
+    }
+  }
+
+  const inverted: { start: string; end: string; reason?: string }[] = [];
+  let currentStart = startLimit;
+  const defaultReason = toAvailable ? "Available (Converted)" : "Away (Converted)";
+
+  for (const r of merged) {
+    if (r.start > currentStart) {
+      const endPrev = addDays(r.start, -1);
+      if (endPrev >= currentStart) {
+        inverted.push({
+          start: currentStart,
+          end: endPrev,
+          reason: defaultReason,
+        });
+      }
+    }
+    currentStart = r.end >= currentStart ? addDays(r.end, 1) : currentStart;
+  }
+
+  if (currentStart <= endLimit) {
+    inverted.push({
+      start: currentStart,
+      end: endLimit,
+      reason: defaultReason,
+    });
+  }
+
+  return inverted;
+}
+
+
 export default function SettingsPage({
   onNavigateToAdmin,
 }: {
@@ -107,6 +167,50 @@ export default function SettingsPage({
 
   async function save() {
     if (!draft) return;
+
+    // Check if availability tracking mode was changed
+    const previousMode = settings?.availabilityMode ?? "unavailable";
+    const currentMode = draft.availabilityMode ?? "unavailable";
+    const isModeChanged = currentMode !== previousMode;
+
+    if (isModeChanged) {
+      const allAssignees = await db.assignees.toArray();
+      
+      // Determine the range limits for inversion (current year start to next year end)
+      let earliest = new Date().toISOString().slice(0, 4) + "-01-01";
+      let latest = (new Date().getFullYear() + 1) + "-12-31";
+      
+      for (const a of allAssignees) {
+        for (const range of a.unavailableRanges ?? []) {
+          if (range.start < earliest) earliest = range.start.slice(0, 4) + "-01-01";
+          if (range.end > latest) latest = range.end.slice(0, 4) + "-12-31";
+        }
+      }
+      
+      // Run the conversion in a transaction
+      await db.transaction("rw", db.assignees, async () => {
+        for (const a of allAssignees) {
+          const oldRanges = a.unavailableRanges ?? [];
+          if (oldRanges.length === 0) continue;
+          
+          const newRanges = invertRanges(
+            oldRanges,
+            earliest,
+            latest,
+            currentMode === "available"
+          );
+          
+          a.unavailableRanges = newRanges;
+          await db.assignees.put(a);
+        }
+      });
+
+      await addLog(
+        "settings",
+        `Converted enrollee calendar dates to match ${currentMode} mode (${earliest} to ${latest})`
+      );
+    }
+
     await db.settings.put(draft);
     await addLog("settings", "Saved settings changes");
     setSaved(true);
