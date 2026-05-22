@@ -19,6 +19,8 @@ interface State {
   dialogConfirmText: string;
   dialogShowCancel: boolean;
   dialogOnConfirm: (() => void | Promise<void>) | null;
+  dialogInput: string;
+  dialogVerificationWord?: string;
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
@@ -34,6 +36,8 @@ export default class ErrorBoundary extends Component<Props, State> {
     dialogConfirmText: "Confirm",
     dialogShowCancel: true,
     dialogOnConfirm: null,
+    dialogInput: "",
+    dialogVerificationWord: undefined,
   };
 
   public static getDerivedStateFromError(error: Error): Partial<State> {
@@ -55,6 +59,7 @@ export default class ErrorBoundary extends Component<Props, State> {
     type: "danger" | "warning" | "info";
     confirmText?: string;
     showCancel?: boolean;
+    verificationWord?: string;
     onConfirm: () => void | Promise<void>;
   }) => {
     this.setState({
@@ -65,6 +70,8 @@ export default class ErrorBoundary extends Component<Props, State> {
       dialogConfirmText: params.confirmText ?? "Confirm",
       dialogShowCancel: params.showCancel ?? true,
       dialogOnConfirm: params.onConfirm,
+      dialogInput: "",
+      dialogVerificationWord: params.verificationWord,
     });
   };
 
@@ -72,6 +79,8 @@ export default class ErrorBoundary extends Component<Props, State> {
     this.setState({
       dialogOpen: false,
       dialogOnConfirm: null,
+      dialogInput: "",
+      dialogVerificationWord: undefined,
     });
   };
 
@@ -113,10 +122,11 @@ export default class ErrorBoundary extends Component<Props, State> {
   private handleWipeDB = () => {
     this.showDialog({
       title: "CRITICAL WARNING: Wipe All Data?",
-      message: "This will permanently erase ALL enrollees, meeting weeks, and settings. This cannot be undone. Are you absolutely sure?",
+      message: "This will permanently erase ALL enrollees, meeting weeks, and settings. This cannot be undone.\n\nTo confirm, please type 'WIPE' in the box below:",
       type: "danger",
       confirmText: "Permanently Wipe Everything",
       showCancel: true,
+      verificationWord: "WIPE",
       onConfirm: async () => {
         this.closeDialog();
         try {
@@ -189,7 +199,9 @@ export default class ErrorBoundary extends Component<Props, State> {
         dialogType,
         dialogConfirmText,
         dialogShowCancel,
-        dialogOnConfirm
+        dialogOnConfirm,
+        dialogInput,
+        dialogVerificationWord
       } = this.state;
 
       return (
@@ -263,9 +275,9 @@ export default class ErrorBoundary extends Component<Props, State> {
             <div
               className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-[150] animate-in fade-in duration-200"
               onClick={() => {
-                if (dialogShowCancel) {
+                if (dialogShowCancel && !dialogVerificationWord) {
                   this.closeDialog();
-                } else if (dialogOnConfirm) {
+                } else if (dialogOnConfirm && (!dialogVerificationWord || dialogInput === dialogVerificationWord)) {
                   dialogOnConfirm();
                 }
               }}
@@ -289,9 +301,21 @@ export default class ErrorBoundary extends Component<Props, State> {
                 </div>
 
                 <h3 className="text-xl font-bold text-slate-800 mb-2">{dialogTitle}</h3>
-                <div className="text-slate-600 mb-6 text-sm leading-relaxed whitespace-pre-line text-center">
+                <div className="text-slate-600 mb-6 text-sm leading-relaxed whitespace-pre-line text-center font-medium">
                   {dialogMessage}
                 </div>
+
+                {dialogVerificationWord && (
+                  <div className="mb-6 px-4">
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-center font-bold tracking-widest text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500 uppercase"
+                      placeholder={`Type '${dialogVerificationWord}' to confirm`}
+                      value={dialogInput}
+                      onChange={(e) => this.setState({ dialogInput: e.target.value })}
+                    />
+                  </div>
+                )}
 
                 <div className="flex gap-3 justify-center">
                   {dialogShowCancel && (
@@ -303,14 +327,17 @@ export default class ErrorBoundary extends Component<Props, State> {
                     </button>
                   )}
                   <button
+                    disabled={dialogVerificationWord ? dialogInput !== dialogVerificationWord : false}
                     onClick={() => {
                       if (dialogOnConfirm) {
                         dialogOnConfirm();
                       }
                     }}
                     className={`px-5 py-2 text-sm font-semibold rounded-xl transition-all cursor-pointer text-white shadow-lg ${
-                      dialogType === "danger"
-                        ? "bg-rose-600 hover:bg-rose-700 shadow-rose-200"
+                      (dialogVerificationWord && dialogInput !== dialogVerificationWord)
+                        ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                        : dialogType === "danger"
+                        ? "bg-rose-600 hover:bg-rose-700 shadow-rose-200 animate-pulse"
                         : dialogType === "warning"
                         ? "bg-amber-600 hover:bg-amber-700 shadow-amber-200"
                         : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200"
