@@ -8,6 +8,7 @@ import type {
   Week,
   SpecialEventType,
 } from "../types";
+import { DEFAULT_ASSIGNMENT_RULES } from "../types";
 import {
   SEGMENTS,
   SEGMENT_PART_TYPES,
@@ -595,14 +596,18 @@ function PartRow({
 }) {
   const mainPerson = assignees.find((a) => a.id === assignment.assigneeId);
 
-  const eligibleMain = useMemo(
-    () => assignees.filter((a) => !a.archived && a.active),
-    [assignees]
-  );
-  const eligibleAssistant = useMemo(
-    () => assignees.filter((a) => !a.archived && a.active),
-    [assignees]
-  );
+  const eligibleMain = useMemo(() => {
+    const rule = settings.assignmentRules?.[assignment.partType] || DEFAULT_ASSIGNMENT_RULES[assignment.partType];
+    const allowedGenders = rule?.allowedGenders ?? ["M", "F"];
+    return assignees.filter((a) => !a.archived && a.active && allowedGenders.includes(a.gender));
+  }, [assignees, assignment.partType, settings.assignmentRules]);
+
+  const eligibleAssistant = useMemo(() => {
+    const rule = settings.assignmentRules?.[assignment.partType] || DEFAULT_ASSIGNMENT_RULES[assignment.partType];
+    const assistantRule = rule?.assistant;
+    const allowedGenders = assistantRule?.allowedGenders ?? rule?.allowedGenders ?? ["M", "F"];
+    return assignees.filter((a) => !a.archived && a.active && allowedGenders.includes(a.gender));
+  }, [assignees, assignment.partType, settings.assignmentRules]);
 
   const mainViolations = useMemo(() => {
     if (!mainPerson) return [];
