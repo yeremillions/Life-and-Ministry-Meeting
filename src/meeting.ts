@@ -208,6 +208,65 @@ export function isEligible(
   return true;
 }
 
+export function getRuleViolations(
+  a: Assignee,
+  partType: PartType,
+  role: "main" | "assistant" = "main",
+  rules: Record<string, AssignmentRule> = DEFAULT_ASSIGNMENT_RULES,
+  mainIsMinor?: boolean,
+  preventMinorAssistantToAdult?: boolean
+): string[] {
+  const violations: string[] = [];
+  if (a.archived || !a.active) return violations;
+
+  const rule = rules[partType] || DEFAULT_ASSIGNMENT_RULES[partType];
+  if (!rule) return violations;
+
+  // Individual restrictions (e.g. allowed parts)
+  if (a.allowedParts && !a.allowedParts.includes(partType)) {
+    violations.push(`Not in publisher's allowed parts list`);
+  }
+
+  // Manual prayer exclusion
+  if ((partType === "Opening Prayer" || partType === "Closing Prayer") && a.excludeFromPrayers) {
+    violations.push(`Excluded from prayers by preference`);
+  }
+
+  const target = role === "assistant" && rule.assistant ? rule.assistant : rule;
+
+  // Gender check
+  if (!(target.allowedGenders ?? []).includes(a.gender)) {
+    const genders = (target.allowedGenders ?? []).map(g => g === "M" ? "brothers" : "sisters").join(" or ");
+    violations.push(`Part restricted to ${genders}`);
+  }
+
+  // Baptism check
+  if (target.mustBeBaptized && !a.baptised) {
+    violations.push(`Part requires a baptized publisher`);
+  }
+
+  // Privilege check
+  if ((target.requiredPrivileges ?? []).length > 0) {
+    const isPrayer = partType === "Opening Prayer" || partType === "Closing Prayer";
+    const manuallyIncluded = isPrayer && a.includeInPrayers;
+    if (!manuallyIncluded) {
+      const hasAny = (target.requiredPrivileges ?? []).some((p) => a.privileges?.includes(p));
+      if (!hasAny) {
+        const privs = (target.requiredPrivileges ?? []).map(p => p === "E" ? "Elders" : p === "MS" ? "Ministerial Servants" : p).join("/");
+        violations.push(`Part requires privileges: ${privs}`);
+      }
+    }
+  }
+
+  // Minor assistant to adult
+  const isMinistryPart = SEGMENT_PART_TYPES.ministry.includes(partType);
+  if (preventMinorAssistantToAdult && isMinistryPart && role === "assistant" && mainIsMinor === false && a.isMinor) {
+    violations.push(`Minor assistant cannot normally assist adult`);
+  }
+
+  return violations;
+}
+
 /**
  * Short pill label for an assignee's most specific privilege.
  *

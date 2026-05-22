@@ -11,7 +11,7 @@ import type {
 import {
   SEGMENTS,
   SEGMENT_PART_TYPES,
-  isEligible,
+  getRuleViolations,
   needsAssistant,
   privilegeLabel,
   segmentOf,
@@ -596,24 +596,38 @@ function PartRow({
   const mainPerson = assignees.find((a) => a.id === assignment.assigneeId);
 
   const eligibleMain = useMemo(
-    () => assignees.filter((a) => isEligible(a, assignment.partType, "main", "manual", settings.assignmentRules)),
-    [assignees, assignment.partType, settings.assignmentRules]
+    () => assignees.filter((a) => !a.archived && a.active),
+    [assignees]
   );
   const eligibleAssistant = useMemo(
-    () =>
-      assignees.filter((a) =>
-        isEligible(
-          a,
-          assignment.partType,
-          "assistant",
-          "manual",
-          settings.assignmentRules,
-          mainPerson?.isMinor ?? false,
-          settings.preventMinorAssistantToAdult
-        )
-      ),
-    [assignees, assignment.partType, settings.assignmentRules, mainPerson, settings.preventMinorAssistantToAdult]
+    () => assignees.filter((a) => !a.archived && a.active),
+    [assignees]
   );
+
+  const mainViolations = useMemo(() => {
+    if (!mainPerson) return [];
+    return getRuleViolations(
+      mainPerson,
+      assignment.partType,
+      "main",
+      settings.assignmentRules,
+      undefined,
+      settings.preventMinorAssistantToAdult
+    );
+  }, [mainPerson, assignment.partType, settings.assignmentRules, settings.preventMinorAssistantToAdult]);
+
+  const assistantPerson = assignees.find((a) => a.id === assignment.assistantId);
+  const assistantViolations = useMemo(() => {
+    if (!assistantPerson) return [];
+    return getRuleViolations(
+      assistantPerson,
+      assignment.partType,
+      "assistant",
+      settings.assignmentRules,
+      mainPerson?.isMinor ?? false,
+      settings.preventMinorAssistantToAdult
+    );
+  }, [assistantPerson, assignment.partType, settings.assignmentRules, mainPerson, settings.preventMinorAssistantToAdult]);
 
   const seg = segmentOf(assignment.segment);
   const showAssistant = needsAssistant(assignment.partType);
@@ -764,9 +778,15 @@ function PartRow({
                       : [];
                     // Merge, deduplicating by id.
                     const seen = new Set(sameGender.map((a) => a.id));
+                    const remaining = eligibleAssistant.filter(
+                      (a) =>
+                        !seen.has(a.id) &&
+                        !householdCrossGender.some((x) => x.id === a.id)
+                    );
                     return [
                       ...sameGender,
                       ...householdCrossGender.filter((a) => !seen.has(a.id)),
+                      ...remaining,
                     ];
                   })()
                 }
@@ -788,12 +808,30 @@ function PartRow({
           </>
         )}
       </div>
-      {settings.preventMinorAssistantToAdult && assignment.segment === "ministry" && showAssistant && mainPerson && !mainPerson.isMinor && assignees.find(a => a.id === assignment.assistantId)?.isMinor && (
-        <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 flex items-center gap-1.5 animate-fade-in">
-          <span>⚠️</span>
-          <span>
-            <strong>Policy Reminder:</strong> Minors should not normally assist adults in ministry demonstrations, as adults do not preach to minors without parental approval in the field.
-          </span>
+      {mainViolations.length > 0 && (
+        <div className="mt-2 text-[11px] text-amber-800 bg-amber-50/50 border border-amber-200 rounded px-2.5 py-1.5 flex flex-col gap-0.5 animate-fade-in">
+          <div className="flex items-center gap-1.5 font-semibold text-amber-800">
+            <span>⚠️</span>
+            <span>Rule Warning ({showAssistant ? "Main Publisher" : "Assignee"}):</span>
+          </div>
+          <ul className="list-disc pl-4 space-y-0.5 mt-0.5 text-slate-700">
+            {mainViolations.map((v, i) => (
+              <li key={i}>{v}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {showAssistant && assistantViolations.length > 0 && (
+        <div className="mt-2 text-[11px] text-amber-800 bg-amber-50/50 border border-amber-200 rounded px-2.5 py-1.5 flex flex-col gap-0.5 animate-fade-in">
+          <div className="flex items-center gap-1.5 font-semibold text-amber-800">
+            <span>⚠️</span>
+            <span>Rule Warning ({assignment.partType === "Congregation Bible Study" ? "Reader" : "Assistant"}):</span>
+          </div>
+          <ul className="list-disc pl-4 space-y-0.5 mt-0.5 text-slate-700">
+            {assistantViolations.map((v, i) => (
+              <li key={i}>{v}</li>
+            ))}
+          </ul>
         </div>
       )}
       <div className="mt-3 flex items-center gap-3">
@@ -959,15 +997,30 @@ function AssigneePicker({
         }
       }
 
-      return { a, score, weeksAgo, hasNearby, awayReason };
+      const violations = getRuleViolations(
+        a,
+        assignment.partType,
+        role,
+        settings.assignmentRules,
+        mainIsMinor,
+        settings.preventMinorAssistantToAdult
+      );
+
+      return { a, score, weeksAgo, hasNearby, awayReason, violations };
     });
 
-    // Sort: available enrollees first, then by score descending (highest score = most due)
+    // Sort: available and compliant enrollees first, then by score descending
     scored.sort((x, y) => {
       const xAway = !!x.awayReason;
       const yAway = !!y.awayReason;
       if (xAway && !yAway) return 1;
       if (!xAway && yAway) return -1;
+
+      const xViolates = x.violations.length > 0;
+      const yViolates = y.violations.length > 0;
+      if (xViolates && !yViolates) return 1;
+      if (!xViolates && yViolates) return -1;
+
       return y.score - x.score;
     });
 
@@ -976,7 +1029,7 @@ function AssigneePicker({
       item.a.name.toLowerCase().includes(q) ||
       (privilegeLabel(item.a) ?? "").toLowerCase().includes(q)
     );
-  }, [options, query, stats, talkSplit, treasuresSplit, settings, assignment, weekOf, role, allWeeks]);
+  }, [options, query, stats, talkSplit, treasuresSplit, settings, assignment, weekOf, role, allWeeks, mainIsMinor]);
 
   function selectOption(id: number | undefined) {
     onChange(id);
@@ -1088,7 +1141,7 @@ function AssigneePicker({
               No matches
             </div>
           ) : (
-            filtered.map(({ a, weeksAgo, hasNearby, awayReason }) => {
+            filtered.map(({ a, weeksAgo, hasNearby, awayReason, violations }) => {
               const optLabel = [
                 a.name,
                 privilegeLabel(a) ? `(${privilegeLabel(a)})` : null,
@@ -1134,9 +1187,9 @@ function AssigneePicker({
                     <span className="text-[9px] font-medium text-slate-400 leading-none">
                       {weeksAgo}
                     </span>
-                    {settings.preventMinorAssistantToAdult && assignment.segment === "ministry" && role === "assistant" && mainIsMinor === false && a.isMinor && (
-                      <span className="text-[8px] font-bold text-red-600 bg-red-50 px-1 rounded leading-tight border border-red-100" title="Violates minor-assistant policy">
-                        POLICY
+                    {violations && violations.length > 0 && (
+                      <span className="text-[8px] font-bold text-rose-600 bg-rose-50 px-1 rounded leading-tight border border-rose-100" title={violations.join("\n")}>
+                        ⚠️ RULE
                       </span>
                     )}
                     {hasNearby && (
