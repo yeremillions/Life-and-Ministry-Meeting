@@ -46,8 +46,6 @@ export interface Assignee {
   createdAt: number;
   /** Date ranges when this publisher is out of town or unavailable. */
   unavailableRanges?: UnavailableRange[];
-  /** Weekdays when this publisher is available (e.g. ["Monday", "Thursday"]). Empty means all days. */
-  availableDays?: string[];
 }
 
 /** Which segment an assignment belongs to. */

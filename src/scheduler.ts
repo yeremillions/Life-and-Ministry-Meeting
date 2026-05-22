@@ -593,11 +593,6 @@ function pickCandidate(args: PickArgs): Assignee | null {
       if (isAway) return false;
     }
 
-    // 2. Day-of-week availability check
-    if (a.availableDays && a.availableDays.length > 0) {
-      if (!a.availableDays.includes(meetingDay)) return false;
-    }
-
     // Hard eligibility check
     if (!isEligible(a, part.partType, role, "auto", opts.assignmentRules, isMinorMain, opts.preventMinorAssistantToAdult)) {
       return false;

@@ -950,18 +950,15 @@ function AssigneePicker({
         }
       }
 
-      // --- Check recurring day availability ---
-      const isWorkConflict = !!(a.availableDays && a.availableDays.length > 0 && !a.availableDays.includes(meetingDay));
-
-      return { a, score, weeksAgo, hasNearby, awayReason, isWorkConflict };
+      return { a, score, weeksAgo, hasNearby, awayReason };
     });
 
     // Sort: available enrollees first, then by score descending (highest score = most due)
     scored.sort((x, y) => {
-      const xUnavailable = !!(x.awayReason || x.isWorkConflict);
-      const yUnavailable = !!(y.awayReason || y.isWorkConflict);
-      if (xUnavailable && !yUnavailable) return 1;
-      if (!xUnavailable && yUnavailable) return -1;
+      const xAway = !!x.awayReason;
+      const yAway = !!y.awayReason;
+      if (xAway && !yAway) return 1;
+      if (!xAway && yAway) return -1;
       return y.score - x.score;
     });
 
@@ -1082,7 +1079,7 @@ function AssigneePicker({
               No matches
             </div>
           ) : (
-            filtered.map(({ a, weeksAgo, hasNearby, awayReason, isWorkConflict }) => {
+            filtered.map(({ a, weeksAgo, hasNearby, awayReason }) => {
               const optLabel = [
                 a.name,
                 privilegeLabel(a) ? `(${privilegeLabel(a)})` : null,
@@ -1092,7 +1089,6 @@ function AssigneePicker({
               const alreadyUsed = a.id != null && usedIds.has(a.id);
               const isSelected = a.id === value;
               const isHousehold = a.id != null && householdIds?.includes(a.id);
-              const meetingDay = settings.midweekMeetingDay || "Thursday";
               
               return (
                 <div
@@ -1106,7 +1102,7 @@ function AssigneePicker({
                     display: "flex",
                     alignItems: "center",
                     gap: "0.4rem",
-                    opacity: awayReason || isWorkConflict ? 0.75 : 1,
+                    opacity: awayReason ? 0.75 : 1,
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = isSelected ? "#eef2ff" : "")}
@@ -1147,14 +1143,7 @@ function AssigneePicker({
                         ✈️ AWAY
                       </span>
                     )}
-                    {isWorkConflict && (
-                      <span 
-                        className="text-[8px] font-bold text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded leading-tight border border-sky-100" 
-                        title={`Unavailable on ${meetingDay}`}
-                      >
-                        💼 WORK
-                      </span>
-                    )}
+
                   </div>
                 </div>
               );

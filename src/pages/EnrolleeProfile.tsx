@@ -160,38 +160,7 @@ export default function EnrolleeProfile({
         <div className="card space-y-4">
           <h2 className="font-semibold text-slate-900 border-b border-slate-100 pb-2">Availability & Travel</h2>
           
-          <div className="space-y-1">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Weekly Availability</span>
-            <div className="flex gap-1 flex-wrap pt-1">
-              {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => {
-                const label = day.slice(0, 3);
-                const isAvailable = !enrollee.availableDays || enrollee.availableDays.length === 0 || enrollee.availableDays.includes(day);
-                const isExplicit = enrollee.availableDays?.includes(day);
-                return (
-                  <span
-                    key={day}
-                    className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
-                      isExplicit
-                        ? "bg-indigo-600 border-indigo-700 text-white shadow-sm font-bold"
-                        : isAvailable
-                        ? "bg-slate-50 border-slate-200 text-slate-600"
-                        : "bg-rose-50 border-rose-100 text-rose-500 opacity-60 line-through"
-                    }`}
-                    title={isExplicit ? `Explicitly available on ${day}` : isAvailable ? `Available on ${day} (default)` : `Unavailable on ${day}`}
-                  >
-                    {label}
-                  </span>
-                );
-              })}
-            </div>
-            <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
-              {!enrollee.availableDays || enrollee.availableDays.length === 0
-                ? "✓ Available every day of the week by default."
-                : `Restricted to selected meeting days.`}
-            </p>
-          </div>
-
-          <div className="space-y-2 pt-2 border-t border-slate-100">
+          <div className="space-y-2">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Out of Town Periods</span>
             {(!enrollee.unavailableRanges || enrollee.unavailableRanges.length === 0) ? (
               <p className="text-xs text-slate-500 italic">No travel dates recorded.</p>
@@ -384,12 +353,7 @@ function calculateInsights(enrollee: Assignee, history: any[], stats: AssigneeSt
         insights.push(`✈️ Scheduled to be out of town from ${nextRange.start} to ${nextRange.end}${nextRange.reason ? ` (${nextRange.reason})` : ""}.`);
     }
     
-    if (enrollee.availableDays && enrollee.availableDays.length > 0) {
-        const DAY_LABELS: Record<string, string> = {
-          Monday: "Mon", Tuesday: "Tue", Wednesday: "Wed", Thursday: "Thu", Friday: "Fri", Saturday: "Sat", Sunday: "Sun"
-        };
-        insights.push(`💼 Only available on specific days: ${enrollee.availableDays.map(d => DAY_LABELS[d] || d).join(", ")}.`);
-    }
+
 
     // 1. Last assigned
     if (!stats.lastWeekMain) {

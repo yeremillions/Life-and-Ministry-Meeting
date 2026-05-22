@@ -972,32 +972,10 @@ function EnrolleeModal({
   const [excludeFromPrayers, setExcludeFromPrayers] = useState(initial?.excludeFromPrayers ?? false);
   const [includeInPrayers, setIncludeInPrayers] = useState(initial?.includeInPrayers ?? false);
 
-  const [availableDays, setAvailableDays] = useState<string[]>(initial?.availableDays ?? []);
   const [unavailableRanges, setUnavailableRanges] = useState<UnavailableRange[]>(initial?.unavailableRanges ?? []);
   const [newStart, setNewStart] = useState("");
   const [newEnd, setNewEnd] = useState("");
   const [newReason, setNewReason] = useState("");
-
-  const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-  const DAY_LABELS: Record<string, string> = {
-    Monday: "Mon",
-    Tuesday: "Tue",
-    Wednesday: "Wed",
-    Thursday: "Thu",
-    Friday: "Fri",
-    Saturday: "Sat",
-    Sunday: "Sun"
-  };
-
-  function toggleAvailableDay(day: string) {
-    setAvailableDays((prev) => {
-      if (prev.includes(day)) {
-        return prev.filter((d) => d !== day);
-      } else {
-        return [...prev, day];
-      }
-    });
-  }
 
   function addRange() {
     if (!newStart || !newEnd) return;
@@ -1251,37 +1229,8 @@ function EnrolleeModal({
           </p>
         </div>
 
-        {/* Recurring Day Availability & Travel Ranges */}
+        {/* Travel Ranges */}
         <div className="pt-3 border-t border-slate-100 space-y-3">
-          <div>
-            <label className="label">Recurring Weekly Availability</label>
-            <div className="flex gap-1.5 flex-wrap">
-              {DAYS_OF_WEEK.map((day) => {
-                const isSelected = availableDays.includes(day);
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => toggleAvailableDay(day)}
-                    className={
-                      "px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer " +
-                      (isSelected
-                        ? "bg-indigo-600 border-indigo-700 text-white shadow-sm"
-                        : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700")
-                    }
-                  >
-                    {DAY_LABELS[day]}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-[10px] text-slate-500 mt-1">
-              {availableDays.length === 0
-                ? "✓ Available every day by default. Click days to select only specific days when they are available."
-                : `Available only on: ${availableDays.map(d => DAY_LABELS[d]).join(", ")}.`}
-            </p>
-          </div>
-
           <div className="space-y-2">
             <label className="label mb-1">Travel & Vacation Ranges</label>
             
@@ -1396,7 +1345,6 @@ function EnrolleeModal({
                 restrictionType,
                 excludeFromPrayers: gender === "M" ? excludeFromPrayers : false,
                 includeInPrayers: gender === "M" ? includeInPrayers : false,
-                availableDays: availableDays.length > 0 ? availableDays : undefined,
                 unavailableRanges: unavailableRanges.length > 0 ? unavailableRanges : undefined,
               })
             }
