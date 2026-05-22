@@ -12,6 +12,7 @@ import type {
 } from "../types";
 import { parseAssigneeFile, parsedToAssignee, parseTextList } from "../importers";
 import { isEligible, normalizePrivileges } from "../meeting";
+import ConfirmationModal from "../components/ConfirmationModal";
 
 const ALL_PRIVS: Privilege[] = ["E", "QE", "MS", "QMS", "RP", "CBSR"];
 
@@ -70,6 +71,21 @@ export default function EnrolleesPage({
   const fileRef = useRef<HTMLInputElement>(null);
   const [householdEditing, setHouseholdEditing] = useState<Household | null>(null);
   const [householdAdding, setHouseholdAdding] = useState(false);
+
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: React.ReactNode;
+    confirmText?: string;
+    cancelText?: string;
+    type?: "danger" | "warning" | "info";
+    onConfirm: () => void | Promise<void>;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   // Map enrollee id → household name for badge display
   const enrolleeHouseholdMap = useMemo(() => {
@@ -172,60 +188,75 @@ export default function EnrolleesPage({
     if (toDelete.length > 0 && toArchive.length > 0) {
       const deleteNames = toDelete.map(a => a.name).slice(0, 5).join(", ") + (toDelete.length > 5 ? ", …" : "");
       const archiveNames = toArchive.map(a => a.name).slice(0, 5).join(", ") + (toArchive.length > 5 ? ", …" : "");
-      if (
-        confirm(
-          `You selected ${selected.size} publisher(s) for removal.\n\n` +
+      setConfirmState({
+        isOpen: true,
+        title: "Delete & Archive Publishers",
+        message: `You selected ${selected.size} publisher(s) for removal.\n\n` +
           `• The following will be PERMANENTLY DELETED (no past history):\n  ${deleteNames}\n\n` +
           `• The following will be ARCHIVED to preserve historic schedules:\n  ${archiveNames}\n\n` +
-          `Do you want to proceed?`
-        )
-      ) {
-        // Bulk delete
-        const deleteIds = toDelete.map(a => a.id!).filter(id => id != null);
-        await db.assignees.bulkDelete(deleteIds);
-        for (const a of toDelete) {
-          await addLog("enrollees", `Deleted enrollee: ${a.name}`);
-        }
-        
-        // Bulk archive
-        await db.transaction("rw", db.assignees, async () => {
-          for (const a of toArchive) {
-            await db.assignees.update(a.id!, { archived: true, active: false });
-            await addLog("enrollees", `Archived enrollee: ${a.name}`);
+          `Do you want to proceed?`,
+        confirmText: "Proceed",
+        cancelText: "Cancel",
+        type: "warning",
+        onConfirm: async () => {
+          // Bulk delete
+          const deleteIds = toDelete.map(a => a.id!).filter(id => id != null);
+          await db.assignees.bulkDelete(deleteIds);
+          for (const a of toDelete) {
+            await addLog("enrollees", `Deleted enrollee: ${a.name}`);
           }
-        });
-        
-        setSelected(new Set());
-      }
+          
+          // Bulk archive
+          await db.transaction("rw", db.assignees, async () => {
+            for (const a of toArchive) {
+              await db.assignees.update(a.id!, { archived: true, active: false });
+              await addLog("enrollees", `Archived enrollee: ${a.name}`);
+            }
+          });
+          
+          setSelected(new Set());
+          setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        }
+      });
     } else if (toArchive.length > 0) {
       const archiveNames = toArchive.map(a => a.name).slice(0, 5).join(", ") + (toArchive.length > 5 ? ", …" : "");
-      if (
-        confirm(
-          `"${archiveNames}" ${toArchive.length === 1 ? "has" : "have"} past scheduled assignments. To preserve your historic schedules and reports, ${toArchive.length === 1 ? "this publisher" : "these publishers"} will be archived instead of permanently deleted.\n\nDo you want to archive ${toArchive.length === 1 ? "this publisher" : "these publishers"}?`
-        )
-      ) {
-        await db.transaction("rw", db.assignees, async () => {
-          for (const a of toArchive) {
-            await db.assignees.update(a.id!, { archived: true, active: false });
-            await addLog("enrollees", `Archived enrollee: ${a.name}`);
-          }
-        });
-        setSelected(new Set());
-      }
+      setConfirmState({
+        isOpen: true,
+        title: "Archive Publishers",
+        message: `"${archiveNames}" ${toArchive.length === 1 ? "has" : "have"} past scheduled assignments. To preserve historic schedules and reports, ${toArchive.length === 1 ? "this publisher" : "these publishers"} will be archived instead of permanently deleted.\n\nDo you want to archive ${toArchive.length === 1 ? "this publisher" : "these publishers"}?`,
+        confirmText: "Yes, Archive",
+        cancelText: "Cancel",
+        type: "warning",
+        onConfirm: async () => {
+          await db.transaction("rw", db.assignees, async () => {
+            for (const a of toArchive) {
+              await db.assignees.update(a.id!, { archived: true, active: false });
+              await addLog("enrollees", `Archived enrollee: ${a.name}`);
+            }
+          });
+          setSelected(new Set());
+          setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        }
+      });
     } else if (toDelete.length > 0) {
       const deleteNames = toDelete.map(a => a.name).slice(0, 5).join(", ") + (toDelete.length > 5 ? ", …" : "");
-      if (
-        confirm(
-          `Are you sure you want to permanently delete ${toDelete.length} publisher${toDelete.length === 1 ? "" : "s"}? This cannot be undone.\n\n${deleteNames}`
-        )
-      ) {
-        const deleteIds = toDelete.map(a => a.id!).filter(id => id != null);
-        await db.assignees.bulkDelete(deleteIds);
-        for (const a of toDelete) {
-          await addLog("enrollees", `Deleted enrollee: ${a.name}`);
+      setConfirmState({
+        isOpen: true,
+        title: "Permanently Delete Publishers",
+        message: `Are you sure you want to permanently delete ${toDelete.length} publisher${toDelete.length === 1 ? "" : "s"}? This cannot be undone.\n\n${deleteNames}`,
+        confirmText: "Permanently Delete",
+        cancelText: "Cancel",
+        type: "danger",
+        onConfirm: async () => {
+          const deleteIds = toDelete.map(a => a.id!).filter(id => id != null);
+          await db.assignees.bulkDelete(deleteIds);
+          for (const a of toDelete) {
+            await addLog("enrollees", `Deleted enrollee: ${a.name}`);
+          }
+          setSelected(new Set());
+          setConfirmState((prev) => ({ ...prev, isOpen: false }));
         }
-        setSelected(new Set());
-      }
+      });
     }
   }
 
@@ -572,21 +603,30 @@ export default function EnrolleesPage({
                 {filter === "archived" && (
                   <button
                     className="btn bg-indigo-600 hover:bg-indigo-700 text-white text-xs py-1 px-3 rounded font-semibold flex items-center gap-1 h-[26px]"
-                    onClick={async () => {
+                    onClick={() => {
                       if (selected.size === 0) return;
-                      if (confirm(`Unarchive and restore ${selected.size} selected publisher(s) to active status?`)) {
-                        const ids = [...selected];
-                        await db.transaction("rw", db.assignees, async () => {
-                          for (const id of ids) {
-                            await db.assignees.update(id, { archived: false, active: true });
-                            const a = await db.assignees.get(id);
-                            if (a) {
-                              await addLog("enrollees", `Unarchived enrollee: ${a.name}`);
+                      setConfirmState({
+                        isOpen: true,
+                        title: "Unarchive Selected Publishers",
+                        message: `Are you sure you want to unarchive and restore the ${selected.size} selected publisher(s) to active status?`,
+                        confirmText: "Yes, Restore",
+                        cancelText: "Cancel",
+                        type: "info",
+                        onConfirm: async () => {
+                          const ids = [...selected];
+                          await db.transaction("rw", db.assignees, async () => {
+                            for (const id of ids) {
+                              await db.assignees.update(id, { archived: false, active: true });
+                              const a = await db.assignees.get(id);
+                              if (a) {
+                                await addLog("enrollees", `Unarchived enrollee: ${a.name}`);
+                              }
                             }
-                          }
-                        });
-                        setSelected(new Set());
-                      }
+                          });
+                          setSelected(new Set());
+                          setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                        }
+                      });
                     }}
                   >
                     🔄 Restore selected
@@ -820,24 +860,43 @@ export default function EnrolleesPage({
           }}
           onDelete={async () => {
             if (editing.id != null) {
+              const id = editing.id;
               const name = editing.name;
               const weeks = await db.weeks.toArray();
               const hasPastHistory = weeks.some(w => 
-                w.assignments.some(assign => assign.assigneeId === editing.id || assign.assistantId === editing.id)
+                w.assignments.some(assign => assign.assigneeId === id || assign.assistantId === id)
               );
               
               if (!hasPastHistory) {
-                if (confirm(`Are you sure you want to permanently delete the publisher "${name}"? This cannot be undone.`)) {
-                  await db.assignees.delete(editing.id);
-                  await addLog("enrollees", `Deleted enrollee: ${name}`);
-                  setEditing(null);
-                }
+                setConfirmState({
+                  isOpen: true,
+                  title: "Permanently Delete Publisher",
+                  message: `Are you sure you want to permanently delete the publisher "${name}"? This cannot be undone.`,
+                  confirmText: "Permanently Delete",
+                  cancelText: "Cancel",
+                  type: "danger",
+                  onConfirm: async () => {
+                    await db.assignees.delete(id);
+                    await addLog("enrollees", `Deleted enrollee: ${name}`);
+                    setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                    setEditing(null);
+                  }
+                });
               } else {
-                if (confirm(`"${name}" has past scheduled assignments. To preserve your historic schedules and reports, they will be archived instead of permanently deleted.\n\nDo you want to archive this publisher?`)) {
-                  await db.assignees.update(editing.id, { archived: true, active: false });
-                  await addLog("enrollees", `Archived enrollee: ${name}`);
-                  setEditing(null);
-                }
+                setConfirmState({
+                  isOpen: true,
+                  title: "Archive Publisher",
+                  message: `"${name}" has past scheduled assignments. To preserve historic schedules and reports, they will be archived instead of permanently deleted.\n\nDo you want to archive this publisher?`,
+                  confirmText: "Yes, Archive",
+                  cancelText: "Cancel",
+                  type: "warning",
+                  onConfirm: async () => {
+                    await db.assignees.update(id, { archived: true, active: false });
+                    await addLog("enrollees", `Archived enrollee: ${name}`);
+                    setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                    setEditing(null);
+                  }
+                });
               }
             }
           }}
@@ -889,16 +948,38 @@ export default function EnrolleesPage({
             setHouseholdEditing(null);
           }}
           onDelete={async () => {
-            if (
-              householdEditing.id != null &&
-              confirm(`Delete household "${householdEditing.name}"?`)
-            ) {
-              await db.households.delete(householdEditing.id);
-              setHouseholdEditing(null);
+            if (householdEditing.id != null) {
+              const id = householdEditing.id;
+              const name = householdEditing.name;
+              setConfirmState({
+                isOpen: true,
+                title: "Delete Household",
+                message: `Are you sure you want to delete household "${name}"?`,
+                confirmText: "Delete",
+                cancelText: "Cancel",
+                type: "danger",
+                onConfirm: async () => {
+                  await db.households.delete(id);
+                  setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                  setHouseholdEditing(null);
+                }
+              });
             }
           }}
         />
       )}
+      <ConfirmationModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+        type={confirmState.type}
+        onConfirm={async () => {
+          await confirmState.onConfirm();
+        }}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }
