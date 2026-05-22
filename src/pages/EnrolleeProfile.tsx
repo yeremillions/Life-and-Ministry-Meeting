@@ -84,11 +84,20 @@ export default function EnrolleeProfile({
           &larr; Back
         </button>
         <h1 className="text-2xl font-bold">{enrollee.name}</h1>
-        {enrollee.active ? (
-          <span className="pill bg-emerald-100 text-emerald-800 border border-emerald-200">Active</span>
-        ) : (
-          <span className="pill bg-slate-100 text-slate-800 border border-slate-200">Inactive</span>
-        )}
+        <button
+          onClick={async () => {
+            await db.assignees.update(id, { active: !enrollee.active });
+          }}
+          title="Click to toggle active status"
+          className={
+            "pill transition-all cursor-pointer font-semibold hover:scale-105 active:scale-95 select-none " +
+            (enrollee.active
+              ? "bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200 hover:text-emerald-900"
+              : "bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 hover:text-slate-900")
+          }
+        >
+          {enrollee.active ? "🟢 Active" : "⚫ Inactive"}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
