@@ -83,6 +83,7 @@ export default function Dashboard({
   let activeBrothers: Assignee[] = [];
   let activeSisters: Assignee[] = [];
   let neverAssigned: Assignee[] = [];
+  let inactiveAssignees: Assignee[] = [];
   let upcomingFill = 0;
   let segmentCounts: Record<string, number> = { opening: 0, treasures: 0, ministry: 0, living: 0 };
   let segmentTotal = 0;
@@ -114,6 +115,7 @@ export default function Dashboard({
       const s = stats.get(a.id!);
       return !s || !s.lastWeekMain;
     });
+    inactiveAssignees = assignees.filter((a) => !a.active);
 
     // Overall fill rate for upcoming weeks
     let filled = 0, total = 0;
@@ -448,6 +450,37 @@ export default function Dashboard({
                   {neverAssigned.length > 5 && (
                     <span className="text-[11px] text-gray-500 px-1 py-0.5">
                       +{neverAssigned.length - 5} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Inactive Publishers */}
+            {inactiveAssignees.length > 0 && (
+              <div className="card" style={{ borderLeft: '3px solid #f43f5e' }}>
+                <h3 className="text-sm font-semibold mb-1 text-slate-800 flex items-center justify-between">
+                  <span>Inactive List ({inactiveAssignees.length})</span>
+                  <span className="text-[9px] text-rose-500 font-bold uppercase tracking-wider bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100/50">
+                    Paused
+                  </span>
+                </h3>
+                <p className="text-xs text-gray-500 mb-2.5">
+                  These enrollees are currently set to inactive and are skipped during automatic scheduling.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {inactiveAssignees.slice(0, 8).map((a) => (
+                    <button
+                      key={a.id}
+                      onClick={() => onNavigateToProfile(a.id!)}
+                      className="text-[11px] font-semibold px-2 py-0.5 hover:underline text-rose-700 bg-rose-50/60 hover:bg-rose-100 rounded border border-rose-200/50 transition-all shadow-sm"
+                    >
+                      {a.name}
+                    </button>
+                  ))}
+                  {inactiveAssignees.length > 8 && (
+                    <span className="text-[11px] text-slate-400 font-semibold self-center ml-1">
+                      +{inactiveAssignees.length - 8} more
                     </span>
                   )}
                 </div>
