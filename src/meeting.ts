@@ -198,7 +198,8 @@ export function isEligible(
   }
 
   // Hard constraint: minor cannot assist adult if setting is on (Auto-only, manual allowed but warned)
-  if (purpose === "auto" && preventMinorAssistantToAdult && role === "assistant" && mainIsMinor === false && a.isMinor) {
+  const isMinistryPart = SEGMENT_PART_TYPES.ministry.includes(partType);
+  if (purpose === "auto" && preventMinorAssistantToAdult && isMinistryPart && role === "assistant" && mainIsMinor === false && a.isMinor) {
     return false;
   }
 

@@ -788,7 +788,7 @@ function PartRow({
           </>
         )}
       </div>
-      {settings.preventMinorAssistantToAdult && showAssistant && mainPerson && !mainPerson.isMinor && assignees.find(a => a.id === assignment.assistantId)?.isMinor && (
+      {settings.preventMinorAssistantToAdult && assignment.segment === "ministry" && showAssistant && mainPerson && !mainPerson.isMinor && assignees.find(a => a.id === assignment.assistantId)?.isMinor && (
         <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 flex items-center gap-1.5 animate-fade-in">
           <span>⚠️</span>
           <span>
@@ -1134,7 +1134,7 @@ function AssigneePicker({
                     <span className="text-[9px] font-medium text-slate-400 leading-none">
                       {weeksAgo}
                     </span>
-                    {settings.preventMinorAssistantToAdult && role === "assistant" && mainIsMinor === false && a.isMinor && (
+                    {settings.preventMinorAssistantToAdult && assignment.segment === "ministry" && role === "assistant" && mainIsMinor === false && a.isMinor && (
                       <span className="text-[8px] font-bold text-red-600 bg-red-50 px-1 rounded leading-tight border border-red-100" title="Violates minor-assistant policy">
                         POLICY
                       </span>
