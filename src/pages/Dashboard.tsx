@@ -507,6 +507,21 @@ export default function Dashboard({
 
   const [showWizard, setShowWizard] = useState(false);
 
+  const handleIgnoreConflict = async (conflictId: string) => {
+    const currentIgnored = settings?.ignoredConflicts ?? [];
+    if (!currentIgnored.includes(conflictId)) {
+      await db.settings.update("app", {
+        ignoredConflicts: [...currentIgnored, conflictId],
+      });
+    }
+  };
+
+  const handleResetIgnored = async () => {
+    await db.settings.update("app", {
+      ignoredConflicts: [],
+    });
+  };
+
   let today = "";
   let currentMonday = "";
   let upcoming: Week[] = [];
@@ -579,10 +594,15 @@ export default function Dashboard({
 
     isBrandNew = assignees.length === 0 && weeks.length === 0;
 
+    const allUpcomingConflicts = upcoming.flatMap((w) => findWeekConflicts(w, assignees, households, settings));
+    const ignoredList = settings?.ignoredConflicts ?? [];
+    const ignoredUpcomingCount = allUpcomingConflicts.filter((c) => ignoredList.includes(c.id)).length;
+
     const conflictsByWeek = upcoming.reduce<{ weekId: number; weekOf: string; list: Conflict[] }[]>((acc, w) => {
       const list = findWeekConflicts(w, assignees, households, settings);
-      if (list.length > 0) {
-        acc.push({ weekId: w.id!, weekOf: w.weekOf, list });
+      const activeList = list.filter((c) => !ignoredList.includes(c.id));
+      if (activeList.length > 0) {
+        acc.push({ weekId: w.id!, weekOf: w.weekOf, list: activeList });
       }
       return acc;
     }, []);
@@ -667,11 +687,20 @@ export default function Dashboard({
                   <div className="flex items-center gap-2.5">
                     <span className="text-xl">⚠️</span>
                     <div>
-                      <h2 className="font-bold text-slate-900 leading-none flex items-center gap-2">
+                      <h2 className="font-bold text-slate-900 leading-none flex items-center gap-2 flex-wrap">
                         Rule Conflicts & Warnings
                         <span className="text-[11px] font-extrabold px-2 py-0.5 bg-red-100 text-red-800 rounded-full border border-red-200 shadow-sm animate-pulse">
                           {allConflicts.length} {allConflicts.length === 1 ? "Issue" : "Issues"}
                         </span>
+                        {ignoredUpcomingCount > 0 && (
+                          <button
+                            onClick={handleResetIgnored}
+                            className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full border border-slate-300 transition-all flex items-center gap-1 shadow-sm shrink-0"
+                            title="Restore ignored conflicts to view"
+                          >
+                            <span>🔄 Restore {ignoredUpcomingCount} Ignored</span>
+                          </button>
+                        )}
                       </h2>
                       <p className="text-xs text-slate-500 mt-1">
                         Scanning 4 upcoming weeks. Click on enrollees or schedule editor to resolve.
@@ -728,25 +757,34 @@ export default function Dashboard({
                                 <p className="text-xs text-slate-600 font-medium leading-relaxed break-words">
                                   {c.message}
                                 </p>
-                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                                  {assigneeName && c.assigneeId && (
-                                    <button
-                                      onClick={() => onNavigateToProfile(c.assigneeId!)}
-                                      className="text-[10px] font-semibold bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-0.5 transition-all flex items-center gap-1"
-                                      style={{ color: 'var(--color-primary)' }}
-                                    >
-                                      <span>👤 {assigneeName}</span>
-                                    </button>
-                                  )}
-                                  {assistantName && c.assistantId && (
-                                    <button
-                                      onClick={() => onNavigateToProfile(c.assistantId!)}
-                                      className="text-[10px] font-semibold bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-0.5 transition-all flex items-center gap-1"
-                                      style={{ color: 'var(--color-primary)' }}
-                                    >
-                                      <span>👥 Assistant: {assistantName}</span>
-                                    </button>
-                                  )}
+                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5 w-full justify-between">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    {assigneeName && c.assigneeId && (
+                                      <button
+                                        onClick={() => onNavigateToProfile(c.assigneeId!)}
+                                        className="text-[10px] font-semibold bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-0.5 transition-all flex items-center gap-1"
+                                        style={{ color: 'var(--color-primary)' }}
+                                      >
+                                        <span>👤 {assigneeName}</span>
+                                      </button>
+                                    )}
+                                    {assistantName && c.assistantId && (
+                                      <button
+                                        onClick={() => onNavigateToProfile(c.assistantId!)}
+                                        className="text-[10px] font-semibold bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-0.5 transition-all flex items-center gap-1"
+                                        style={{ color: 'var(--color-primary)' }}
+                                      >
+                                        <span>👥 Assistant: {assistantName}</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => handleIgnoreConflict(c.id)}
+                                    className="text-[10px] font-bold text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-0.5 transition-all flex items-center gap-1 shrink-0 ml-auto"
+                                    title="Ignore this conflict warning on the dashboard"
+                                  >
+                                    <span>🔕 Ignore</span>
+                                  </button>
                                 </div>
                               </div>
                             </div>

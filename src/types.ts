@@ -201,6 +201,8 @@ export interface AppSettings {
   midweekMeetingDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
   /** How availability ranges are tracked. "unavailable" means away dates, "available" means in-town dates. */
   availabilityMode?: "unavailable" | "available";
+  /** List of ignored conflict IDs on the dashboard. */
+  ignoredConflicts?: string[];
 }
 
 export interface AssignmentRule {
@@ -345,4 +347,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   qmsTreasuresRatio: 0,
   midweekMeetingDay: "Thursday",
   availabilityMode: "unavailable",
+  ignoredConflicts: [],
 };
