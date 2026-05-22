@@ -339,6 +339,22 @@ export default function SettingsPage({
             </p>
           </div>
           <div>
+            <label className="label">Availability Tracking Mode</label>
+            <select
+              className="input max-w-md"
+              value={draft.availabilityMode ?? "unavailable"}
+              onChange={(e) =>
+                setDraft({ ...draft, availabilityMode: e.target.value as any })
+              }
+            >
+              <option value="unavailable">Track when they are Away / Out of town (Default)</option>
+              <option value="available">Track when they are Available / In town</option>
+            </select>
+            <p className="text-xs text-slate-500 mt-1">
+              Choose whether you prefer to record periods when publishers are out of town (default) or when they are in town/available.
+            </p>
+          </div>
+          <div>
             <label className="label">
               Share of Field Ministry parts that may go to E / QE / MS / QMS (%)
             </label>

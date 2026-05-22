@@ -1229,10 +1229,14 @@ function EnrolleeModal({
           </p>
         </div>
 
-        {/* Travel Ranges */}
+        {/* Travel/Availability Ranges */}
         <div className="pt-3 border-t border-slate-100 space-y-3">
           <div className="space-y-2">
-            <label className="label mb-1">Travel & Vacation Ranges</label>
+            <label className="label mb-1">
+              {settings?.availabilityMode === "available"
+                ? "Available & In-Town Dates"
+                : "Travel & Vacation Ranges"}
+            </label>
             
             {unavailableRanges.length > 0 && (
               <div className="space-y-1.5 max-h-36 overflow-y-auto border border-slate-100 rounded-lg p-2 bg-slate-50/50 custom-scrollbar">
@@ -1240,7 +1244,7 @@ function EnrolleeModal({
                   <div key={idx} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded border border-slate-200/60 shadow-sm text-xs">
                     <div className="flex flex-col">
                       <span className="font-semibold text-slate-700">
-                        ✈️ {range.start} to {range.end}
+                        {settings?.availabilityMode === "available" ? "✅" : "✈️"} {range.start} to {range.end}
                       </span>
                       {range.reason && (
                         <span className="text-[10px] text-slate-500 font-medium">{range.reason}</span>
@@ -1280,11 +1284,17 @@ function EnrolleeModal({
                 </div>
               </div>
               <div>
-                <label className="text-[9px] uppercase font-bold text-slate-400">Reason (optional)</label>
+                <label className="text-[9px] uppercase font-bold text-slate-400">
+                  {settings?.availabilityMode === "available" ? "Description (optional)" : "Reason (optional)"}
+                </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="e.g. Vacation, Work trip"
+                    placeholder={
+                      settings?.availabilityMode === "available"
+                        ? "e.g. In town, business trip back"
+                        : "e.g. Vacation, Work trip"
+                    }
                     className="input text-xs py-1"
                     value={newReason}
                     onChange={(e) => setNewReason(e.target.value)}

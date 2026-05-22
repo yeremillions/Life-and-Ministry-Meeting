@@ -199,6 +199,8 @@ export interface AppSettings {
   qmsTreasuresRatio: number;
   /** The weekday that the midweek meeting is held. Defaults to "Thursday". */
   midweekMeetingDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+  /** How availability ranges are tracked. "unavailable" means away dates, "available" means in-town dates. */
+  availabilityMode?: "unavailable" | "available";
 }
 
 export interface AssignmentRule {
@@ -342,4 +344,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   msTreasuresRatio: 0,
   qmsTreasuresRatio: 0,
   midweekMeetingDay: "Thursday",
+  availabilityMode: "unavailable",
 };

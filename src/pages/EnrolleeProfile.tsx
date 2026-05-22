@@ -22,6 +22,7 @@ export default function EnrolleeProfile({
   const weeks = useLiveQuery(() => db.weeks.orderBy("weekOf").toArray(), []);
   const households = useLiveQuery(() => db.households.toArray(), []);
   const settings = useLiveQuery(() => db.settings.get("app"), []) || null;
+  const isAvailableMode = settings?.availabilityMode === "available";
 
   const [newStart, setNewStart] = useState("");
   const [newEnd, setNewEnd] = useState("");
@@ -161,21 +162,27 @@ export default function EnrolleeProfile({
           <h2 className="font-semibold text-slate-900 border-b border-slate-100 pb-2">Availability & Travel</h2>
           
           <div className="space-y-2">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Out of Town Periods</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              {isAvailableMode ? "Available Periods" : "Out of Town Periods"}
+            </span>
             {(!enrollee.unavailableRanges || enrollee.unavailableRanges.length === 0) ? (
-              <p className="text-xs text-slate-500 italic">No travel dates recorded.</p>
+              <p className="text-xs text-slate-500 italic">
+                {isAvailableMode ? "No available dates recorded." : "No travel dates recorded."}
+              </p>
             ) : (
               <div className="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar">
                 {enrollee.unavailableRanges.map((range, idx) => (
                   <div key={idx} className="flex items-center justify-between bg-slate-50 px-2 py-1 rounded border border-slate-200/50 text-[11px]">
                     <div className="flex flex-col">
-                      <span className="font-semibold text-slate-700">✈️ {range.start} to {range.end}</span>
+                      <span className="font-semibold text-slate-700">
+                        {isAvailableMode ? "✅" : "✈️"} {range.start} to {range.end}
+                      </span>
                       {range.reason && <span className="text-[9px] text-slate-500 font-medium">{range.reason}</span>}
                     </div>
                     <button
                       onClick={() => handleRemoveTravel(idx)}
                       className="text-rose-500 hover:text-rose-700 font-bold hover:bg-rose-50 px-1 py-0.5 rounded transition-colors text-[10px]"
-                      title="Delete travel period"
+                      title={isAvailableMode ? "Delete available period" : "Delete travel period"}
                     >
                       Remove
                     </button>
@@ -186,7 +193,9 @@ export default function EnrolleeProfile({
             
             {/* Inline Quick Add form */}
             <div className="pt-2 border-t border-slate-100 space-y-1.5 bg-slate-50/20 p-2 rounded-lg border border-slate-200/40">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide block">Quick Add Travel</span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide block">
+                {isAvailableMode ? "Quick Add Available Period" : "Quick Add Travel"}
+              </span>
               <div className="grid grid-cols-2 gap-1.5">
                 <div>
                   <label className="text-[8px] uppercase font-bold text-slate-400">Start</label>
@@ -208,11 +217,13 @@ export default function EnrolleeProfile({
                 </div>
               </div>
               <div>
-                <label className="text-[8px] uppercase font-bold text-slate-400 block">Reason (optional)</label>
+                <label className="text-[8px] uppercase font-bold text-slate-400 block">
+                  {isAvailableMode ? "Description (optional)" : "Reason (optional)"}
+                </label>
                 <div className="flex gap-1.5">
                   <input
                     type="text"
-                    placeholder="Vacation, etc."
+                    placeholder={isAvailableMode ? "In town, etc." : "Vacation, etc."}
                     className="input text-[10px] py-0.5 px-1.5 h-6"
                     value={newReason}
                     onChange={(e) => setNewReason(e.target.value)}
@@ -343,14 +354,33 @@ function calculateInsights(enrollee: Assignee, history: any[], stats: AssigneeSt
 
     // 0. Availability & Travel Alerts
     const ranges = enrollee.unavailableRanges ?? [];
-    const activeRanges = ranges.filter((r) => today <= r.end);
-    const currentRange = ranges.find((r) => today >= r.start && today <= r.end);
-    if (currentRange) {
-        insights.push(`⚠️ Currently away on travel (${currentRange.start} to ${currentRange.end}${currentRange.reason ? `: ${currentRange.reason}` : ""}).`);
-    } else if (activeRanges.length > 0) {
-        const sortedUpcoming = [...activeRanges].sort((a, b) => a.start.localeCompare(b.start));
-        const nextRange = sortedUpcoming[0];
-        insights.push(`✈️ Scheduled to be out of town from ${nextRange.start} to ${nextRange.end}${nextRange.reason ? ` (${nextRange.reason})` : ""}.`);
+    const mode = settings?.availabilityMode || "unavailable";
+    
+    if (mode === "available") {
+        if (ranges.length > 0) {
+            const currentRange = ranges.find((r) => today >= r.start && today <= r.end);
+            if (currentRange) {
+                insights.push(`✅ Currently available (scheduled in town from ${currentRange.start} to ${currentRange.end}${currentRange.reason ? `: ${currentRange.reason}` : ""}).`);
+            } else {
+                insights.push(`⚠️ Currently away/unavailable (not in any scheduled available ranges).`);
+                const activeRanges = ranges.filter((r) => today <= r.end);
+                if (activeRanges.length > 0) {
+                    const sortedUpcoming = [...activeRanges].sort((a, b) => a.start.localeCompare(b.start));
+                    const nextRange = sortedUpcoming[0];
+                    insights.push(`📅 Next scheduled available period: ${nextRange.start} to ${nextRange.end}${nextRange.reason ? ` (${nextRange.reason})` : ""}.`);
+                }
+            }
+        }
+    } else {
+        const activeRanges = ranges.filter((r) => today <= r.end);
+        const currentRange = ranges.find((r) => today >= r.start && today <= r.end);
+        if (currentRange) {
+            insights.push(`⚠️ Currently away on travel (${currentRange.start} to ${currentRange.end}${currentRange.reason ? `: ${currentRange.reason}` : ""}).`);
+        } else if (activeRanges.length > 0) {
+            const sortedUpcoming = [...activeRanges].sort((a, b) => a.start.localeCompare(b.start));
+            const nextRange = sortedUpcoming[0];
+            insights.push(`✈️ Scheduled to be out of town from ${nextRange.start} to ${nextRange.end}${nextRange.reason ? ` (${nextRange.reason})` : ""}.`);
+        }
     }
     
 

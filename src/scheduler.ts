@@ -373,6 +373,8 @@ export interface AutoAssignOptions {
   qmsTreasuresRatio?: number;
   /** The weekday that the midweek meeting is held. */
   midweekMeetingDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+  /** How availability ranges are tracked. "unavailable" means away dates, "available" means in-town dates. */
+  availabilityMode?: "unavailable" | "available";
 }
 
 /**
@@ -585,12 +587,18 @@ function pickCandidate(args: PickArgs): Assignee | null {
     if (used.has(a.id ?? -1)) return false;
     if (genderFilter && a.gender !== genderFilter) return false;
 
-    // 1. Calendar out-of-town ranges check
-    if (a.unavailableRanges && a.unavailableRanges.length > 0) {
-      const isAway = a.unavailableRanges.some((range) => {
+    // 1. Calendar ranges check
+    const ranges = a.unavailableRanges ?? [];
+    const mode = opts.availabilityMode || "unavailable";
+    if (ranges.length > 0) {
+      const overlapsAny = ranges.some((range) => {
         return meetingDateStr >= range.start && meetingDateStr <= range.end;
       });
-      if (isAway) return false;
+      if (mode === "available") {
+        if (!overlapsAny) return false;
+      } else {
+        if (overlapsAny) return false;
+      }
     }
 
     // Hard eligibility check

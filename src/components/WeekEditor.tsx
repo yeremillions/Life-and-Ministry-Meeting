@@ -939,14 +939,23 @@ function AssigneePicker({
         return w.assignments.some((ass: Assignment) => ass.assigneeId === a.id || ass.assistantId === a.id);
       });
 
-      // --- Check out-of-town ranges ---
+      // --- Check out-of-town/availability ranges ---
       let awayReason: string | undefined = undefined;
-      if (a.unavailableRanges && a.unavailableRanges.length > 0) {
-        const matchingRange = a.unavailableRanges.find((range) => {
+      const ranges = a.unavailableRanges ?? [];
+      const mode = settings.availabilityMode || "unavailable";
+      if (ranges.length > 0) {
+        const overlapsAny = ranges.some((range) => {
           return meetingDateStr >= range.start && meetingDateStr <= range.end;
         });
-        if (matchingRange) {
-          awayReason = matchingRange.reason || "Out of town";
+        if (mode === "available") {
+          if (!overlapsAny) {
+            awayReason = "Outside scheduled available dates";
+          }
+        } else {
+          if (overlapsAny) {
+            const matchingRange = ranges.find((range) => meetingDateStr >= range.start && meetingDateStr <= range.end);
+            awayReason = matchingRange?.reason || "Out of town";
+          }
         }
       }
 

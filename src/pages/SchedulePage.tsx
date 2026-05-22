@@ -133,6 +133,7 @@ export default function SchedulePage({
       assignmentRules: settings.assignmentRules,
       preventMinorAssistantToAdult: settings.preventMinorAssistantToAdult,
       midweekMeetingDay: settings.midweekMeetingDay ?? "Thursday",
+      availabilityMode: settings.availabilityMode,
     });
     await saveWeek(updated);
     await addLog(
