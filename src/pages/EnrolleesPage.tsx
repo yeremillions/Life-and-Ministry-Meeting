@@ -1133,7 +1133,7 @@ function HouseholdModal({
   );
 }
 
-function EnrolleeModal({
+export function EnrolleeModal({
   initial,
   onClose,
   onSave,

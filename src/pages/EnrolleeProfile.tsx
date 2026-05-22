@@ -6,6 +6,7 @@ import { segmentOf, isEligible } from "../meeting";
 import { todayIso } from "../utils";
 import { buildStats, AssigneeStats } from "../scheduler";
 import ConfirmationModal from "../components/ConfirmationModal";
+import { EnrolleeModal } from "./EnrolleesPage";
 
 export default function EnrolleeProfile({
   id,
@@ -28,6 +29,14 @@ export default function EnrolleeProfile({
   const [newStart, setNewStart] = useState("");
   const [newEnd, setNewEnd] = useState("");
   const [newReason, setNewReason] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+
+  async function handleSaveEnrollee(updatedFields: Omit<Assignee, "id" | "createdAt">) {
+    if (!enrollee) return;
+    await db.assignees.update(id, updatedFields);
+    await addLog("enrollees", `Updated enrollee profile: ${updatedFields.name}`);
+    setEditOpen(false);
+  }
 
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
@@ -105,11 +114,11 @@ export default function EnrolleeProfile({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <button onClick={onBack} className="btn-secondary">
           &larr; Back
         </button>
-        <h1 className="text-2xl font-bold">{enrollee.name}</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{enrollee.name}</h1>
         {enrollee.archived ? (
           <span className="pill bg-slate-200 text-slate-800 border border-slate-300 font-semibold select-none">
             ⚫ Archived
@@ -130,67 +139,80 @@ export default function EnrolleeProfile({
             {enrollee.active ? "🟢 Active" : "⚫ Inactive"}
           </button>
         )}
-        {enrollee.archived ? (
-          <button
-            onClick={() => {
-              setConfirmState({
-                isOpen: true,
-                title: "Unarchive Publisher",
-                message: `Are you sure you want to unarchive and restore "${enrollee.name}" to active status?`,
-                confirmText: "Yes, Restore",
-                cancelText: "Cancel",
-                type: "info",
-                onConfirm: async () => {
-                  await db.assignees.update(id, { archived: false, active: true });
-                  await addLog("enrollees", `Unarchived enrollee: ${enrollee.name}`);
-                  setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                },
-              });
-            }}
-            className="btn bg-indigo-600 hover:bg-indigo-700 text-white ml-auto font-semibold flex items-center gap-1.5 h-9 rounded"
-          >
-            🔄 Unarchive Enrollee
-          </button>
-        ) : (
-          <button
-            onClick={() => {
-              if (history.length === 0) {
+
+        <div className="flex-1" />
+
+        <div className="flex items-center gap-2">
+          {enrollee.archived ? (
+            <button
+              onClick={() => {
                 setConfirmState({
                   isOpen: true,
-                  title: "Permanently Delete Publisher",
-                  message: `Are you sure you want to permanently delete the publisher "${enrollee.name}"? This cannot be undone.`,
-                  confirmText: "Permanently Delete",
+                  title: "Unarchive Publisher",
+                  message: `Are you sure you want to unarchive and restore "${enrollee.name}" to active status?`,
+                  confirmText: "Yes, Restore",
                   cancelText: "Cancel",
-                  type: "danger",
+                  type: "info",
                   onConfirm: async () => {
-                    await db.assignees.delete(id);
-                    await addLog("enrollees", `Deleted enrollee: ${enrollee.name}`);
+                    await db.assignees.update(id, { archived: false, active: true });
+                    await addLog("enrollees", `Unarchived enrollee: ${enrollee.name}`);
                     setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                    onBack();
                   },
                 });
-              } else {
-                setConfirmState({
-                  isOpen: true,
-                  title: "Archive Publisher",
-                  message: `"${enrollee.name}" has past scheduled assignments. To preserve your historic schedules and reports, they will be archived instead of permanently deleted.\n\nDo you want to archive this publisher?`,
-                  confirmText: "Yes, Archive",
-                  cancelText: "Cancel",
-                  type: "warning",
-                  onConfirm: async () => {
-                    await db.assignees.update(id, { archived: true, active: false });
-                    await addLog("enrollees", `Archived enrollee: ${enrollee.name}`);
-                    setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                    onBack();
-                  },
-                });
-              }
-            }}
-            className="btn-danger ml-auto"
-          >
-            🗑️ Delete Enrollee
-          </button>
-        )}
+              }}
+              className="btn bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5 h-9 rounded"
+            >
+              🔄 Unarchive Enrollee
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => setEditOpen(true)}
+                className="btn font-semibold flex items-center gap-1.5 h-9 rounded"
+              >
+                ✏️ Edit Profile
+              </button>
+              <button
+                onClick={() => {
+                  if (history.length === 0) {
+                    setConfirmState({
+                      isOpen: true,
+                      title: "Permanently Delete Publisher",
+                      message: `Are you sure you want to permanently delete the publisher "${enrollee.name}"? This cannot be undone.`,
+                      confirmText: "Permanently Delete",
+                      cancelText: "Cancel",
+                      type: "danger",
+                      onConfirm: async () => {
+                        await db.assignees.delete(id);
+                        await addLog("enrollees", `Deleted enrollee: ${enrollee.name}`);
+                        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                        onBack();
+                      },
+                    });
+                  } else {
+                    setConfirmState({
+                      isOpen: true,
+                      title: "Archive Publisher",
+                      message: `"${enrollee.name}" has past scheduled assignments. To preserve your historic schedules and reports, they will be archived instead of permanently deleted.\n\nDo you want to archive this publisher?`,
+                      confirmText: "Yes, Archive",
+                      cancelText: "Cancel",
+                      type: "warning",
+                      onConfirm: async () => {
+                        await db.assignees.update(id, { archived: true, active: false });
+                        await addLog("enrollees", `Archived enrollee: ${enrollee.name}`);
+                        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                        onBack();
+                      },
+                    });
+                  }
+                }}
+                className="btn-danger"
+              >
+                🗑️ Delete Enrollee
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -449,6 +471,13 @@ export default function EnrolleeProfile({
         }}
         onCancel={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
       />
+      {editOpen && (
+        <EnrolleeModal
+          initial={enrollee}
+          onClose={() => setEditOpen(false)}
+          onSave={handleSaveEnrollee}
+        />
+      )}
     </div>
   );
 }
