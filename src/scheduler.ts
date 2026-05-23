@@ -22,6 +22,8 @@ export interface AssigneeStats {
   lastWeekChairman?: string; // Specific history for the Chairman role
   /** All dates (ISO) where this person was assigned as main, for rolling-window caps. */
   recentMainDates: string[];
+  /** All dates (ISO) where this person was assigned as assistant. */
+  recentAssistantDates?: string[];
 }
 
 /** Compute per-assignee assignment history from weeks. */
@@ -38,6 +40,7 @@ export function buildStats(
       totalAssistant: 0,
       lastWeekChairman: undefined,
       recentMainDates: [],
+      recentAssistantDates: [],
     });
   }
 
@@ -73,6 +76,7 @@ export function buildStats(
           s.totalAssistant += 1;
           if (!s.lastWeekAssistant || w.weekOf > s.lastWeekAssistant)
             s.lastWeekAssistant = w.weekOf;
+          if (s.recentAssistantDates) s.recentAssistantDates.push(w.weekOf);
         }
       }
     }
@@ -83,9 +87,13 @@ export function buildStats(
 
 /** Days between two ISO dates (YYYY-MM-DD). */
 function daysBetween(aIso: string, bIso: string): number {
-  const a = new Date(aIso + "T00:00:00");
-  const b = new Date(bIso + "T00:00:00");
-  return Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
+  if (!aIso || !bIso) return 0;
+  const [y1, m1, d1] = aIso.trim().split("-").map(Number);
+  const [y2, m2, d2] = bIso.trim().split("-").map(Number);
+  if (isNaN(y1) || isNaN(y2)) return 0;
+  const t1 = Date.UTC(y1, m1 - 1, d1);
+  const t2 = Date.UTC(y2, m2 - 1, d2);
+  return Math.round((t2 - t1) / (1000 * 60 * 60 * 24));
 }
 
 /**
@@ -212,12 +220,9 @@ export function scoreCandidate(
       }
 
       // Base gap score: everyone gets a small time-since-last bonus
-      // to naturally spread assignments around.  This is the "equal
-      // rotation" component — it runs at all intensity levels.
-      // Capped at 60 days (~2 workbook periods) so only recent
-      // history matters; older gaps produce no additional benefit.
-      const DECAY_DAYS = 60;
-      score += Math.min(gap, DECAY_DAYS) * 0.6;
+      // to naturally spread assignments around. Grows linearly up to 180 days.
+      const DECAY_DAYS = 180;
+      score += Math.min(gap, DECAY_DAYS) * 0.8;
 
       // Catch-up bonus: only active at intensity > 1.  Grows with
       // the gap AND the intensity, giving overlooked people extra
@@ -228,17 +233,17 @@ export function scoreCandidate(
         score += neglectBonus * priorityMul;
       }
     } else {
-      // Never assigned. They are a newcomer (or have been enrolled a long time but never assigned).
-      // Based on user feedback, newcomers should never be prioritized. We do not apply catch-up 
-      // bonuses or enrolled-days gap bonuses. They start with a neutral gap score (0) and will be
+      // Never assigned. They start with a neutral gap score (0) and will be
       // picked when others are penalized or naturally exhausted from the pool.
       score += 0;
     }
 
-    // Workload penalty: spread the total lifetime burden.
-    // Reduced from 15 to 2 so it breaks ties and handles long-term drift
-    // without completely blocking experienced members from a normal rotation.
-    score -= stats.totalMain * 2;
+    // Workload penalty: penalise based on recent main workload in the last 12 weeks (84 days).
+    const recentMainCount = stats.recentMainDates.filter(
+      (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
+    ).length;
+    score -= recentMainCount * 8;
+
     // Segment balancing — penalise heavy use in this segment.
     score -= stats.bySegmentMain[part.segment] * 3;
   } else {
@@ -248,11 +253,18 @@ export function scoreCandidate(
       if (gap < 21) {
         score -= (21 - gap) * 15;
       }
-      score += Math.min(gap, 180);
+      const DECAY_DAYS = 120;
+      score += Math.min(gap, DECAY_DAYS) * 0.6;
     } else {
       score += 0;
     }
-    score -= stats.totalAssistant * 10;
+
+    // Workload penalty: penalise based on recent assistant workload in the last 12 weeks (84 days).
+    const recentAssistantDates = stats.recentAssistantDates ?? [];
+    const recentAssistantCount = recentAssistantDates.filter(
+      (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
+    ).length;
+    score -= recentAssistantCount * 6;
   }
 
   // Privilege preferences only apply to main roles.
@@ -689,6 +701,7 @@ function rankAndPick(
     bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
     totalAssistant: 0,
     recentMainDates: [],
+    recentAssistantDates: [],
   };
   const ranked = [...pool].sort((a, b) => {
     const sa = stats.get(a.id!) ?? empty;
@@ -747,12 +760,16 @@ export function dueSoon(
         bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
         totalAssistant: 0,
         recentMainDates: [],
+        recentAssistantDates: [],
       };
 
       let neglect: number;
       if (s.lastWeekMain) {
         // Has been assigned before — gap-based neglect.
-        neglect = daysBetween(s.lastWeekMain, today) - s.totalMain * 7;
+        const recentMainCount = s.recentMainDates.filter(
+          (d) => daysBetween(d, today) > 0 && daysBetween(d, today) <= 84
+        ).length;
+        neglect = daysBetween(s.lastWeekMain, today) - recentMainCount * 7;
       } else {
         // Never assigned. Check how long they've been enrolled.
         // Based on user feedback, newcomers should never be treated as neglected.
