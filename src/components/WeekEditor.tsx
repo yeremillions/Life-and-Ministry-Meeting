@@ -126,6 +126,20 @@ export default function WeekEditor(props: WeekEditorProps) {
     await props.onSave({ ...targetWeek, assignments: nextAssignments });
   }
 
+  async function skipPeriodOptimization(opt: OptimizationSuggestion & { week: Week }) {
+    const targetWeek = opt.week;
+    const skippedList = targetWeek.skippedOptimizations ?? [];
+    const updatedSkipped = [
+      ...skippedList,
+      {
+        uid: opt.uid,
+        role: opt.role,
+        suggestedAssigneeId: opt.suggestedAssigneeId,
+      }
+    ];
+    await props.onSave({ ...targetWeek, skippedOptimizations: updatedSkipped });
+  }
+
   const healthMetrics = useMemo(() => {
     const scopeWeeks = activeScope === "week" 
       ? [week]
@@ -644,12 +658,20 @@ export default function WeekEditor(props: WeekEditorProps) {
                                     &middot; {opt.role}
                                   </span>
                                 </div>
-                                <button
-                                  className="btn text-[11px] py-1 px-3 shadow-none bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md border-0 shrink-0 transform active:scale-95 transition-transform"
-                                  onClick={() => applyPeriodOptimization({ ...opt, week: w })}
-                                >
-                                  Apply Swap
-                                </button>
+                                <div className="flex gap-1.5 shrink-0">
+                                  <button
+                                    className="px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:text-slate-700 border border-slate-200 hover:bg-slate-50 rounded-md transition-colors"
+                                    onClick={() => skipPeriodOptimization({ ...opt, week: w })}
+                                  >
+                                    Skip
+                                  </button>
+                                  <button
+                                    className="btn text-[11px] py-1 px-3 shadow-none bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md border-0 transform active:scale-95 transition-transform"
+                                    onClick={() => applyPeriodOptimization({ ...opt, week: w })}
+                                  >
+                                    Apply Swap
+                                  </button>
+                                </div>
                               </div>
 
                               <div className="grid grid-cols-[1fr,20px,1fr] items-center gap-2 text-xs py-1 px-1.5 bg-white rounded-md border border-slate-100">

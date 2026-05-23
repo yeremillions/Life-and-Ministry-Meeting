@@ -943,10 +943,15 @@ export function analyzeWeekOptimization(
   const treasuresSplit = buildTreasuresSplit(assignees, workingWeeks);
   const stats = buildStats(assignees, workingWeeks);
 
+  const skipped = week.skippedOptimizations ?? [];
+  const isSkipped = (uid: string, role: "main" | "assistant", suggestedId: number) => {
+    return skipped.some(s => s.uid === uid && s.role === role && s.suggestedAssigneeId === suggestedId);
+  };
+ 
   const usedMainsThisWeek = new Set<number>();
   let ministryTotal = 0;
   const ministryCounts = { QE: 0, E: 0, QMS: 0, MS: 0, Brothers: 0 };
-
+ 
   for (const a of week.assignments) {
     if (a.assigneeId != null) usedMainsThisWeek.add(a.assigneeId);
     if (a.segment === "ministry" && a.assigneeId != null) {
@@ -960,19 +965,19 @@ export function analyzeWeekOptimization(
       }
     }
   }
-
+ 
   for (const a of week.assignments) {
     if (a.assigneeId != null) {
       const currentPerson = assignees.find((x) => x.id === a.assigneeId);
       if (currentPerson) {
         let usedForPick = new Set(usedMainsThisWeek);
         usedForPick.delete(a.assigneeId);
-
+ 
         if (a.partType === "Opening Prayer") {
           const chairmanId = week.assignments.find((x) => x.partType === "Chairman")?.assigneeId;
           if (chairmanId != null) usedForPick.delete(chairmanId);
         }
-
+ 
         const s = stats.get(currentPerson.id!) ?? {
           totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
           totalAssistant: 0, recentMainDates: [],
@@ -982,12 +987,12 @@ export function analyzeWeekOptimization(
         const currentScore = scoreCandidate(
           currentPerson, a, week.weekOf, s, seed, talkSplit, treasuresSplit, "main", opts
         );
-
+ 
         const best = pickCandidate({
           part: a, role: "main", assignees, stats, weekOf: week.weekOf, seed, used: usedForPick,
           ministryTotal, ministryCounts, talkSplit, treasuresSplit, opts
         });
-
+ 
         if (best && best.id !== currentPerson.id) {
           const bestStats = stats.get(best.id!) ?? {
             totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
@@ -998,9 +1003,9 @@ export function analyzeWeekOptimization(
           const bestScore = scoreCandidate(
             best, a, week.weekOf, bestStats, seed, talkSplit, treasuresSplit, "main", opts
           );
-
+ 
           const threshold = opts.optimizationThresholdMain ?? 50;
-          if (bestScore - currentScore > threshold) {
+          if (bestScore - currentScore > threshold && !isSkipped(a.uid, "main", best.id!)) {
             suggestions.push({
               uid: a.uid, partType: a.partType, role: "main", currentAssigneeId: currentPerson.id, currentScore,
               suggestedAssigneeId: best.id!, suggestedScore: bestScore,
@@ -1010,14 +1015,14 @@ export function analyzeWeekOptimization(
         }
       }
     }
-
+ 
     if (needsAssistant(a.partType) && a.assistantId != null) {
       const currentAssistant = assignees.find((x) => x.id === a.assistantId);
       if (currentAssistant) {
         const usedForAssistant = new Set([...usedMainsThisWeek]);
         if (a.assigneeId != null) usedForAssistant.add(a.assigneeId);
         usedForAssistant.delete(a.assistantId);
-
+ 
         const isMinorMain = assignees.find((x) => x.id === a.assigneeId)?.isMinor;
         const s = stats.get(currentAssistant.id!) ?? {
           totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
@@ -1025,16 +1030,16 @@ export function analyzeWeekOptimization(
           recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
           recentPrayerDates: [],
         };
-
+ 
         const currentScore = scoreCandidate(
           currentAssistant, a, week.weekOf, s, seed + 1, talkSplit, treasuresSplit, "assistant", opts, isMinorMain
         );
-
+ 
         const bestAss = pickCandidate({
           part: a, role: "assistant", assignees, stats, weekOf: week.weekOf, seed: seed + 1, used: usedForAssistant,
           ministryTotal, ministryCounts, talkSplit, treasuresSplit, opts, isMinorMain
         });
-
+ 
         if (bestAss && bestAss.id !== currentAssistant.id) {
           const bestAssStats = stats.get(bestAss.id!) ?? {
             totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
@@ -1045,9 +1050,9 @@ export function analyzeWeekOptimization(
           const bestScore = scoreCandidate(
             bestAss, a, week.weekOf, bestAssStats, seed + 1, talkSplit, treasuresSplit, "assistant", opts, isMinorMain
           );
-
+ 
           const threshold = opts.optimizationThresholdAssistant ?? 40;
-          if (bestScore - currentScore > threshold) {
+          if (bestScore - currentScore > threshold && !isSkipped(a.uid, "assistant", bestAss.id!)) {
             suggestions.push({
               uid: a.uid, partType: a.partType, role: "assistant", currentAssigneeId: currentAssistant.id, currentScore,
               suggestedAssigneeId: bestAss.id!, suggestedScore: bestScore,

@@ -103,6 +103,12 @@ export interface Assignment {
   minutes?: number;
 }
 
+export interface SkippedOptimization {
+  uid: string;
+  role: "main" | "assistant";
+  suggestedAssigneeId: number;
+}
+
 export interface Week {
   id?: number;
   /** ISO date (YYYY-MM-DD) of the Monday that the meeting week begins. */
@@ -112,6 +118,7 @@ export interface Week {
   assignments: Assignment[];
   locked?: boolean;
   specialEvent?: SpecialEventType | null;
+  skippedOptimizations?: SkippedOptimization[];
   createdAt: number;
   updatedAt: number;
 }
