@@ -1229,6 +1229,19 @@ function AssigneePicker({
         }
       });
 
+      let privilegeCategory = 5; // default unbaptized/pioneers/sisters
+      if (a.privileges?.includes("E") || a.privileges?.includes("QE")) {
+        privilegeCategory = 0; // Elders
+      } else if (a.privileges?.includes("QMS")) {
+        privilegeCategory = 1; // Qualified Ministerial Servants
+      } else if (a.privileges?.includes("MS")) {
+        privilegeCategory = 2; // Ministerial Servants
+      } else if (a.gender === "M" && a.baptised) {
+        privilegeCategory = 3; // Baptized Brothers
+      } else if (a.gender === "F" && a.baptised) {
+        privilegeCategory = 4; // Baptized Sisters
+      }
+
       return {
         a,
         score,
@@ -1239,10 +1252,12 @@ function AssigneePicker({
         violations,
         coreViolationsCount,
         schedulingViolationsCount,
+        privilegeCategory,
       };
     });
 
     // Sort: available enrollees first, then by core qualification violations ascending,
+    // then by congregation spiritual status category ascending (Elders -> Qualified MS -> MS -> Baptized Brothers -> Baptized Sisters -> Unbaptized Publishers),
     // then by scheduling policy violations ascending, and finally by score descending
     scored.sort((x, y) => {
       const xAway = !!x.awayReason;
@@ -1252,6 +1267,10 @@ function AssigneePicker({
 
       if (x.coreViolationsCount !== y.coreViolationsCount) {
         return x.coreViolationsCount - y.coreViolationsCount;
+      }
+
+      if (x.privilegeCategory !== y.privilegeCategory) {
+        return x.privilegeCategory - y.privilegeCategory;
       }
 
       if (x.schedulingViolationsCount !== y.schedulingViolationsCount) {
