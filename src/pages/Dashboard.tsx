@@ -1003,13 +1003,18 @@ export default function Dashboard({
               ) : (
                 <ul className="space-y-1.5">
                   {soon.map(({ assignee, stats: s }, idx) => {
-                    const daysSinceLast = s.lastWeekMain
-                      ? Math.round(
-                          (new Date(today).getTime() -
-                            new Date(s.lastWeekMain).getTime()) /
-                            86400000
-                        )
-                      : null;
+                    const parseDateUTC = (dStr: string) => {
+                      const [y, m, d] = dStr.trim().split("-").map(Number);
+                      return new Date(Date.UTC(y, m - 1, d));
+                    };
+                    const getDaysBetween = (d1: string, d2: string) => {
+                      const t1 = parseDateUTC(d1).getTime();
+                      const t2 = parseDateUTC(d2).getTime();
+                      return Math.round((t1 - t2) / 86400000);
+                    };
+
+                    const daysSinceLast = s.lastWeekMain ? getDaysBetween(today, s.lastWeekMain) : null;
+                    const weeksSinceLast = daysSinceLast != null ? Math.floor(daysSinceLast / 7) : null;
 
                     return (
                       <li key={assignee.id} className="flex items-center gap-2 py-1 border-b border-gray-100 last:border-0">
@@ -1024,7 +1029,9 @@ export default function Dashboard({
                           {assignee.name}
                         </button>
                         <span className="text-[10px] text-gray-400 tabular-nums flex-shrink-0">
-                          {daysSinceLast != null ? `${daysSinceLast}d` : "never"}
+                          {weeksSinceLast != null
+                            ? (weeksSinceLast === 0 ? "this wk" : `${weeksSinceLast} wk${weeksSinceLast === 1 ? "" : "s"}`)
+                            : "never"}
                         </span>
                       </li>
                     );
