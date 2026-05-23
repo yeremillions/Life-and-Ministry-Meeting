@@ -955,6 +955,7 @@ function AssigneePicker({
         bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
         totalAssistant: 0,
         recentMainDates: [],
+        recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
       };
       const score = scoreCandidate(
         a,

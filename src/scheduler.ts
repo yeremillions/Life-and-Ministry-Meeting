@@ -24,6 +24,8 @@ export interface AssigneeStats {
   recentMainDates: string[];
   /** All dates (ISO) where this person was assigned as assistant. */
   recentAssistantDates?: string[];
+  /** All segment-specific main assignment dates for rolling-window segment balancing. */
+  recentMainDatesBySegment: { opening: string[]; treasures: string[]; ministry: string[]; living: string[] };
 }
 
 /** Compute per-assignee assignment history from weeks. */
@@ -41,6 +43,7 @@ export function buildStats(
       lastWeekChairman: undefined,
       recentMainDates: [],
       recentAssistantDates: [],
+      recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
     });
   }
 
@@ -63,6 +66,12 @@ export function buildStats(
           if (!s.lastWeekMain || w.weekOf > s.lastWeekMain)
             s.lastWeekMain = w.weekOf;
           s.recentMainDates.push(w.weekOf);
+          if (ass.segment && s.recentMainDatesBySegment) {
+            const arr = s.recentMainDatesBySegment[ass.segment as "opening" | "treasures" | "ministry" | "living"];
+            if (arr) {
+              arr.push(w.weekOf);
+            }
+          }
           if (ass.partType === "Chairman") {
             if (!s.lastWeekChairman || w.weekOf > s.lastWeekChairman)
               s.lastWeekChairman = w.weekOf;
@@ -244,8 +253,12 @@ export function scoreCandidate(
     ).length;
     score -= recentMainCount * 8;
 
-    // Segment balancing — penalise heavy use in this segment.
-    score -= stats.bySegmentMain[part.segment] * 3;
+    // Segment balancing — penalise heavy recent use in this segment in the last 12 weeks (84 days).
+    const recentSegmentDates = stats.recentMainDatesBySegment?.[part.segment] ?? [];
+    const recentSegmentCount = recentSegmentDates.filter(
+      (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
+    ).length;
+    score -= recentSegmentCount * 6;
   } else {
     // Assistant role — use assistant-only history.
     if (stats.lastWeekAssistant) {
@@ -702,6 +715,7 @@ function rankAndPick(
     totalAssistant: 0,
     recentMainDates: [],
     recentAssistantDates: [],
+    recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
   };
   const ranked = [...pool].sort((a, b) => {
     const sa = stats.get(a.id!) ?? empty;
@@ -761,6 +775,7 @@ export function dueSoon(
         totalAssistant: 0,
         recentMainDates: [],
         recentAssistantDates: [],
+        recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
       };
 
       let neglect: number;
@@ -838,7 +853,8 @@ export function analyzeWeekOptimization(
 
         const s = stats.get(currentPerson.id!) ?? {
           totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
-          totalAssistant: 0, recentMainDates: []
+          totalAssistant: 0, recentMainDates: [],
+          recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] }
         };
         const currentScore = scoreCandidate(
           currentPerson, a, week.weekOf, s, seed, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "main", opts
@@ -852,7 +868,8 @@ export function analyzeWeekOptimization(
         if (best && best.id !== currentPerson.id) {
           const bestStats = stats.get(best.id!) ?? {
             totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
-            totalAssistant: 0, recentMainDates: []
+            totalAssistant: 0, recentMainDates: [],
+            recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] }
           };
           const bestScore = scoreCandidate(
             best, a, week.weekOf, bestStats, seed, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "main", opts
@@ -880,7 +897,8 @@ export function analyzeWeekOptimization(
         const isMinorMain = assignees.find((x) => x.id === a.assigneeId)?.isMinor;
         const s = stats.get(currentAssistant.id!) ?? {
           totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
-          totalAssistant: 0, recentMainDates: []
+          totalAssistant: 0, recentMainDates: [],
+          recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] }
         };
 
         const currentScore = scoreCandidate(
@@ -895,7 +913,8 @@ export function analyzeWeekOptimization(
         if (bestAss && bestAss.id !== currentAssistant.id) {
           const bestAssStats = stats.get(bestAss.id!) ?? {
             totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
-            totalAssistant: 0, recentMainDates: []
+            totalAssistant: 0, recentMainDates: [],
+            recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] }
           };
           const bestScore = scoreCandidate(
             bestAss, a, week.weekOf, bestAssStats, seed + 1, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "assistant", opts, isMinorMain
