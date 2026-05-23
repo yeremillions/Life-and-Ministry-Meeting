@@ -16,6 +16,8 @@ export default function ReportsPage({
     useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
   const weeks =
     useLiveQuery(() => db.weeks.orderBy("weekOf").toArray(), []) ?? [];
+  const settings =
+    useLiveQuery(() => db.settings.get("app"), []);
 
   const [sortBy, setSortBy] = useState<SortBy>("last");
   const [range, setRange] = useState<"all" | "6m" | "1y">("all");
@@ -131,28 +133,119 @@ export default function ReportsPage({
   }, [rows]);
 
   const insights = useMemo(() => {
-    const activeBrothers = rows.filter(
-      (r) => r.assignee.active && r.assignee.gender === "M" && r.assignee.baptised
-    );
-    const neverAssigned = activeBrothers.filter((r) => !r.stats.lastWeekMain);
-    const longestGaps = [...activeBrothers]
-      .filter((r) => r.stats.lastWeekMain)
-      .sort((a, b) =>
-        (a.stats.lastWeekMain ?? "").localeCompare(b.stats.lastWeekMain ?? "")
-      )
+    const activeAssignees = assignees.filter((a) => a.active && !a.archived);
+    
+    // 1. Role Capacity & Bottlenecks
+    const qualifiedChairmen = activeAssignees.filter(
+      (a) => a.gender === "M" && (a.privileges.includes("E") || a.privileges.includes("QE"))
+    ).length;
+
+    const qualifiedPrayer = activeAssignees.filter(
+      (a) =>
+        a.gender === "M" &&
+        (a.privileges.includes("E") ||
+          a.privileges.includes("QE") ||
+          a.privileges.includes("MS") ||
+          a.privileges.includes("QMS") ||
+          a.privileges.includes("CBSR") ||
+          a.includeInPrayers) &&
+        !a.excludeFromPrayers
+    ).length;
+
+    const qualifiedBibleReading = activeAssignees.filter(
+      (a) => a.gender === "M"
+    ).length;
+
+    const qualifiedCbsReader = activeAssignees.filter(
+      (a) => a.gender === "M" && (a.privileges.includes("CBSR") || a.baptised)
+    ).length;
+
+    const qualifiedTreasures = activeAssignees.filter(
+      (a) =>
+        a.gender === "M" &&
+        (a.privileges.includes("E") ||
+          a.privileges.includes("QE") ||
+          a.privileges.includes("MS") ||
+          a.privileges.includes("QMS"))
+    ).length;
+
+    // 2. Ministry Category Share Auditor
+    const targetQE = settings?.shareMinistryQE ?? 2;
+    const targetE = settings?.shareMinistryE ?? 2;
+    const targetQMS = settings?.shareMinistryQMS ?? 2;
+    const targetMS = settings?.shareMinistryMS ?? 2;
+    const targetBrothers = settings?.shareMinistryBrothers ?? 2;
+    const targetSisters = Math.max(0, 100 - (targetQE + targetE + targetQMS + targetMS + targetBrothers));
+
+    let actualMinistryTotal = 0;
+    const actualCounts = { QE: 0, E: 0, QMS: 0, MS: 0, Brothers: 0, Sisters: 0 };
+    
+    for (const w of filteredWeeks) {
+      if (w.specialEvent) continue;
+      for (const a of w.assignments) {
+        if (a.segment === "ministry" && a.assigneeId != null) {
+          const person = assignees.find((p) => p.id === a.assigneeId);
+          if (person && !person.archived) {
+            actualMinistryTotal += 1;
+            if (person.privileges.includes("QE")) actualCounts.QE += 1;
+            else if (person.privileges.includes("E")) actualCounts.E += 1;
+            else if (person.privileges.includes("QMS")) actualCounts.QMS += 1;
+            else if (person.privileges.includes("MS")) actualCounts.MS += 1;
+            else if (person.gender === "M" && person.baptised) actualCounts.Brothers += 1;
+            else actualCounts.Sisters += 1;
+          }
+        }
+      }
+    }
+
+    const pctQE = actualMinistryTotal > 0 ? Math.round((actualCounts.QE / actualMinistryTotal) * 100) : 0;
+    const pctE = actualMinistryTotal > 0 ? Math.round((actualCounts.E / actualMinistryTotal) * 100) : 0;
+    const pctQMS = actualMinistryTotal > 0 ? Math.round((actualCounts.QMS / actualMinistryTotal) * 100) : 0;
+    const pctMS = actualMinistryTotal > 0 ? Math.round((actualCounts.MS / actualMinistryTotal) * 100) : 0;
+    const pctBrothers = actualMinistryTotal > 0 ? Math.round((actualCounts.Brothers / actualMinistryTotal) * 100) : 0;
+    const pctSisters = actualMinistryTotal > 0 ? Math.round((actualCounts.Sisters / actualMinistryTotal) * 100) : 0;
+
+    // 3. Publisher Rotation Diagnostics
+    const overburdened = [...rows]
+      .filter((r) => r.assignee.active && r.stats.totalMain > 0)
+      .sort((a, b) => b.stats.totalMain - a.stats.totalMain)
+      .slice(0, 3);
+
+    const underutilized = [...rows]
+      .filter((r) => r.assignee.active && r.stats.totalMain === 0)
+      .sort((a, b) => {
+        const la = a.stats.lastWeekMain ?? "0000-00-00";
+        const lb = b.stats.lastWeekMain ?? "0000-00-00";
+        return la.localeCompare(lb);
+      })
       .slice(0, 3);
 
     return {
-      neverAssigned,
-      longestGaps,
-      totalActive: assignees.filter((a) => a.active).length,
       averageAssignments: rows.length
         ? (
             rows.reduce((sum, r) => sum + r.stats.totalMain, 0) / rows.length
           ).toFixed(1)
         : 0,
+      capacities: {
+        qualifiedChairmen,
+        qualifiedPrayer,
+        qualifiedBibleReading,
+        qualifiedCbsReader,
+        qualifiedTreasures,
+      },
+      shares: {
+        QE: { target: targetQE, actual: pctQE, count: actualCounts.QE },
+        E: { target: targetE, actual: pctE, count: actualCounts.E },
+        QMS: { target: targetQMS, actual: pctQMS, count: actualCounts.QMS },
+        MS: { target: targetMS, actual: pctMS, count: actualCounts.MS },
+        Brothers: { target: targetBrothers, actual: pctBrothers, count: actualCounts.Brothers },
+        Sisters: { target: targetSisters, actual: pctSisters, count: actualCounts.Sisters },
+        totalCount: actualMinistryTotal,
+      },
+      overburdened,
+      underutilized,
     };
-  }, [rows, assignees]);
+  }, [rows, assignees, filteredWeeks, settings]);
 
   return (
     <div className="space-y-6">
@@ -177,52 +270,156 @@ export default function ReportsPage({
         </div>
       </div>
 
-      {/* Insight Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card border-l-4 border-l-amber-500">
-          <div className="text-xs uppercase font-bold text-slate-500 mb-1">
-            Fairness Gap
+      {/* Insight Suite */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Card 1: Role Capacity & Bottlenecks */}
+        <div className="card space-y-4">
+          <div className="border-b border-slate-100 pb-2 flex justify-between items-center bg-slate-50/20 px-1 -mx-1">
+            <h3 className="font-bold text-slate-800 text-sm">Role Capacity & Bottlenecks</h3>
+            <span className="text-[10px] bg-slate-100 text-slate-500 font-semibold px-2 py-0.5 rounded shadow-sm border">Active Pools</span>
           </div>
-          <div className="text-2xl font-bold">
-            {insights.neverAssigned.length} never assigned
+          <div className="space-y-3.5">
+            {[
+              { label: "Meeting Chairman", count: insights.capacities.qualifiedChairmen, healthyMin: 6, warnMin: 3 },
+              { label: "Treasures Talk / Gems", count: insights.capacities.qualifiedTreasures, healthyMin: 6, warnMin: 4 },
+              { label: "Bible Reading Reader", count: insights.capacities.qualifiedBibleReading, healthyMin: 8, warnMin: 4 },
+              { label: "Congregation Bible Study Reader", count: insights.capacities.qualifiedCbsReader, healthyMin: 6, warnMin: 3 },
+              { label: "Opening & Closing Prayers", count: insights.capacities.qualifiedPrayer, healthyMin: 8, warnMin: 4 },
+            ].map((role) => {
+              const status = role.count >= role.healthyMin ? "healthy" : role.count >= role.warnMin ? "warning" : "critical";
+              const pillColor = status === "healthy" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : status === "warning" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-rose-50 text-rose-700 border-rose-200";
+              const dotColor = status === "healthy" ? "bg-emerald-500" : status === "warning" ? "bg-amber-500" : "bg-rose-500";
+              const labelText = status === "healthy" ? "Healthy Coverage" : status === "warning" ? "Warning" : "Critical Bottleneck";
+
+              return (
+                <div key={role.label} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${dotColor}`}></span>
+                    <span className="font-semibold text-slate-700">{role.label}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-slate-800 tabular-nums">{role.count} qualified</span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${pillColor}`} title={labelText}>
+                      {status === "healthy" ? "Healthy" : status === "warning" ? "Warn" : "Critical"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Active baptised brothers with 0 main assignments in this range.
+          <p className="text-[10px] text-slate-400 leading-relaxed pt-1 border-t border-slate-50">
+            A small qualified pool (Critical/Warning) results in rapid rotation, high fatigue, and scheduling conflicts.
           </p>
         </div>
-        <div className="card border-l-4 border-l-rose-700">
-          <div className="text-xs uppercase font-bold text-slate-500 mb-1">
-            Longest Gaps
+
+        {/* Card 2: Ministry Category Share Auditor */}
+        <div className="card space-y-4">
+          <div className="border-b border-slate-100 pb-2 flex justify-between items-center bg-slate-50/20 px-1 -mx-1">
+            <h3 className="font-bold text-slate-800 text-sm">Ministry Share Compliance</h3>
+            <span className="text-[10px] bg-slate-100 text-slate-500 font-semibold px-2 py-0.5 rounded shadow-sm border">
+              {insights.shares.totalCount} Demos Scheduled
+            </span>
           </div>
-          <div className="flex flex-col gap-1 mt-1">
-            {insights.longestGaps.map((r) => (
-              <div key={r.assignee.id} className="text-sm flex justify-between">
-                <button 
-                    onClick={() => onNavigateToProfile(r.assignee.id!)}
-                    className="hover:text-indigo-200 transition-colors"
-                >
-                    {r.assignee.name}
-                </button>
-                <span className="text-slate-400 font-mono">
-                  {r.stats.lastWeekMain}
-                </span>
+          <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+            {[
+              { key: "QE", label: "QE (Qualified Elders)", ...insights.shares.QE },
+              { key: "E", label: "E (Elders)", ...insights.shares.E },
+              { key: "QMS", label: "QMS (Qualified MS)", ...insights.shares.QMS },
+              { key: "MS", label: "MS (Ministerial Servants)", ...insights.shares.MS },
+              { key: "Brothers", label: "Baptised Brothers", ...insights.shares.Brothers },
+              { key: "Sisters", label: "Sisters (Calculated)", ...insights.shares.Sisters },
+            ].map((cat) => {
+              const diff = cat.actual - cat.target;
+              const isOver = diff > 5;
+              const isUnder = diff < -5;
+              const auditLabel = isOver ? `Over-assigned (+${diff}%)` : isUnder ? `Under-assigned (${diff}%)` : "Target Compliant";
+              const auditColor = isOver ? "text-amber-600" : isUnder ? "text-indigo-600" : "text-emerald-600";
+
+              return (
+                <div key={cat.key} className="space-y-1 text-xs">
+                  <div className="flex justify-between font-semibold text-slate-700">
+                    <span>{cat.label}</span>
+                    <span className="tabular-nums">
+                      {cat.actual}% <span className="text-slate-400 font-normal">vs target {cat.target}%</span>
+                    </span>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden flex relative">
+                    <div 
+                      className="h-full bg-indigo-600 rounded-full transition-all duration-500" 
+                      style={{ width: `${cat.actual}%` }}
+                    />
+                    <div 
+                      className="absolute top-0 bottom-0 w-0.5 bg-rose-500/80 animate-pulse" 
+                      style={{ left: `${cat.target}%` }}
+                      title={`Target line: ${cat.target}%`}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center text-[9px]">
+                    <span className="text-slate-400 font-medium">{cat.count} parts handled</span>
+                    <span className={`font-bold uppercase tracking-wider ${auditColor}`}>{auditLabel}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Card 3: Publisher Rotation Diagnostics */}
+        <div className="card space-y-4">
+          <div className="border-b border-slate-100 pb-2 flex justify-between items-center bg-slate-50/20 px-1 -mx-1">
+            <h3 className="font-bold text-slate-800 text-sm">Publisher Rotation Health</h3>
+            <span className="text-[10px] bg-slate-100 text-slate-500 font-semibold px-2 py-0.5 rounded shadow-sm border">Active Rotation</span>
+          </div>
+          
+          <div className="space-y-3 text-xs">
+            {/* Overburdened Publishers */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-extrabold uppercase tracking-wide text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100/50">
+                Overburdened (Workload Fatigue)
+              </span>
+              <div className="divide-y divide-slate-100 bg-slate-50/50 rounded border border-slate-200/50 p-2 space-y-1">
+                {insights.overburdened.map((r, idx) => (
+                  <div key={r.assignee.id} className="flex justify-between items-center py-1 first:pt-0 last:pb-0">
+                    <button 
+                      onClick={() => onNavigateToProfile(r.assignee.id!)}
+                      className="font-semibold text-slate-700 hover:text-indigo-600 hover:underline text-left truncate max-w-[130px]"
+                    >
+                      {idx + 1}. {r.assignee.name}
+                    </button>
+                    <span className="font-bold text-slate-800 tabular-nums">{r.stats.totalMain} parts</span>
+                  </div>
+                ))}
+                {insights.overburdened.length === 0 && (
+                  <span className="text-slate-400 italic block py-0.5 text-center">No active workload records found.</span>
+                )}
               </div>
-            ))}
-            {insights.longestGaps.length === 0 && (
-              <span className="text-sm text-slate-400">No data available</span>
-            )}
+            </div>
+
+            {/* Underutilized / Neglected Publishers */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-extrabold uppercase tracking-wide text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100/50">
+                Underutilized (Overlooked / Starved)
+              </span>
+              <div className="divide-y divide-slate-100 bg-slate-50/50 rounded border border-slate-200/50 p-2 space-y-1">
+                {insights.underutilized.map((r, idx) => (
+                  <div key={r.assignee.id} className="flex justify-between items-center py-1 first:pt-0 last:pb-0">
+                    <button 
+                      onClick={() => onNavigateToProfile(r.assignee.id!)}
+                      className="font-semibold text-slate-700 hover:text-indigo-600 hover:underline text-left truncate max-w-[130px]"
+                    >
+                      {idx + 1}. {r.assignee.name}
+                    </button>
+                    <span className="text-slate-400 font-mono text-[10px]">
+                      {r.stats.lastWeekMain ? r.stats.lastWeekMain : "never"}
+                    </span>
+                  </div>
+                ))}
+                {insights.underutilized.length === 0 && (
+                  <span className="text-slate-400 italic block py-0.5 text-center">No underutilized enrollees found.</span>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="card border-l-4 border-l-slate-800">
-          <div className="text-xs uppercase font-bold text-slate-500 mb-1">
-            Activity Level
-          </div>
-          <div className="text-2xl font-bold">
-            {insights.averageAssignments} avg.
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Average assignments per enrollee in this period.
-          </p>
         </div>
       </div>
 

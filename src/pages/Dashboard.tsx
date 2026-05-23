@@ -661,6 +661,64 @@ export default function Dashboard({
 
     const allConflicts = conflictsByWeek.flatMap((g) => g.list);
 
+    // Calculate upcoming availability & coverage calendar for the 4 upcoming weeks
+    const upcomingAwayCalendar = upcoming.slice(0, 4).map((w) => {
+      const mDay = settings?.midweekMeetingDay || "Thursday";
+      const meetingDateStr = getMeetingDate(w.weekOf, mDay);
+      const mode = settings?.availabilityMode || "unavailable";
+
+      const awayEnrollees = assignees.filter((a) => {
+        if (!a.active || a.archived) return false;
+        const ranges = a.unavailableRanges ?? [];
+        const overlapsAny = ranges.some((range) => {
+          return meetingDateStr >= range.start && meetingDateStr <= range.end;
+        });
+        if (mode === "available") {
+          return ranges.length > 0 && !overlapsAny;
+        } else {
+          return overlapsAny;
+        }
+      });
+
+      const availableElders = assignees.filter((a) => {
+        if (!a.active || a.archived) return false;
+        const isElderOrQE = a.gender === "M" && (a.privileges.includes("E") || a.privileges.includes("QE"));
+        if (!isElderOrQE) return false;
+        const ranges = a.unavailableRanges ?? [];
+        const overlapsAny = ranges.some((range) => {
+          return meetingDateStr >= range.start && meetingDateStr <= range.end;
+        });
+        if (mode === "available") {
+          return ranges.length > 0 ? overlapsAny : true;
+        } else {
+          return !overlapsAny;
+        }
+      }).length;
+
+      const availableBrothers = assignees.filter((a) => {
+        if (!a.active || a.archived) return false;
+        if (a.gender !== "M") return false;
+        const ranges = a.unavailableRanges ?? [];
+        const overlapsAny = ranges.some((range) => {
+          return meetingDateStr >= range.start && meetingDateStr <= range.end;
+        });
+        if (mode === "available") {
+          return ranges.length > 0 ? overlapsAny : true;
+        } else {
+          return !overlapsAny;
+        }
+      }).length;
+
+      return {
+        weekId: w.id!,
+        weekOf: w.weekOf,
+        meetingDateStr,
+        awayEnrollees,
+        availableElders,
+        availableBrothers,
+      };
+    });
+
     return (
       <div className="space-y-5">
         {/* ── Wizard Overlay ─────────────────────────────────────────── */}
@@ -1124,6 +1182,90 @@ export default function Dashboard({
                       +{inactiveAssignees.length - 8} more
                     </span>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Upcoming Availability & Away Calendar */}
+            {upcomingAwayCalendar.length > 0 && (
+              <div className="card space-y-3">
+                <h2 className="font-semibold text-slate-800 text-sm flex items-center justify-between">
+                  <span>Away & Coverage Calendar</span>
+                  <span className="text-[10px] bg-indigo-50 border border-indigo-200/50 text-indigo-700 font-bold px-1.5 py-0.5 rounded shadow-sm">
+                    Next 4 Weeks
+                  </span>
+                </h2>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Proactively monitor travel plans and meeting coverage bottlenecks before scheduling.
+                </p>
+
+                <div className="space-y-2.5">
+                  {upcomingAwayCalendar.map((item) => {
+                    const hasShortage = item.availableElders < 2 || item.availableBrothers < 3;
+                    const elderWarning = item.availableElders < 2;
+                    const brotherWarning = item.availableBrothers < 3;
+
+                    return (
+                      <div key={item.weekOf} className="bg-slate-50/50 border border-slate-200/55 p-2 rounded shadow-sm space-y-1.5">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold text-slate-800">
+                            {weekRangeLabel(item.weekOf)}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-500">
+                            {item.meetingDateStr}
+                          </span>
+                        </div>
+
+                        {/* Coverage Shortages */}
+                        {hasShortage && (
+                          <div className="flex flex-wrap gap-1">
+                            {elderWarning && (
+                              <span 
+                                className="text-[9px] font-extrabold uppercase tracking-wider bg-rose-50 border border-rose-200 text-rose-700 px-1.5 py-0.5 rounded shadow-sm"
+                                title={`Critical elder coverage: only ${item.availableElders} available elders/QE`}
+                              >
+                                🚨 Elder Shortage ({item.availableElders})
+                              </span>
+                            )}
+                            {brotherWarning && (
+                              <span 
+                                className="text-[9px] font-extrabold uppercase tracking-wider bg-amber-50 border border-amber-200 text-amber-700 px-1.5 py-0.5 rounded shadow-sm"
+                                title={`Low brother coverage: only ${item.availableBrothers} available brothers`}
+                              >
+                                ⚠️ Low Brother Coverage ({item.availableBrothers})
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Away List */}
+                        <div className="text-[11px] space-y-1">
+                          <div className="flex justify-between text-slate-500">
+                            <span>Away:</span>
+                            <span className="font-semibold text-slate-700">
+                              {item.awayEnrollees.length === 0 
+                                ? "Nobody away" 
+                                : `${item.awayEnrollees.length} publisher${item.awayEnrollees.length === 1 ? "" : "s"} away`}
+                            </span>
+                          </div>
+                          {item.awayEnrollees.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-0.5">
+                              {item.awayEnrollees.map((a) => (
+                                <button
+                                  key={a.id}
+                                  onClick={() => onNavigateToProfile(a.id!)}
+                                  className="text-[10px] bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 rounded px-1.5 py-0.5 transition-all truncate max-w-[120px]"
+                                  title={`Click to view ${a.name}'s calendar`}
+                                >
+                                  {a.name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
