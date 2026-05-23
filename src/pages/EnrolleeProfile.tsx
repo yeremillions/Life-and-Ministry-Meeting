@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, addLog } from "../db";
 import { AppSettings, Assignee, Week, Assignment, PartType } from "../types";
@@ -30,6 +30,11 @@ export default function EnrolleeProfile({
   const [newEnd, setNewEnd] = useState("");
   const [newReason, setNewReason] = useState("");
   const [editOpen, setEditOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [id]);
 
   async function handleSaveEnrollee(updatedFields: Omit<Assignee, "id" | "createdAt">) {
     if (!enrollee) return;
@@ -106,6 +111,25 @@ export default function EnrolleeProfile({
 
   // Sort history descending
   history.sort((a, b) => b.week.weekOf.localeCompare(a.week.weekOf));
+
+  const historyPageSize = 8;
+  const totalHistoryItems = history.length;
+  const totalHistoryPages = Math.ceil(totalHistoryItems / historyPageSize) || 1;
+  const activeHistoryPage = Math.min(currentPage, totalHistoryPages);
+  const startHistoryIndex = (activeHistoryPage - 1) * historyPageSize;
+  const endHistoryIndex = startHistoryIndex + historyPageSize;
+  const paginatedHistory = history.slice(startHistoryIndex, endHistoryIndex);
+
+  const maxVisiblePages = 5;
+  let startPage = Math.max(1, activeHistoryPage - 2);
+  let endPage = Math.min(totalHistoryPages, startPage + maxVisiblePages - 1);
+  if (endPage - startPage + 1 < maxVisiblePages) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+  const historyPageNumbers: number[] = [];
+  for (let i = startPage; i <= endPage; i++) {
+    historyPageNumbers.push(i);
+  }
 
   const stats = buildStats([enrollee], weeks).get(id)!;
 
@@ -411,7 +435,8 @@ export default function EnrolleeProfile({
             <p className="text-slate-400 italic">No activity recorded yet.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50/80 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
                 <tr>
@@ -422,7 +447,7 @@ export default function EnrolleeProfile({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {history.map(({ week, assignment, role }, idx) => {
+                {paginatedHistory.map(({ week, assignment, role }, idx) => {
                   const seg = segmentOf(assignment.segment);
                   return (
                     <tr 
@@ -456,6 +481,84 @@ export default function EnrolleeProfile({
               </tbody>
             </table>
           </div>
+          {totalHistoryPages > 1 && (
+            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-4 py-3 sm:px-6">
+              <div className="flex flex-1 justify-between sm:hidden">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  disabled={activeHistoryPage === 1}
+                  className="btn-secondary text-xs py-1"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalHistoryPages))}
+                  disabled={activeHistoryPage === totalHistoryPages}
+                  className="btn-secondary text-xs py-1"
+                >
+                  Next
+                </button>
+              </div>
+              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs text-slate-500">
+                    Showing <span className="font-semibold text-slate-700">{startHistoryIndex + 1}</span> to{" "}
+                    <span className="font-semibold text-slate-700">
+                      {Math.min(endHistoryIndex, totalHistoryItems)}
+                    </span>{" "}
+                    of <span className="font-semibold text-slate-700">{totalHistoryItems}</span> entries
+                  </p>
+                </div>
+                <div>
+                  <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm bg-white" aria-label="Pagination">
+                    <button
+                      onClick={() => setCurrentPage(1)}
+                      disabled={activeHistoryPage === 1}
+                      className="relative inline-flex items-center rounded-l-md px-2 py-1.5 text-xs font-semibold text-slate-500 border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed bg-white"
+                    >
+                      « First
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                      disabled={activeHistoryPage === 1}
+                      className="relative inline-flex items-center px-2 py-1.5 text-xs font-semibold text-slate-500 border-y border-r border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed bg-white"
+                    >
+                      ‹ Prev
+                    </button>
+                    {historyPageNumbers.map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        style={page === activeHistoryPage ? { backgroundColor: 'var(--color-primary)', borderColor: 'var(--color-primary)' } : undefined}
+                        className={`relative inline-flex items-center px-3 py-1.5 text-xs font-semibold border-y border-r ${
+                          page === activeHistoryPage
+                            ? "z-10 text-white font-bold"
+                            : "text-slate-700 border-slate-200 hover:bg-slate-50 bg-white"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.min(p + 1, totalHistoryPages))}
+                      disabled={activeHistoryPage === totalHistoryPages}
+                      className="relative inline-flex items-center px-2 py-1.5 text-xs font-semibold text-slate-500 border-y border-r border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed bg-white"
+                    >
+                      Next ›
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(totalHistoryPages)}
+                      disabled={activeHistoryPage === totalHistoryPages}
+                      className="relative inline-flex items-center rounded-r-md px-2 py-1.5 text-xs font-semibold text-slate-500 border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed bg-white"
+                    >
+                      Last »
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          )}
+          </>
         )}
       </div>
       <ConfirmationModal
