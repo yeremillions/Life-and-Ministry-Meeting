@@ -989,35 +989,50 @@ function AssigneePicker({
         }
       );
 
-      // --- Human-readable indicators ---
-      // Get the overall most recent assignment date (either main or assistant)
-      const lastMain = s.lastWeekMain;
-      const lastAsst = s.lastWeekAssistant;
-      let lastDate: string | undefined = undefined;
-      if (lastMain && lastAsst) {
-        lastDate = lastMain > lastAsst ? lastMain : lastAsst;
-      } else {
-        lastDate = lastMain || lastAsst;
-      }
+      // --- Unified Proximity Indicators ---
+      const matches = allWeeks
+        .filter((w) => {
+          return w.assignments.some(
+            (ass: Assignment) =>
+              (a.id != null && ass.assigneeId === a.id) ||
+              (a.id != null && ass.assistantId === a.id)
+          );
+        })
+        .map((w) => {
+          const days = getDaysBetween(w.weekOf, weekOf);
+          const weeksDiff = Math.round(days / 7);
+          return { weeksDiff };
+        });
 
-      let weeksAgo = "Never";
-      if (lastDate) {
-        const days = getDaysBetween(weekOf, lastDate);
-        const wks = Math.floor(days / 7);
-        weeksAgo = wks === 0 ? "This week" : `${wks} wk${wks === 1 ? "" : "s"} ago`;
-      }
+      matches.sort((x, y) => Math.abs(x.weeksDiff) - Math.abs(y.weeksDiff));
 
-      // Check for assignments in [weekOf - 2 weeks, weekOf + 2 weeks] (14 days window) excluding current week
-      const hasNearby = allWeeks.some((w: Week) => {
-        if (w.weekOf.trim() === weekOf.trim()) return false;
-        const diff = Math.abs(getDaysBetween(weekOf, w.weekOf));
-        if (diff > 14) return false;
-        return w.assignments.some(
-          (ass: Assignment) =>
-            (a.id != null && ass.assigneeId === a.id) ||
-            (a.id != null && ass.assistantId === a.id)
-        );
-      });
+      let proximityLabel = "Never assigned";
+      let isRecentlyAssigned = false;
+      let isFresh = matches.length === 0;
+
+      if (matches.length > 0) {
+        const otherMatches = matches.filter((m) => m.weeksDiff !== 0);
+        isRecentlyAssigned = otherMatches.some((m) => Math.abs(m.weeksDiff) <= 2);
+
+        if (otherMatches.length === 0) {
+          proximityLabel = "This week only";
+        } else {
+          const nearest = otherMatches.slice(0, 2);
+          nearest.sort((x, y) => x.weeksDiff - y.weeksDiff);
+
+          const labels = nearest.map((m) => {
+            const absVal = Math.abs(m.weeksDiff);
+            const unit = absVal === 1 ? "wk" : "wks";
+            return m.weeksDiff < 0 ? `${absVal} ${unit} ago` : `${absVal} ${unit} ahead`;
+          });
+
+          const hasThisWeek = matches.some((m) => m.weeksDiff === 0);
+          if (hasThisWeek) {
+            labels.unshift("This week");
+          }
+          proximityLabel = labels.join(", ");
+        }
+      }
 
       // --- Check out-of-town/availability ranges ---
       let awayReason: string | undefined = undefined;
@@ -1062,7 +1077,7 @@ function AssigneePicker({
         lastAssignmentRole
       );
 
-      return { a, score, weeksAgo, hasNearby, awayReason, violations };
+      return { a, score, proximityLabel, isRecentlyAssigned, isFresh, awayReason, violations };
     });
 
     // Sort: available and compliant enrollees first, then by score descending
@@ -1197,7 +1212,7 @@ function AssigneePicker({
               No matches
             </div>
           ) : (
-            filtered.map(({ a, weeksAgo, hasNearby, awayReason, violations }) => {
+            filtered.map(({ a, proximityLabel, isRecentlyAssigned, isFresh, awayReason, violations }) => {
               const optLabel = [
                 a.name,
                 privilegeLabel(a) ? `(${privilegeLabel(a)})` : null,
@@ -1239,18 +1254,21 @@ function AssigneePicker({
                   <span style={{ color: isSelected ? "#4f46e5" : undefined }} className="flex-1">
                     {optLabel}
                   </span>
-                  <div className="flex flex-col items-end gap-0.5">
-                    <span className="text-[9px] font-medium text-slate-400 leading-none">
-                      {weeksAgo}
+                  <div className="flex flex-col items-end gap-1">
+                    <span 
+                      className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border select-none leading-none shadow-sm ${
+                        isFresh 
+                          ? "bg-green-50 border-green-200 text-green-700"
+                          : isRecentlyAssigned 
+                            ? "bg-amber-50 border-amber-200 text-amber-700 font-bold" 
+                            : "bg-slate-50 border-slate-200 text-slate-500"
+                      }`}
+                    >
+                      {proximityLabel}
                     </span>
                     {violations && violations.length > 0 && (
                       <span className="text-[8px] font-bold text-rose-600 bg-rose-50 px-1 rounded leading-tight border border-rose-100" title={violations.join("\n")}>
                         ⚠️ RULE
-                      </span>
-                    )}
-                    {hasNearby && (
-                      <span className="text-[8px] font-bold text-amber-600 bg-amber-50 px-1 rounded leading-tight border border-amber-100">
-                        NEARBY
                       </span>
                     )}
                     {awayReason && (
