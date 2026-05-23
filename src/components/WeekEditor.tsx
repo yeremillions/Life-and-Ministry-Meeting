@@ -1212,20 +1212,51 @@ function AssigneePicker({
         }
       }
 
-      return { a, score, proximityLabel, isRecentlyAssigned, isFresh, awayReason, violations };
+      let coreViolationsCount = 0;
+      let schedulingViolationsCount = 0;
+
+      violations.forEach((v) => {
+        if (
+          v.includes("allowed parts list") ||
+          v.includes("Excluded from prayers") ||
+          v.includes("restricted to") ||
+          v.includes("requires a baptized") ||
+          v.includes("requires privileges:")
+        ) {
+          coreViolationsCount++;
+        } else {
+          schedulingViolationsCount++;
+        }
+      });
+
+      return {
+        a,
+        score,
+        proximityLabel,
+        isRecentlyAssigned,
+        isFresh,
+        awayReason,
+        violations,
+        coreViolationsCount,
+        schedulingViolationsCount,
+      };
     });
 
-    // Sort: available and compliant enrollees first, then by score descending
+    // Sort: available enrollees first, then by core qualification violations ascending,
+    // then by scheduling policy violations ascending, and finally by score descending
     scored.sort((x, y) => {
       const xAway = !!x.awayReason;
       const yAway = !!y.awayReason;
       if (xAway && !yAway) return 1;
       if (!xAway && yAway) return -1;
 
-      const xViolates = x.violations.length > 0;
-      const yViolates = y.violations.length > 0;
-      if (xViolates && !yViolates) return 1;
-      if (!xViolates && yViolates) return -1;
+      if (x.coreViolationsCount !== y.coreViolationsCount) {
+        return x.coreViolationsCount - y.coreViolationsCount;
+      }
+
+      if (x.schedulingViolationsCount !== y.schedulingViolationsCount) {
+        return x.schedulingViolationsCount - y.schedulingViolationsCount;
+      }
 
       return y.score - x.score;
     });
