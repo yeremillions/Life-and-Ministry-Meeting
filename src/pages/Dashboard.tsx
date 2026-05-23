@@ -1072,6 +1072,57 @@ export default function Dashboard({
                 </div>
               </div>
             )}
+
+            {/* ── Recent weeks ────────────────────────────────────────────── */}
+            {recent.length > 0 && (
+              <div className="card">
+                <h2 className="font-semibold mb-3">Recent Weeks</h2>
+                <div className="space-y-3">
+                  {recent.map((w) => (
+                    <div
+                      key={w.id}
+                      className="border-l-3 pl-3 cursor-pointer hover:bg-gray-50 py-2 transition-colors"
+                      style={{
+                        borderLeftWidth: '3px',
+                        borderLeftColor: w.assignments.every((a) => a.assigneeId) ? '#006064' : '#ddd',
+                        borderRadius: '2px',
+                      }}
+                      onClick={() => onNavigate("schedule", w.id)}
+                    >
+                      <div className="text-sm font-medium">{weekRangeLabel(w.weekOf)}</div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {w.assignments.slice(0, 6).map((a) => {
+                          const person = assignees.find(
+                            (p) => p.id === a.assigneeId
+                          );
+                          const seg = segmentOf(a.segment);
+                          return (
+                            <button
+                              key={a.uid}
+                              className="pill text-white hover:brightness-110 transition-all text-left"
+                              style={{ backgroundColor: seg.color }}
+                              onClick={(e) => {
+                                if (person?.id) {
+                                  e.stopPropagation();
+                                  onNavigateToProfile(person.id);
+                                }
+                              }}
+                            >
+                              {a.partType}: {person?.name ?? "—"}
+                            </button>
+                          );
+                        })}
+                        {w.assignments.length > 6 && (
+                          <span className="text-xs text-gray-500 self-center">
+                            + {w.assignments.length - 6} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right sidebar */}
@@ -1304,56 +1355,6 @@ export default function Dashboard({
           </div>
         </section>
 
-        {/* ── Recent weeks ────────────────────────────────────────────── */}
-        {recent.length > 0 && (
-          <section className="card">
-            <h2 className="font-semibold mb-3">Recent Weeks</h2>
-            <div className="space-y-3">
-              {recent.map((w) => (
-                <div
-                  key={w.id}
-                  className="border-l-3 pl-3 cursor-pointer hover:bg-gray-50 py-2 transition-colors"
-                  style={{
-                    borderLeftWidth: '3px',
-                    borderLeftColor: w.assignments.every((a) => a.assigneeId) ? '#006064' : '#ddd',
-                    borderRadius: '2px',
-                  }}
-                  onClick={() => onNavigate("schedule", w.id)}
-                >
-                  <div className="text-sm font-medium">{weekRangeLabel(w.weekOf)}</div>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {w.assignments.slice(0, 6).map((a) => {
-                      const person = assignees.find(
-                        (p) => p.id === a.assigneeId
-                      );
-                      const seg = segmentOf(a.segment);
-                      return (
-                        <button
-                          key={a.uid}
-                          className="pill text-white hover:brightness-110 transition-all text-left"
-                          style={{ backgroundColor: seg.color }}
-                          onClick={(e) => {
-                            if (person?.id) {
-                              e.stopPropagation();
-                              onNavigateToProfile(person.id);
-                            }
-                          }}
-                        >
-                          {a.partType}: {person?.name ?? "—"}
-                        </button>
-                      );
-                    })}
-                    {w.assignments.length > 6 && (
-                      <span className="text-xs text-gray-500 self-center">
-                        + {w.assignments.length - 6} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
 
         <ConfirmationModal
           isOpen={confirmState.isOpen}
