@@ -217,11 +217,15 @@ export default function WeekEditor(props: WeekEditorProps) {
     }
 
     const fillPct = totalSlots > 0 ? filledSlots / totalSlots : 0;
-    const fillScore = fillPct * 60;
-    const optPenalty = Math.min(25, suggestionsCount * 5);
-    const violationPenalty = Math.min(30, criticalViolations * 15);
+    const fillScore = fillPct * 60; // Up to 60 points for complete assignments
+    
+    // Compliance Score: Up to 30 points. Each rule violation deducts 10 points.
+    const violationScore = Math.max(0, 30 - criticalViolations * 10);
+    
+    // Optimization Score: Up to 10 points. Each suggestion deducts 2 points, representing a minor improvement opportunity.
+    const optimizationScore = Math.max(0, 10 - suggestionsCount * 2);
 
-    let score = Math.round(fillScore + (40 - optPenalty - violationPenalty));
+    let score = Math.round(fillScore + violationScore + optimizationScore);
     if (score < 0) score = 0;
     if (score > 100) score = 100;
 
