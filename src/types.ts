@@ -143,11 +143,11 @@ export interface LogEntry {
 
 export interface AppSettings {
   id: "app";
-  /**
-   * Percentage (0-100) of the time elders / MS should be preferred for
-   * field-ministry (segment 2) parts. Default is 10%, matching the spec.
-   */
-  privilegedMinistryShare: number;
+  shareMinistryQE?: number;
+  shareMinistryE?: number;
+  shareMinistryMS?: number;
+  shareMinistryQMS?: number;
+  shareMinistryBrothers?: number;
   /** Congregation name for report headers, etc. */
   congregationName?: string;
 
@@ -335,7 +335,11 @@ export const DEFAULT_ASSIGNMENT_RULES: Record<string, AssignmentRule> = {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   id: "app",
-  privilegedMinistryShare: 10,
+  shareMinistryQE: 2,
+  shareMinistryE: 2,
+  shareMinistryMS: 2,
+  shareMinistryQMS: 2,
+  shareMinistryBrothers: 2,
   congregationName: "",
   minGapWeeks: 2,
   chairmanGapWeeks: 3,

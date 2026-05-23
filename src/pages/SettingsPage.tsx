@@ -505,30 +505,107 @@ export default function SettingsPage({
             </p>
           </div>
           <div>
-            <label className="label">
-              Share of Field Ministry parts that may go to E / QE / MS / QMS (%)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              className="input max-w-xs"
-              value={draft.privilegedMinistryShare}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  privilegedMinistryShare: clamp(
-                    parseInt(e.target.value || "0", 10),
+            <h4 className="font-semibold text-slate-800 text-sm mb-3">Field Ministry Parts Shares</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-w-4xl bg-slate-50 p-4 border border-slate-200 rounded-md">
+              <div>
+                <label className="label">QE (Qualified Elders) Share (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="input w-full"
+                  value={draft.shareMinistryQE ?? 2}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      shareMinistryQE: clamp(parseInt(e.target.value || "0", 10), 0, 100),
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <label className="label">E (Elders) Share (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="input w-full"
+                  value={draft.shareMinistryE ?? 2}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      shareMinistryE: clamp(parseInt(e.target.value || "0", 10), 0, 100),
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <label className="label">QMS Share (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="input w-full"
+                  value={draft.shareMinistryQMS ?? 2}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      shareMinistryQMS: clamp(parseInt(e.target.value || "0", 10), 0, 100),
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <label className="label">MS Share (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="input w-full"
+                  value={draft.shareMinistryMS ?? 2}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      shareMinistryMS: clamp(parseInt(e.target.value || "0", 10), 0, 100),
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <label className="label">Baptised Brothers Share (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="input w-full"
+                  value={draft.shareMinistryBrothers ?? 2}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      shareMinistryBrothers: clamp(parseInt(e.target.value || "0", 10), 0, 100),
+                    })
+                  }
+                />
+              </div>
+              <div className="flex flex-col justify-end">
+                <div className="bg-indigo-50 border border-indigo-200 rounded p-2 text-xs text-indigo-800">
+                  <span className="font-semibold">Sisters Share (Autocalculated):</span>{" "}
+                  {Math.max(
                     0,
-                    100
-                  ),
-                })
-              }
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              Default is 10%. Elders and ministerial servants are normally
-              assigned to Treasures and Living-as-Christians; this cap limits how
-              often they take Ministry demos.
+                    100 -
+                      ((draft.shareMinistryQE ?? 2) +
+                        (draft.shareMinistryE ?? 2) +
+                        (draft.shareMinistryQMS ?? 2) +
+                        (draft.shareMinistryMS ?? 2) +
+                        (draft.shareMinistryBrothers ?? 2))
+                  )}
+                  %
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              Specify the maximum percentage share of student Ministry demonstrations allocated to each brother category. 
+              The remaining autocalculated portion is automatically allocated to sisters.
             </p>
           </div>
 

@@ -1070,7 +1070,6 @@ function AssigneePicker({
         weekOf,
         s,
         0, // seed
-        settings.privilegedMinistryShare,
         talkSplit,
         treasuresSplit,
         role,
@@ -1079,6 +1078,11 @@ function AssigneePicker({
           catchUpIntensity: settings.catchUpIntensity ?? 1,
           msTreasuresRatio: settings.msTreasuresRatio ?? 0,
           qmsTreasuresRatio: settings.qmsTreasuresRatio ?? 0,
+          shareMinistryQE: settings.shareMinistryQE ?? 2,
+          shareMinistryE: settings.shareMinistryE ?? 2,
+          shareMinistryMS: settings.shareMinistryMS ?? 2,
+          shareMinistryQMS: settings.shareMinistryQMS ?? 2,
+          shareMinistryBrothers: settings.shareMinistryBrothers ?? 2,
         }
       );
 

@@ -11,6 +11,15 @@ import {
 } from "./types";
 import { getMeetingDate } from "./utils";
 
+export function getMinistryCategory(a: Assignee): "QE" | "E" | "QMS" | "MS" | "Brothers" | "Sisters" {
+  if (a.privileges?.includes("QE")) return "QE";
+  if (a.privileges?.includes("E")) return "E";
+  if (a.privileges?.includes("QMS")) return "QMS";
+  if (a.privileges?.includes("MS")) return "MS";
+  if (a.gender === "M" && a.baptised) return "Brothers";
+  return "Sisters";
+}
+
 export interface AssigneeStats {
   /** Main (direct) assignment history. */
   totalMain: number;
@@ -210,11 +219,21 @@ export function scoreCandidate(
   weekOf: string,
   stats: AssigneeStats,
   seed: number,
-  privilegedMinistryShare: number,
   talkSplit: TalkSplit,
   treasuresSplit: TreasuresSplit,
   role: "main" | "assistant",
-  opts: Pick<AutoAssignOptions, "minGapWeeks" | "catchUpIntensity" | "msTreasuresRatio" | "qmsTreasuresRatio">,
+  opts: Pick<
+    AutoAssignOptions,
+    | "minGapWeeks"
+    | "catchUpIntensity"
+    | "msTreasuresRatio"
+    | "qmsTreasuresRatio"
+    | "shareMinistryQE"
+    | "shareMinistryE"
+    | "shareMinistryMS"
+    | "shareMinistryQMS"
+    | "shareMinistryBrothers"
+  >,
   isMinorMain?: boolean
 ): number {
   void talkSplit;
@@ -330,9 +349,16 @@ export function scoreCandidate(
   // Privilege preferences only apply to main roles.
   if (role === "main") {
     if (part.segment === "ministry") {
-      // Field Ministry parts should mostly go to non-privileged publishers.
-      if (isPrivileged(a)) {
-        score -= (100 - privilegedMinistryShare) / 5;
+      let shareSetting = 100;
+      const cat = getMinistryCategory(a);
+      if (cat === "QE") shareSetting = opts.shareMinistryQE ?? 0;
+      else if (cat === "E") shareSetting = opts.shareMinistryE ?? 0;
+      else if (cat === "QMS") shareSetting = opts.shareMinistryQMS ?? 0;
+      else if (cat === "MS") shareSetting = opts.shareMinistryMS ?? 0;
+      else if (cat === "Brothers") shareSetting = opts.shareMinistryBrothers ?? 0;
+
+      if (cat !== "Sisters") {
+        score -= (100 - shareSetting) / 5;
       }
     } else if (part.segment === "living") {
       if (part.partType === "Living Part") {
@@ -422,7 +448,11 @@ export function scoreCandidate(
 }
 
 export interface AutoAssignOptions {
-  privilegedMinistryShare: number;
+  shareMinistryQE?: number;
+  shareMinistryE?: number;
+  shareMinistryMS?: number;
+  shareMinistryQMS?: number;
+  shareMinistryBrothers?: number;
   /** Keep existing manual assignments (do not overwrite). */
   preserveExisting: boolean;
   /** Minimum weeks between main assignments. Default 2. */
@@ -485,15 +515,18 @@ export function autoAssignWeek(
     }
   }
 
-  // Track per-segment "privileged share" for field ministry.
+  // Track per-segment category shares for field ministry.
   let ministryTotal = 0;
-  let ministryPrivileged = 0;
+  const ministryCounts = { QE: 0, E: 0, QMS: 0, MS: 0, Brothers: 0 };
   for (const a of assignments) {
     if (a.segment !== "ministry" || a.assigneeId == null) continue;
     const person = assignees.find((p) => p.id === a.assigneeId);
     if (!person) continue;
     ministryTotal += 1;
-    if (isPrivileged(person)) ministryPrivileged += 1;
+    const cat = getMinistryCategory(person);
+    if (cat !== "Sisters") {
+      ministryCounts[cat] += 1;
+    }
   }
 
   // Track running splits — seeded from history only.
@@ -530,9 +563,8 @@ export function autoAssignWeek(
         weekOf: week.weekOf,
         seed,
         used: usedForPick,
-        privilegedMinistryShare: opts.privilegedMinistryShare,
         ministryTotal,
-        ministryPrivileged,
+        ministryCounts,
         talkSplit,
         treasuresSplit,
         opts,
@@ -542,7 +574,10 @@ export function autoAssignWeek(
         usedThisWeek.add(candidate.id!);
         if (assignment.segment === "ministry") {
           ministryTotal += 1;
-          if (isPrivileged(candidate)) ministryPrivileged += 1;
+          const cat = getMinistryCategory(candidate);
+          if (cat !== "Sisters") {
+            ministryCounts[cat] += 1;
+          }
         }
         if (assignment.partType === "Talk") {
           tallyTalk(candidate, talkSplit);
@@ -578,9 +613,8 @@ export function autoAssignWeek(
               ? [assignment.assigneeId]
               : []),
           ]),
-          privilegedMinistryShare: opts.privilegedMinistryShare,
           ministryTotal,
-          ministryPrivileged,
+          ministryCounts,
           talkSplit,
           treasuresSplit,
           opts,
@@ -604,9 +638,8 @@ interface PickArgs {
   weekOf: string;
   seed: number;
   used: Set<number>;
-  privilegedMinistryShare: number;
   ministryTotal: number;
-  ministryPrivileged: number;
+  ministryCounts: { QE: number; E: number; QMS: number; MS: number; Brothers: number };
   talkSplit: TalkSplit;
   treasuresSplit: TreasuresSplit;
   isMinorMain?: boolean;
@@ -622,9 +655,8 @@ function pickCandidate(args: PickArgs): Assignee | null {
     weekOf,
     seed,
     used,
-    privilegedMinistryShare,
     ministryTotal,
-    ministryPrivileged,
+    ministryCounts,
     talkSplit,
     treasuresSplit,
     opts,
@@ -704,13 +736,29 @@ function pickCandidate(args: PickArgs): Assignee | null {
     if (filtered.length > 0) eligiblePool = filtered;
   }
 
-  // ── Enforce privileged ministry share as a hard cap ─────────────────
+  // ── Enforce ministry category shares as a hard cap ─────────────────
   if (part.segment === "ministry" && role === "main") {
-    const projected = ministryTotal > 0 ? ministryPrivileged / ministryTotal : 0;
-    const target = privilegedMinistryShare / 100;
-    const nonPrivileged = eligiblePool.filter((a) => !isPrivileged(a));
-    if (projected >= target && nonPrivileged.length > 0) {
-      eligiblePool = nonPrivileged;
+    const categories: ("QE" | "E" | "QMS" | "MS" | "Brothers")[] = ["QE", "E", "QMS", "MS", "Brothers"];
+    for (const cat of categories) {
+      const shareSetting =
+        cat === "QE"
+          ? opts.shareMinistryQE ?? 0
+          : cat === "E"
+          ? opts.shareMinistryE ?? 0
+          : cat === "QMS"
+          ? opts.shareMinistryQMS ?? 0
+          : cat === "MS"
+          ? opts.shareMinistryMS ?? 0
+          : opts.shareMinistryBrothers ?? 0;
+
+      const projected = ministryTotal > 0 ? ministryCounts[cat] / ministryTotal : 0;
+      const target = shareSetting / 100;
+      if (projected >= target) {
+        const filtered = eligiblePool.filter((a) => getMinistryCategory(a) !== cat);
+        if (filtered.length > 0) {
+          eligiblePool = filtered;
+        }
+      }
     }
   }
 
@@ -747,7 +795,6 @@ function pickCandidate(args: PickArgs): Assignee | null {
     weekOf,
     stats,
     seed,
-    privilegedMinistryShare,
     talkSplit,
     treasuresSplit,
     role,
@@ -762,11 +809,21 @@ function rankAndPick(
   weekOf: string,
   stats: Map<number, AssigneeStats>,
   seed: number,
-  privilegedMinistryShare: number,
   talkSplit: TalkSplit,
   treasuresSplit: TreasuresSplit,
   role: "main" | "assistant",
-  opts: Pick<AutoAssignOptions, "minGapWeeks" | "catchUpIntensity" | "msTreasuresRatio" | "qmsTreasuresRatio">,
+  opts: Pick<
+    AutoAssignOptions,
+    | "minGapWeeks"
+    | "catchUpIntensity"
+    | "msTreasuresRatio"
+    | "qmsTreasuresRatio"
+    | "shareMinistryQE"
+    | "shareMinistryE"
+    | "shareMinistryMS"
+    | "shareMinistryQMS"
+    | "shareMinistryBrothers"
+  >,
   isMinorMain?: boolean
 ): Assignee {
   const empty: AssigneeStats = {
@@ -788,7 +845,6 @@ function rankAndPick(
         weekOf,
         sb,
         seed,
-        privilegedMinistryShare,
         talkSplit,
         treasuresSplit,
         role,
@@ -801,7 +857,6 @@ function rankAndPick(
         weekOf,
         sa,
         seed,
-        privilegedMinistryShare,
         talkSplit,
         treasuresSplit,
         role,
@@ -890,14 +945,19 @@ export function analyzeWeekOptimization(
 
   const usedMainsThisWeek = new Set<number>();
   let ministryTotal = 0;
-  let ministryPrivileged = 0;
+  const ministryCounts = { QE: 0, E: 0, QMS: 0, MS: 0, Brothers: 0 };
 
   for (const a of week.assignments) {
     if (a.assigneeId != null) usedMainsThisWeek.add(a.assigneeId);
     if (a.segment === "ministry" && a.assigneeId != null) {
       ministryTotal += 1;
       const p = assignees.find((x) => x.id === a.assigneeId);
-      if (p && isPrivileged(p)) ministryPrivileged += 1;
+      if (p) {
+        const cat = getMinistryCategory(p);
+        if (cat !== "Sisters") {
+          ministryCounts[cat] += 1;
+        }
+      }
     }
   }
 
@@ -920,12 +980,12 @@ export function analyzeWeekOptimization(
           recentPrayerDates: [],
         };
         const currentScore = scoreCandidate(
-          currentPerson, a, week.weekOf, s, seed, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "main", opts
+          currentPerson, a, week.weekOf, s, seed, talkSplit, treasuresSplit, "main", opts
         );
 
         const best = pickCandidate({
           part: a, role: "main", assignees, stats, weekOf: week.weekOf, seed, used: usedForPick,
-          privilegedMinistryShare: opts.privilegedMinistryShare, ministryTotal, ministryPrivileged, talkSplit, treasuresSplit, opts
+          ministryTotal, ministryCounts, talkSplit, treasuresSplit, opts
         });
 
         if (best && best.id !== currentPerson.id) {
@@ -936,7 +996,7 @@ export function analyzeWeekOptimization(
             recentPrayerDates: [],
           };
           const bestScore = scoreCandidate(
-            best, a, week.weekOf, bestStats, seed, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "main", opts
+            best, a, week.weekOf, bestStats, seed, talkSplit, treasuresSplit, "main", opts
           );
 
           const threshold = opts.optimizationThresholdMain ?? 50;
@@ -967,12 +1027,12 @@ export function analyzeWeekOptimization(
         };
 
         const currentScore = scoreCandidate(
-          currentAssistant, a, week.weekOf, s, seed + 1, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "assistant", opts, isMinorMain
+          currentAssistant, a, week.weekOf, s, seed + 1, talkSplit, treasuresSplit, "assistant", opts, isMinorMain
         );
 
         const bestAss = pickCandidate({
           part: a, role: "assistant", assignees, stats, weekOf: week.weekOf, seed: seed + 1, used: usedForAssistant,
-          privilegedMinistryShare: opts.privilegedMinistryShare, ministryTotal, ministryPrivileged, talkSplit, treasuresSplit, opts, isMinorMain
+          ministryTotal, ministryCounts, talkSplit, treasuresSplit, opts, isMinorMain
         });
 
         if (bestAss && bestAss.id !== currentAssistant.id) {
@@ -983,7 +1043,7 @@ export function analyzeWeekOptimization(
             recentPrayerDates: [],
           };
           const bestScore = scoreCandidate(
-            bestAss, a, week.weekOf, bestAssStats, seed + 1, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "assistant", opts, isMinorMain
+            bestAss, a, week.weekOf, bestAssStats, seed + 1, talkSplit, treasuresSplit, "assistant", opts, isMinorMain
           );
 
           const threshold = opts.optimizationThresholdAssistant ?? 40;

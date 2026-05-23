@@ -151,7 +151,11 @@ export default function SchedulePage({
     const settings = await ensureSettings();
     const allWeeks = await db.weeks.toArray();
     const updated = autoAssignWeek(week, assignees, allWeeks, {
-      privilegedMinistryShare: settings.privilegedMinistryShare,
+      shareMinistryQE: settings.shareMinistryQE ?? 2,
+      shareMinistryE: settings.shareMinistryE ?? 2,
+      shareMinistryMS: settings.shareMinistryMS ?? 2,
+      shareMinistryQMS: settings.shareMinistryQMS ?? 2,
+      shareMinistryBrothers: settings.shareMinistryBrothers ?? 2,
       preserveExisting,
       minGapWeeks: settings.minGapWeeks ?? 2,
       chairmanGapWeeks: settings.chairmanGapWeeks ?? 3,
