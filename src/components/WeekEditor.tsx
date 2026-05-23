@@ -669,6 +669,42 @@ function PartRow({
       )
   );
 
+  // Same-Sex Demo Match Check inside PartRow
+  const demoHouseholdViolation = useMemo(() => {
+    if (!mainPerson || !assistantPerson) return null;
+    const isMinistryDemo = assignment.segment === "ministry" && needsAssistant(assignment.partType);
+    if (!isMinistryDemo) return null;
+    if (mainPerson.gender === assistantPerson.gender) return null;
+    const inSameHousehold = households.some(
+      (h) => h.memberIds.includes(mainPerson.id!) && h.memberIds.includes(assistantPerson.id!)
+    );
+    if (inSameHousehold) return null;
+    return `${mainPerson.name} (${mainPerson.gender === "M" ? "brother" : "sister"}) and assistant ${assistantPerson.name} (${assistantPerson.gender === "M" ? "brother" : "sister"}) genders do not match in a demonstration, and they are not in the same household.`;
+  }, [mainPerson, assistantPerson, assignment.segment, assignment.partType, households]);
+
+  // Main & Assistant other parts in the same midweek meeting
+  const mainOtherParts = useMemo(() => {
+    if (!mainPerson) return [];
+    return week.assignments
+      .filter(
+        (a) =>
+          a.uid !== assignment.uid &&
+          (a.assigneeId === mainPerson.id || a.assistantId === mainPerson.id)
+      )
+      .map((a) => a.title || a.partType);
+  }, [mainPerson, week.assignments, assignment.uid]);
+
+  const assistantOtherParts = useMemo(() => {
+    if (!assistantPerson) return [];
+    return week.assignments
+      .filter(
+        (a) =>
+          a.uid !== assignment.uid &&
+          (a.assigneeId === assistantPerson.id || a.assistantId === assistantPerson.id)
+      )
+      .map((a) => a.title || a.partType);
+  }, [assistantPerson, week.assignments, assignment.uid]);
+
   return (
     <li
       draggable
@@ -766,6 +802,9 @@ function PartRow({
               role="main"
               weekOf={week.weekOf}
               allWeeks={allWeeks}
+              mainPerson={mainPerson}
+              assistantPerson={assistantPerson}
+              households={households}
             />
             {showAssistant && (
               <AssigneePicker
@@ -822,6 +861,9 @@ function PartRow({
                 weekOf={week.weekOf}
                 allWeeks={allWeeks}
                 mainIsMinor={mainPerson?.isMinor}
+                mainPerson={mainPerson}
+                assistantPerson={assistantPerson}
+                households={households}
               />
             )}
           </>
@@ -851,6 +893,50 @@ function PartRow({
               <li key={i}>{v}</li>
             ))}
           </ul>
+        </div>
+      )}
+      {demoHouseholdViolation && (
+        <div className="mt-2 text-[11px] text-amber-800 bg-amber-50/50 border border-amber-200 rounded px-2.5 py-1.5 flex flex-col gap-0.5 animate-fade-in">
+          <div className="flex items-center gap-1.5 font-semibold text-amber-800">
+            <span>⚠️</span>
+            <span>Same-Sex Demo Match Warning:</span>
+          </div>
+          <p className="mt-0.5 text-slate-700 leading-relaxed pl-4 list-item">
+            {demoHouseholdViolation}
+          </p>
+        </div>
+      )}
+      {mainPerson && assistantPerson && mainPerson.id === assistantPerson.id && (
+        <div className="mt-2 text-[11px] text-amber-800 bg-amber-50/50 border border-amber-200 rounded px-2.5 py-1.5 flex flex-col gap-0.5 animate-fade-in">
+          <div className="flex items-center gap-1.5 font-semibold text-amber-800">
+            <span>⚠️</span>
+            <span>Double Assignment Warning:</span>
+          </div>
+          <p className="mt-0.5 text-slate-700 leading-relaxed pl-4 list-item">
+            The same person ({mainPerson.name}) is assigned to both the Main and Assistant roles for this part.
+          </p>
+        </div>
+      )}
+      {mainOtherParts.length > 0 && (
+        <div className="mt-2 text-[11px] text-amber-800 bg-amber-50/50 border border-amber-200 rounded px-2.5 py-1.5 flex flex-col gap-0.5 animate-fade-in">
+          <div className="flex items-center gap-1.5 font-semibold text-amber-800">
+            <span>⚠️</span>
+            <span>Double Booking Warning (Main Publisher):</span>
+          </div>
+          <p className="mt-0.5 text-slate-700 leading-relaxed pl-4 list-item">
+            {mainPerson?.name} has another assignment in this meeting: {mainOtherParts.join(", ")}.
+          </p>
+        </div>
+      )}
+      {showAssistant && assistantOtherParts.length > 0 && (
+        <div className="mt-2 text-[11px] text-amber-800 bg-amber-50/50 border border-amber-200 rounded px-2.5 py-1.5 flex flex-col gap-0.5 animate-fade-in">
+          <div className="flex items-center gap-1.5 font-semibold text-amber-800">
+            <span>⚠️</span>
+            <span>Double Booking Warning ({assignment.partType === "Congregation Bible Study" ? "Reader" : "Assistant"}):</span>
+          </div>
+          <p className="mt-0.5 text-slate-700 leading-relaxed pl-4 list-item">
+            {assistantPerson?.name} has another assignment in this meeting: {assistantOtherParts.join(", ")}.
+          </p>
         </div>
       )}
       <div className="mt-3 flex items-center gap-3">
@@ -914,6 +1000,9 @@ function AssigneePicker({
   weekOf,
   allWeeks,
   mainIsMinor,
+  mainPerson,
+  assistantPerson,
+  households,
 }: {
   label: string;
   value?: number;
@@ -932,6 +1021,9 @@ function AssigneePicker({
   weekOf: string;
   allWeeks: Week[];
   mainIsMinor?: boolean;
+  mainPerson?: Assignee;
+  assistantPerson?: Assignee;
+  households?: Household[];
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -1077,6 +1169,49 @@ function AssigneePicker({
         lastAssignmentRole
       );
 
+      // Same-Sex Demo Match Check inside options map
+      if (assignment.segment === "ministry" && needsAssistant(assignment.partType)) {
+        if (role === "main" && assistantPerson && a.gender !== assistantPerson.gender) {
+          const inSameHousehold = households?.some(
+            (h) => h.memberIds.includes(a.id!) && h.memberIds.includes(assistantPerson.id!)
+          );
+          if (!inSameHousehold) {
+            violations.push(`Opposite-gender pairing in demonstration without household relation.`);
+          }
+        } else if (role === "assistant" && mainPerson && a.gender !== mainPerson.gender) {
+          const inSameHousehold = households?.some(
+            (h) => h.memberIds.includes(a.id!) && h.memberIds.includes(mainPerson.id!)
+          );
+          if (!inSameHousehold) {
+            violations.push(`Opposite-gender pairing in demonstration without household relation.`);
+          }
+        }
+      }
+
+      // Main & Assistant Double-Role Check
+      if (role === "main" && assistantPerson && a.id === assistantPerson.id) {
+        violations.push(`Assigned as the Assistant/Reader for this part.`);
+      }
+      if (role === "assistant" && mainPerson && a.id === mainPerson.id) {
+        violations.push(`Assigned as the Main speaker for this part.`);
+      }
+
+      // Double Booking in Same Week Check
+      const thisWeekObj = allWeeks.find((w) => w.weekOf.trim() === weekOf.trim());
+      if (thisWeekObj && a.id != null) {
+        const otherParts = thisWeekObj.assignments
+          .filter(
+            (ass) =>
+              ass.uid !== assignment.uid &&
+              (ass.assigneeId === a.id || ass.assistantId === a.id)
+          )
+          .map((ass) => ass.title || ass.partType);
+
+        if (otherParts.length > 0) {
+          violations.push(`Already scheduled in this meeting for: ${otherParts.join(", ")}`);
+        }
+      }
+
       return { a, score, proximityLabel, isRecentlyAssigned, isFresh, awayReason, violations };
     });
 
@@ -1100,7 +1235,7 @@ function AssigneePicker({
       item.a.name.toLowerCase().includes(q) ||
       (privilegeLabel(item.a) ?? "").toLowerCase().includes(q)
     );
-  }, [options, query, stats, talkSplit, treasuresSplit, settings, assignment, weekOf, role, allWeeks, mainIsMinor]);
+  }, [options, query, stats, talkSplit, treasuresSplit, settings, assignment, weekOf, role, allWeeks, mainIsMinor, mainPerson, assistantPerson, households]);
 
   function selectOption(id: number | undefined) {
     onChange(id);
