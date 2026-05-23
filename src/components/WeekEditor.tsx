@@ -1062,6 +1062,7 @@ function AssigneePicker({
         totalAssistant: 0,
         recentMainDates: [],
         recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
+        recentPrayerDates: [],
       };
       const score = scoreCandidate(
         a,
@@ -1081,14 +1082,17 @@ function AssigneePicker({
         }
       );
 
+      const isCurrentPrayer = assignment.partType === "Opening Prayer" || assignment.partType === "Closing Prayer";
       // --- Unified Proximity Indicators ---
       const matches = allWeeks
         .filter((w) => {
-          return w.assignments.some(
-            (ass: Assignment) =>
-              (a.id != null && ass.assigneeId === a.id) ||
-              (a.id != null && ass.assistantId === a.id)
-          );
+          return w.assignments.some((ass: Assignment) => {
+            if (a.id == null) return false;
+            const hasRole = ass.assigneeId === a.id || ass.assistantId === a.id;
+            if (!hasRole) return false;
+            const isAssPrayer = ass.partType === "Opening Prayer" || ass.partType === "Closing Prayer";
+            return isCurrentPrayer === isAssPrayer;
+          });
         })
         .map((w) => {
           const days = getDaysBetween(w.weekOf, weekOf);

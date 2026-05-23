@@ -26,6 +26,8 @@ export interface AssigneeStats {
   recentAssistantDates?: string[];
   /** All segment-specific main assignment dates for rolling-window segment balancing. */
   recentMainDatesBySegment: { opening: string[]; treasures: string[]; ministry: string[]; living: string[] };
+  lastWeekPrayer?: string;
+  recentPrayerDates?: string[];
 }
 
 /** Compute per-assignee assignment history from weeks. */
@@ -44,6 +46,8 @@ export function buildStats(
       recentMainDates: [],
       recentAssistantDates: [],
       recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
+      lastWeekPrayer: undefined,
+      recentPrayerDates: [],
     });
   }
 
@@ -59,17 +63,27 @@ export function buildStats(
       if (ass.assigneeId != null) {
         const s = stats.get(ass.assigneeId);
         if (s) {
-          s.totalMain += 1;
-          if (ass.segment && s.bySegmentMain) {
-            s.bySegmentMain[ass.segment] = (s.bySegmentMain[ass.segment] || 0) + 1;
-          }
-          if (!s.lastWeekMain || w.weekOf > s.lastWeekMain)
-            s.lastWeekMain = w.weekOf;
-          s.recentMainDates.push(w.weekOf);
-          if (ass.segment && s.recentMainDatesBySegment) {
-            const arr = s.recentMainDatesBySegment[ass.segment as "opening" | "treasures" | "ministry" | "living"];
-            if (arr) {
-              arr.push(w.weekOf);
+          const isPrayer = ass.partType === "Opening Prayer" || ass.partType === "Closing Prayer";
+          if (isPrayer) {
+            if (!s.lastWeekPrayer || w.weekOf > s.lastWeekPrayer) {
+              s.lastWeekPrayer = w.weekOf;
+            }
+            if (s.recentPrayerDates) {
+              s.recentPrayerDates.push(w.weekOf);
+            }
+          } else {
+            s.totalMain += 1;
+            if (ass.segment && s.bySegmentMain) {
+              s.bySegmentMain[ass.segment] = (s.bySegmentMain[ass.segment] || 0) + 1;
+            }
+            if (!s.lastWeekMain || w.weekOf > s.lastWeekMain)
+              s.lastWeekMain = w.weekOf;
+            s.recentMainDates.push(w.weekOf);
+            if (ass.segment && s.recentMainDatesBySegment) {
+              const arr = s.recentMainDatesBySegment[ass.segment as "opening" | "treasures" | "ministry" | "living"];
+              if (arr) {
+                arr.push(w.weekOf);
+              }
             }
           }
           if (ass.partType === "Chairman") {
@@ -220,45 +234,70 @@ export function scoreCandidate(
   const priorityMul = (catchUp - 1) * 0.4; // 0.0 .. 1.6
 
   if (role === "main") {
-    if (stats.lastWeekMain) {
-      const gap = daysBetween(stats.lastWeekMain, weekOf);
+    const isCurrentPrayer = part.partType === "Opening Prayer" || part.partType === "Closing Prayer";
+    if (isCurrentPrayer) {
+      if (stats.lastWeekPrayer) {
+        const gap = daysBetween(stats.lastWeekPrayer, weekOf);
+        if (gap < minGapDays) {
+          score -= (minGapDays - gap) * 30;
+        }
+        const DECAY_DAYS = 180;
+        score += Math.min(gap, DECAY_DAYS) * 0.8;
 
-      // Hard recency penalty: steep penalty within the min-gap window.
-      if (gap < minGapDays) {
-        score -= (minGapDays - gap) * 30;
+        if (priorityMul > 0) {
+          const neglectCap = 80 + catchUp * 32;
+          const neglectBonus = Math.min(gap, neglectCap);
+          score += neglectBonus * priorityMul;
+        }
+      } else {
+        score += 0;
       }
 
-      // Base gap score: everyone gets a small time-since-last bonus
-      // to naturally spread assignments around. Grows linearly up to 180 days.
-      const DECAY_DAYS = 180;
-      score += Math.min(gap, DECAY_DAYS) * 0.8;
-
-      // Catch-up bonus: only active at intensity > 1.  Grows with
-      // the gap AND the intensity, giving overlooked people extra
-      // priority when the overseer explicitly asks for it.
-      if (priorityMul > 0) {
-        const neglectCap = 80 + catchUp * 32; // 112..240
-        const neglectBonus = Math.min(gap, neglectCap);
-        score += neglectBonus * priorityMul;
-      }
+      const recentPrayerCount = (stats.recentPrayerDates ?? []).filter(
+        (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
+      ).length;
+      score -= recentPrayerCount * 8;
     } else {
-      // Never assigned. They start with a neutral gap score (0) and will be
-      // picked when others are penalized or naturally exhausted from the pool.
-      score += 0;
+      if (stats.lastWeekMain) {
+        const gap = daysBetween(stats.lastWeekMain, weekOf);
+
+        // Hard recency penalty: steep penalty within the min-gap window.
+        if (gap < minGapDays) {
+          score -= (minGapDays - gap) * 30;
+        }
+
+        // Base gap score: everyone gets a small time-since-last bonus
+        // to naturally spread assignments around. Grows linearly up to 180 days.
+        const DECAY_DAYS = 180;
+        score += Math.min(gap, DECAY_DAYS) * 0.8;
+
+        // Catch-up bonus: only active at intensity > 1.  Grows with
+        // the gap AND the intensity, giving overlooked people extra
+        // priority when the overseer explicitly asks for it.
+        if (priorityMul > 0) {
+          const neglectCap = 80 + catchUp * 32; // 112..240
+          const neglectBonus = Math.min(gap, neglectCap);
+          score += neglectBonus * priorityMul;
+        }
+      } else {
+        // Never assigned. They start with a neutral gap score (0) and will be
+        // picked when others are penalized or naturally exhausted from the pool.
+        score += 0;
+      }
+
+      // Workload penalty: penalise based on recent main workload in the last 12 weeks (84 days).
+      const recentMainCount = stats.recentMainDates.filter(
+        (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
+      ).length;
+      score -= recentMainCount * 8;
+
+      // Segment balancing — penalise heavy recent use in this segment in the last 12 weeks (84 days).
+      const recentSegmentDates = stats.recentMainDatesBySegment?.[part.segment] ?? [];
+      const recentSegmentCount = recentSegmentDates.filter(
+        (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
+      ).length;
+      score -= recentSegmentCount * 6;
     }
-
-    // Workload penalty: penalise based on recent main workload in the last 12 weeks (84 days).
-    const recentMainCount = stats.recentMainDates.filter(
-      (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
-    ).length;
-    score -= recentMainCount * 8;
-
-    // Segment balancing — penalise heavy recent use in this segment in the last 12 weeks (84 days).
-    const recentSegmentDates = stats.recentMainDatesBySegment?.[part.segment] ?? [];
-    const recentSegmentCount = recentSegmentDates.filter(
-      (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
-    ).length;
-    score -= recentSegmentCount * 6;
 
     // Favor main role if their last overall assignment was as an assistant.
     const lastMain = stats.lastWeekMain;
@@ -737,6 +776,7 @@ function rankAndPick(
     recentMainDates: [],
     recentAssistantDates: [],
     recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
+    recentPrayerDates: [],
   };
   const ranked = [...pool].sort((a, b) => {
     const sa = stats.get(a.id!) ?? empty;
@@ -797,6 +837,7 @@ export function dueSoon(
         recentMainDates: [],
         recentAssistantDates: [],
         recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
+        recentPrayerDates: [],
       };
 
       let neglect: number;
@@ -875,7 +916,8 @@ export function analyzeWeekOptimization(
         const s = stats.get(currentPerson.id!) ?? {
           totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
           totalAssistant: 0, recentMainDates: [],
-          recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] }
+          recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
+          recentPrayerDates: [],
         };
         const currentScore = scoreCandidate(
           currentPerson, a, week.weekOf, s, seed, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "main", opts
@@ -890,7 +932,8 @@ export function analyzeWeekOptimization(
           const bestStats = stats.get(best.id!) ?? {
             totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
             totalAssistant: 0, recentMainDates: [],
-            recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] }
+            recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
+            recentPrayerDates: [],
           };
           const bestScore = scoreCandidate(
             best, a, week.weekOf, bestStats, seed, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "main", opts
@@ -919,7 +962,8 @@ export function analyzeWeekOptimization(
         const s = stats.get(currentAssistant.id!) ?? {
           totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
           totalAssistant: 0, recentMainDates: [],
-          recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] }
+          recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
+          recentPrayerDates: [],
         };
 
         const currentScore = scoreCandidate(
@@ -935,7 +979,8 @@ export function analyzeWeekOptimization(
           const bestAssStats = stats.get(bestAss.id!) ?? {
             totalMain: 0, bySegmentMain: { opening: 0, treasures: 0, ministry: 0, living: 0 },
             totalAssistant: 0, recentMainDates: [],
-            recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] }
+            recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
+            recentPrayerDates: [],
           };
           const bestScore = scoreCandidate(
             bestAss, a, week.weekOf, bestAssStats, seed + 1, opts.privilegedMinistryShare, talkSplit, treasuresSplit, "assistant", opts, isMinorMain
