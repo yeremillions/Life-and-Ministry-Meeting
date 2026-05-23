@@ -9,7 +9,7 @@ import {
   Week,
   AssignmentRule,
 } from "./types";
-import { getMeetingDate } from "./utils";
+import { getMeetingDate, workbookPeriod } from "./utils";
 
 export function getMinistryCategory(a: Assignee): "QE" | "E" | "QMS" | "MS" | "Brothers" | "Sisters" {
   if (a.privileges?.includes("QE")) return "QE";
@@ -1079,3 +1079,42 @@ export function analyzeWeekOptimization(
     .sort((a, b) => (b.suggestedScore - b.currentScore) - (a.suggestedScore - a.currentScore))
     .slice(0, 3);
 }
+
+export function getWeeksInCalendarMonth(currentWeekOf: string, allWeeks: Week[]): Week[] {
+  const currentMon = new Date(currentWeekOf + "T00:00:00");
+  const year = currentMon.getFullYear();
+  const month = currentMon.getMonth(); // 0-based
+
+  return allWeeks.filter((w) => {
+    const wMon = new Date(w.weekOf + "T00:00:00");
+    return wMon.getFullYear() === year && wMon.getMonth() === month;
+  }).sort((a, b) => a.weekOf.localeCompare(b.weekOf));
+}
+
+export function getWeeksInWorkbookPeriod(currentWeekOf: string, allWeeks: Week[]): Week[] {
+  const currentPeriod = workbookPeriod(currentWeekOf).key;
+  return allWeeks.filter((w) => {
+    return workbookPeriod(w.weekOf).key === currentPeriod;
+  }).sort((a, b) => a.weekOf.localeCompare(b.weekOf));
+}
+
+export interface PeriodOptimizationResult {
+  week: Week;
+  suggestions: OptimizationSuggestion[];
+}
+
+export function analyzePeriodOptimization(
+  weeks: Week[],
+  assignees: Assignee[],
+  historicalWeeks: Week[],
+  opts: AutoAssignOptions
+): PeriodOptimizationResult[] {
+  return weeks.map((week) => {
+    const suggestions = analyzeWeekOptimization(week, assignees, historicalWeeks, opts);
+    return {
+      week,
+      suggestions,
+    };
+  });
+}
+

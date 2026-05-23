@@ -24,7 +24,9 @@ import {
   buildTalkSplit,
   buildTreasuresSplit,
   scoreCandidate,
-  analyzeWeekOptimization,
+  getWeeksInCalendarMonth,
+  getWeeksInWorkbookPeriod,
+  analyzePeriodOptimization,
   type AssigneeStats,
   type TalkSplit,
   type TreasuresSplit,
@@ -50,7 +52,8 @@ export interface WeekEditorProps {
 
 export default function WeekEditor(props: WeekEditorProps) {
   const { week, assignees, households } = props;
-  const [optimizations, setOptimizations] = useState<OptimizationSuggestion[] | null>(null);
+  const [activeScope, setActiveScope] = useState<"week" | "month" | "month-pair">("week");
+  const [showOptimizationModal, setShowOptimizationModal] = useState(false);
 
   const bySegment = useMemo(() => {
     const map: Record<SegmentId, Assignment[]> = {
@@ -105,8 +108,38 @@ export default function WeekEditor(props: WeekEditorProps) {
   }, [props.allWeeks, week.id]);
 
   function handleReviewOptimization() {
-    const suggestions = analyzeWeekOptimization(
-      week,
+    setShowOptimizationModal(true);
+  }
+
+  async function applyPeriodOptimization(opt: OptimizationSuggestion & { week: Week }) {
+    const targetWeek = opt.week;
+    const nextAssignments = targetWeek.assignments.map(a => {
+      if (a.uid === opt.uid) {
+        if (opt.role === "main") {
+          return { ...a, assigneeId: opt.suggestedAssigneeId };
+        } else {
+          return { ...a, assistantId: opt.suggestedAssigneeId };
+        }
+      }
+      return a;
+    });
+    await props.onSave({ ...targetWeek, assignments: nextAssignments });
+  }
+
+  const healthMetrics = useMemo(() => {
+    const scopeWeeks = activeScope === "week" 
+      ? [week]
+      : activeScope === "month" 
+      ? getWeeksInCalendarMonth(week.weekOf, props.allWeeks)
+      : getWeeksInWorkbookPeriod(week.weekOf, props.allWeeks);
+
+    let totalParts = 0;
+    let filledParts = 0;
+    let suggestionsCount = 0;
+    let criticalViolations = 0;
+
+    const allSuggestions = analyzePeriodOptimization(
+      scopeWeeks,
       assignees,
       props.allWeeks,
       { 
@@ -117,24 +150,91 @@ export default function WeekEditor(props: WeekEditorProps) {
         catchUpIntensity: props.settings.catchUpIntensity ?? 3,
         maxAssignmentsPerMonth: props.settings.maxAssignmentsPerMonth ?? 2,
       }
-    );
-    setOptimizations(suggestions);
-  }
+    ).flatMap(res => res.suggestions.map(s => ({ ...s, week: res.week })));
 
-  function applyOptimization(opt: OptimizationSuggestion) {
-    const nextAssignments = week.assignments.map(a => {
-      if (a.uid === opt.uid) {
-        if (opt.role === "main") {
-          return { ...a, assigneeId: opt.suggestedAssigneeId };
-        } else {
-          return { ...a, assistantId: opt.suggestedAssigneeId };
+    suggestionsCount = allSuggestions.length;
+
+    for (const w of scopeWeeks) {
+      if (w.specialEvent) continue;
+      for (const a of w.assignments) {
+        totalParts++;
+        if (a.assigneeId) filledParts++;
+        if (needsAssistant(a.partType) && a.assistantId) filledParts++;
+
+        const mainPerson = assignees.find(p => p.id === a.assigneeId);
+        const assistantPerson = assignees.find(p => p.id === a.assistantId);
+
+        if (mainPerson) {
+          const mainV = getRuleViolations(
+            mainPerson,
+            a.partType,
+            "main",
+            props.settings.assignmentRules,
+            undefined,
+            props.settings.preventMinorAssistantToAdult
+          );
+          criticalViolations += mainV.length;
+        }
+
+        if (assistantPerson) {
+          const assistantV = getRuleViolations(
+            assistantPerson,
+            a.partType,
+            "assistant",
+            props.settings.assignmentRules,
+            mainPerson?.isMinor ?? false,
+            props.settings.preventMinorAssistantToAdult
+          );
+          criticalViolations += assistantV.length;
+        }
+
+        if (mainPerson && assistantPerson && a.segment === "ministry" && needsAssistant(a.partType)) {
+          if (mainPerson.gender !== assistantPerson.gender) {
+            const inSameHousehold = households.some(
+              (h) => h.memberIds.includes(mainPerson.id!) && h.memberIds.includes(assistantPerson.id!)
+            );
+            if (!inSameHousehold) {
+              criticalViolations += 1;
+            }
+          }
         }
       }
-      return a;
-    });
-    props.onSave({ ...week, assignments: nextAssignments });
-    setOptimizations(prev => prev ? prev.filter(o => o !== opt) : null);
-  }
+    }
+
+    let totalSlots = 0;
+    let filledSlots = 0;
+    for (const w of scopeWeeks) {
+      if (w.specialEvent) continue;
+      for (const a of w.assignments) {
+        if (a.partType === "Video") continue;
+        totalSlots++;
+        if (a.assigneeId) filledSlots++;
+        if (needsAssistant(a.partType)) {
+          totalSlots++;
+          if (a.assistantId) filledSlots++;
+        }
+      }
+    }
+
+    const fillPct = totalSlots > 0 ? filledSlots / totalSlots : 0;
+    const fillScore = fillPct * 60;
+    const optPenalty = Math.min(25, suggestionsCount * 5);
+    const violationPenalty = Math.min(30, criticalViolations * 15);
+
+    let score = Math.round(fillScore + (40 - optPenalty - violationPenalty));
+    if (score < 0) score = 0;
+    if (score > 100) score = 100;
+
+    return {
+      score,
+      totalSlots,
+      filledSlots,
+      suggestionsCount,
+      criticalViolations,
+      allSuggestions,
+      scopeWeeks
+    };
+  }, [activeScope, week, props.allWeeks, assignees, households, props.settings]);
 
   return (
     <div className="space-y-5">
@@ -351,75 +451,231 @@ export default function WeekEditor(props: WeekEditorProps) {
       </footer>
 
       {/* Optimization Modal */}
-      {optimizations !== null && (
+      {showOptimizationModal && (
         <div
-          className="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-50"
-          onClick={() => setOptimizations(null)}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in"
+          onClick={() => setShowOptimizationModal(false)}
         >
           <div
-            className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] flex flex-col"
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[92vh] flex flex-col border border-slate-100 animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Header */}
             <div className="flex items-start justify-between mb-4 shrink-0">
               <div>
-                <h3 className="font-semibold text-lg text-slate-800">
-                  Review Optimization
+                <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
+                  <span>✨</span> Schedule Optimizer
                 </h3>
-                <p className="text-sm text-slate-500 mt-0.5">
-                  The system found {optimizations.length} suggestion{optimizations.length !== 1 ? "s" : ""} to improve fairness and compliance based on your settings.
+                <p className="text-sm text-slate-500 mt-1">
+                  Optimize your assignments for fairness, gaps, and congregational rules.
                 </p>
               </div>
               <button
-                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
-                onClick={() => setOptimizations(null)}
+                className="text-slate-400 hover:text-slate-600 text-2xl leading-none w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center transition-colors"
+                onClick={() => setShowOptimizationModal(false)}
               >
                 ×
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto min-h-0 space-y-3 custom-scrollbar pr-2 -mr-2">
-              {optimizations.length === 0 ? (
-                <div className="text-center py-8 text-emerald-600 font-medium">
-                  Looking good! No significant optimizations found.
-                </div>
-              ) : (
-                optimizations.map((opt, idx) => {
-                  const part = week.assignments.find((a) => a.uid === opt.uid);
-                  const currentPerson = assignees.find((a) => a.id === opt.currentAssigneeId);
-                  const newPerson = assignees.find((a) => a.id === opt.suggestedAssigneeId);
-                  return (
-                    <div key={idx} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <h4 className="font-semibold text-sm text-slate-800">
-                          {part?.title || part?.partType}
-                          <span className="text-xs font-normal text-slate-500 ml-2 italic">({opt.role})</span>
-                        </h4>
-                        <button
-                          className="btn text-xs py-1 px-3 shadow-none"
-                          onClick={() => applyOptimization(opt)}
-                        >
-                          Apply
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="text-slate-500 line-through">
-                          {currentPerson?.name || "Unassigned"}
-                        </div>
-                        <div className="text-emerald-700 font-medium flex items-center gap-1.5">
-                          <span>→</span> {newPerson?.name}
-                        </div>
-                      </div>
-                      <p className="text-xs text-slate-400 mt-2">
-                        {opt.reason}
-                      </p>
-                    </div>
-                  );
-                })
-              )}
+            {/* Scope Tabs */}
+            <div className="bg-slate-100 p-1 rounded-xl mb-4 flex shrink-0">
+              {(["week", "month", "month-pair"] as const).map((scope) => {
+                const isActive = activeScope === scope;
+                const label =
+                  scope === "week"
+                    ? "Current Week"
+                    : scope === "month"
+                    ? "This Month"
+                    : "Workbook Period";
+                return (
+                  <button
+                    key={scope}
+                    className={`flex-1 text-center py-2 text-xs font-semibold rounded-lg transition-all ${
+                      isActive
+                        ? "bg-white text-indigo-600 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                    onClick={() => setActiveScope(scope)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="mt-5 flex justify-end shrink-0">
-              <button className="btn-secondary" onClick={() => setOptimizations(null)}>
+            {/* Health Dashboard & Metrics */}
+            <div className="bg-gradient-to-r from-slate-50 to-indigo-50/20 border border-slate-200/60 rounded-xl p-4 mb-5 flex flex-col sm:flex-row items-center gap-6 shrink-0">
+              {/* Radial Progress Score */}
+              <div className="relative w-20 h-20 shrink-0">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                  {/* Background track */}
+                  <path
+                    className="text-slate-100"
+                    strokeWidth="3.5"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                  {/* Colored progress line */}
+                  <path
+                    className={`transition-all duration-500 ${
+                      healthMetrics.score >= 80
+                        ? "text-emerald-500"
+                        : healthMetrics.score >= 50
+                        ? "text-amber-500"
+                        : "text-rose-500"
+                    }`}
+                    strokeDasharray={`${healthMetrics.score}, 100`}
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-xl font-extrabold text-slate-800 tabular-nums">{healthMetrics.score}%</span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter text-center scale-90">Health</span>
+                </div>
+              </div>
+
+              {/* Grid Metrics */}
+              <div className="flex-1 w-full grid grid-cols-3 gap-3">
+                <div className="bg-white/80 backdrop-blur-xs border border-slate-100 p-2.5 rounded-lg text-center">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Completeness</div>
+                  <div className="text-sm font-bold text-slate-800 mt-0.5 tabular-nums">
+                    {healthMetrics.filledSlots}/{healthMetrics.totalSlots}
+                  </div>
+                  <div className="w-full bg-slate-100 h-1 rounded-full mt-1.5 overflow-hidden">
+                    <div 
+                      className="bg-indigo-500 h-full rounded-full transition-all duration-300"
+                      style={{ width: `${healthMetrics.totalSlots > 0 ? (healthMetrics.filledSlots / healthMetrics.totalSlots) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-white/80 backdrop-blur-xs border border-slate-100 p-2.5 rounded-lg text-center">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Warnings</div>
+                  <div className={`text-sm font-bold mt-0.5 tabular-nums ${healthMetrics.criticalViolations > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                    {healthMetrics.criticalViolations}
+                  </div>
+                  <div className="text-[9px] text-slate-400 mt-1.5 truncate">
+                    {healthMetrics.criticalViolations > 0 ? "Rule violations" : "Compliance perfect"}
+                  </div>
+                </div>
+
+                <div className="bg-white/80 backdrop-blur-xs border border-slate-100 p-2.5 rounded-lg text-center">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Opportunities</div>
+                  <div className={`text-sm font-bold mt-0.5 tabular-nums ${healthMetrics.suggestionsCount > 0 ? "text-indigo-600" : "text-emerald-600"}`}>
+                    {healthMetrics.suggestionsCount}
+                  </div>
+                  <div className="text-[9px] text-slate-400 mt-1.5 truncate">
+                    {healthMetrics.suggestionsCount > 0 ? "Optimizations found" : "Fully optimal"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Suggestions scroll list */}
+            <div className="flex-1 overflow-y-auto min-h-0 space-y-4 custom-scrollbar pr-2 -mr-2">
+              {healthMetrics.scopeWeeks.map((w) => {
+                const weekSuggestions = healthMetrics.allSuggestions.filter(s => s.week.id === w.id);
+                const isCurrentWeek = w.id === week.id;
+
+                return (
+                  <div key={w.id} className={`border rounded-xl p-3 transition-colors ${
+                    isCurrentWeek ? "border-indigo-200 bg-indigo-50/5 shadow-xs" : "border-slate-200 bg-white"
+                  }`}>
+                    {/* Week Header */}
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${isCurrentWeek ? "bg-indigo-500 animate-pulse" : "bg-slate-400"}`} />
+                        <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider">
+                          Week of {weekRangeLabel(w.weekOf)}
+                          {isCurrentWeek && <span className="text-[10px] text-indigo-600 normal-case font-semibold ml-2">(Current Week)</span>}
+                        </h4>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-medium font-mono">
+                        {w.weeklyBibleReading || "Normal Schedule"}
+                      </span>
+                    </div>
+
+                    {/* Suggestions content */}
+                    {w.specialEvent ? (
+                      <div className="text-center py-2 text-xs text-slate-400 italic">
+                        🗓️ {w.specialEvent} week — optimizations suspended.
+                      </div>
+                    ) : weekSuggestions.length === 0 ? (
+                      <div className="flex items-center gap-1.5 justify-center py-3 text-xs text-emerald-600 font-medium">
+                        <span>✓</span>
+                        <span>This week is fully optimized and compliant!</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 mt-2">
+                        {weekSuggestions.map((opt, idx) => {
+                          const part = w.assignments.find((a) => a.uid === opt.uid);
+                          const currentPerson = assignees.find((p) => p.id === opt.currentAssigneeId);
+                          const newPerson = assignees.find((p) => p.id === opt.suggestedAssigneeId);
+                          
+                          // Find part color accent
+                          const segmentDef = SEGMENTS.find(s => s.id === part?.segment);
+                          const partColor = segmentDef?.color || "#64748b";
+
+                          return (
+                            <div 
+                              key={idx} 
+                              className="bg-slate-50 hover:bg-slate-100/70 border border-slate-200/80 rounded-lg p-3 transition-all hover:shadow-2xs group"
+                            >
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <div>
+                                  <span 
+                                    className="inline-block w-1.5 h-1.5 rounded-full mr-2 animate-pulse"
+                                    style={{ backgroundColor: partColor }}
+                                  />
+                                  <span className="font-bold text-xs text-slate-800">
+                                    {part?.title || part?.partType}
+                                  </span>
+                                  <span className="text-[10px] font-semibold text-slate-400 ml-1.5 uppercase tracking-wider">
+                                    &middot; {opt.role}
+                                  </span>
+                                </div>
+                                <button
+                                  className="btn text-[11px] py-1 px-3 shadow-none bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md border-0 shrink-0 transform active:scale-95 transition-transform"
+                                  onClick={() => applyPeriodOptimization({ ...opt, week: w })}
+                                >
+                                  Apply Swap
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-[1fr,20px,1fr] items-center gap-2 text-xs py-1 px-1.5 bg-white rounded-md border border-slate-100">
+                                <div className="text-slate-400 font-medium line-through truncate px-1 text-center bg-rose-50/50 rounded border border-rose-100/40">
+                                  {currentPerson?.name || "Unassigned"}
+                                </div>
+                                <div className="text-slate-400 font-semibold text-center">→</div>
+                                <div className="text-emerald-700 font-bold truncate px-1 text-center bg-emerald-50 rounded border border-emerald-100/60">
+                                  {newPerson?.name}
+                                </div>
+                              </div>
+                              <p className="text-[10px] text-slate-500 mt-2 font-medium bg-white/40 border border-slate-100 rounded px-2 py-1 leading-relaxed">
+                                {opt.reason}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="mt-5 flex justify-end shrink-0 gap-2 border-t border-slate-100 pt-3">
+              <button 
+                className="btn-secondary" 
+                onClick={() => setShowOptimizationModal(false)}
+              >
                 Close
               </button>
             </div>
