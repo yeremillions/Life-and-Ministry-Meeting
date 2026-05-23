@@ -872,6 +872,17 @@ function PartRow({
   );
 }
 
+function parseDateUTC(dateStr: string): Date {
+  const [year, month, day] = dateStr.trim().split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function getDaysBetween(date1: string, date2: string): number {
+  const d1 = parseDateUTC(date1);
+  const d2 = parseDateUTC(date2);
+  return Math.round((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 function AssigneePicker({
   label,
   value,
@@ -964,22 +975,33 @@ function AssigneePicker({
       );
 
       // --- Human-readable indicators ---
-      const lastDate = role === "main" ? s.lastWeekMain : s.lastWeekAssistant;
+      // Get the overall most recent assignment date (either main or assistant)
+      const lastMain = s.lastWeekMain;
+      const lastAsst = s.lastWeekAssistant;
+      let lastDate: string | undefined = undefined;
+      if (lastMain && lastAsst) {
+        lastDate = lastMain > lastAsst ? lastMain : lastAsst;
+      } else {
+        lastDate = lastMain || lastAsst;
+      }
+
       let weeksAgo = "Never";
       if (lastDate) {
-        const days = Math.round((new Date(weekOf + "T00:00:00").getTime() - new Date(lastDate + "T00:00:00").getTime()) / (1000 * 60 * 60 * 24));
+        const days = getDaysBetween(weekOf, lastDate);
         const wks = Math.floor(days / 7);
         weeksAgo = wks === 0 ? "This week" : `${wks} wk${wks === 1 ? "" : "s"} ago`;
       }
 
-      // Check for assignments in [weekOf - 2 weeks, weekOf + 2 weeks] excluding current week
-      const currentT = new Date(weekOf + "T00:00:00").getTime();
-      const windowMs = 15 * 24 * 60 * 60 * 1000; // ~2 weeks
+      // Check for assignments in [weekOf - 2 weeks, weekOf + 2 weeks] (14 days window) excluding current week
       const hasNearby = allWeeks.some((w: Week) => {
-        if (w.weekOf === weekOf) return false;
-        const t = new Date(w.weekOf + "T00:00:00").getTime();
-        if (Math.abs(t - currentT) > windowMs) return false;
-        return w.assignments.some((ass: Assignment) => ass.assigneeId === a.id || ass.assistantId === a.id);
+        if (w.weekOf.trim() === weekOf.trim()) return false;
+        const diff = Math.abs(getDaysBetween(weekOf, w.weekOf));
+        if (diff > 14) return false;
+        return w.assignments.some(
+          (ass: Assignment) =>
+            (a.id != null && ass.assigneeId === a.id) ||
+            (a.id != null && ass.assistantId === a.id)
+        );
       });
 
       // --- Check out-of-town/availability ranges ---
