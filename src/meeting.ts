@@ -214,7 +214,8 @@ export function getRuleViolations(
   role: "main" | "assistant" = "main",
   rules: Record<string, AssignmentRule> = DEFAULT_ASSIGNMENT_RULES,
   mainIsMinor?: boolean,
-  preventMinorAssistantToAdult?: boolean
+  preventMinorAssistantToAdult?: boolean,
+  lastAssignmentRole?: "main" | "assistant"
 ): string[] {
   const violations: string[] = [];
   if (a.archived || !a.active) return violations;
@@ -262,6 +263,11 @@ export function getRuleViolations(
   const isMinistryPart = SEGMENT_PART_TYPES.ministry.includes(partType);
   if (preventMinorAssistantToAdult && isMinistryPart && role === "assistant" && mainIsMinor === false && a.isMinor) {
     violations.push(`Minor assistant cannot normally assist adult`);
+  }
+
+  // Assistant twice in a row check
+  if (role === "assistant" && lastAssignmentRole === "assistant") {
+    violations.push(`Last assignment was as an assistant (should be considered for a main role instead)`);
   }
 
   return violations;

@@ -624,15 +624,29 @@ function PartRow({
   const assistantPerson = assignees.find((a) => a.id === assignment.assistantId);
   const assistantViolations = useMemo(() => {
     if (!assistantPerson) return [];
+    const s = stats.get(assistantPerson.id!);
+    let lastAssignmentRole: "main" | "assistant" | undefined = undefined;
+    if (s && s.lastWeekAssistant) {
+      const lastMain = s.lastWeekMain;
+      const lastAsst = s.lastWeekAssistant;
+      if (!lastMain || lastAsst > lastMain) {
+        lastAssignmentRole = "assistant";
+      } else {
+        lastAssignmentRole = "main";
+      }
+    } else if (s && s.lastWeekMain) {
+      lastAssignmentRole = "main";
+    }
     return getRuleViolations(
       assistantPerson,
       assignment.partType,
       "assistant",
       settings.assignmentRules,
       mainPerson?.isMinor ?? false,
-      settings.preventMinorAssistantToAdult
+      settings.preventMinorAssistantToAdult,
+      lastAssignmentRole
     );
-  }, [assistantPerson, assignment.partType, settings.assignmentRules, mainPerson, settings.preventMinorAssistantToAdult]);
+  }, [assistantPerson, assignment.partType, settings.assignmentRules, mainPerson, settings.preventMinorAssistantToAdult, stats]);
 
   const seg = segmentOf(assignment.segment);
   const showAssistant = needsAssistant(assignment.partType);
@@ -1025,13 +1039,27 @@ function AssigneePicker({
         }
       }
 
+      let lastAssignmentRole: "main" | "assistant" | undefined = undefined;
+      if (s && s.lastWeekAssistant) {
+        const lastMain = s.lastWeekMain;
+        const lastAsst = s.lastWeekAssistant;
+        if (!lastMain || lastAsst > lastMain) {
+          lastAssignmentRole = "assistant";
+        } else {
+          lastAssignmentRole = "main";
+        }
+      } else if (s && s.lastWeekMain) {
+        lastAssignmentRole = "main";
+      }
+
       const violations = getRuleViolations(
         a,
         assignment.partType,
         role,
         settings.assignmentRules,
         mainIsMinor,
-        settings.preventMinorAssistantToAdult
+        settings.preventMinorAssistantToAdult,
+        lastAssignmentRole
       );
 
       return { a, score, weeksAgo, hasNearby, awayReason, violations };

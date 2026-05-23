@@ -259,6 +259,14 @@ export function scoreCandidate(
       (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
     ).length;
     score -= recentSegmentCount * 6;
+
+    // Favor main role if their last overall assignment was as an assistant.
+    const lastMain = stats.lastWeekMain;
+    const lastAsst = stats.lastWeekAssistant;
+    const wasLastAssistant = lastAsst && (!lastMain || lastAsst > lastMain);
+    if (wasLastAssistant) {
+      score += 20; // healthy favor bonus
+    }
   } else {
     // Assistant role — use assistant-only history.
     if (stats.lastWeekAssistant) {
@@ -677,6 +685,19 @@ function pickCandidate(args: PickArgs): Assignee | null {
     if (freshCandidates.length > 0) {
       eligiblePool = freshCandidates;
     }
+  }
+
+  // ── Hard constraint: prevent assistant twice in a row ──────────
+  if (role === "assistant") {
+    const filtered = eligiblePool.filter((a) => {
+      const s = stats.get(a.id!);
+      if (!s || !s.lastWeekAssistant) return true;
+      const lastMain = s.lastWeekMain;
+      const lastAsst = s.lastWeekAssistant;
+      const wasLastAssistant = lastAsst && (!lastMain || lastAsst > lastMain);
+      return !wasLastAssistant;
+    });
+    if (filtered.length > 0) eligiblePool = filtered;
   }
 
   if (eligiblePool.length === 0) return null;

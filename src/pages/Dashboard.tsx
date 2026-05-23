@@ -1,7 +1,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo, useState } from "react";
 import { db } from "../db";
-import { buildStats, dueSoon } from "../scheduler";
+import { buildStats, dueSoon, AssigneeStats } from "../scheduler";
 import { SEGMENTS, segmentOf, needsAssistant } from "../meeting";
 import { todayIso, weekRangeLabel, toIso, mondayOf, getMeetingDate } from "../utils";
 import type { Week, Assignee, AppSettings, Household } from "../types";
@@ -27,7 +27,8 @@ export function findWeekConflicts(
   week: Week,
   assignees: Assignee[],
   households: Household[],
-  settings: AppSettings | null
+  settings: AppSettings | null,
+  stats?: Map<number, AssigneeStats>
 ): Conflict[] {
   if (week.specialEvent) return [];
 
@@ -384,6 +385,30 @@ export function findWeekConflicts(
           });
         }
       }
+
+      // 9. Assistant Twice in a Row Safeguard
+      if (stats && assistant.id != null) {
+        const s = stats.get(assistant.id);
+        if (s && s.lastWeekAssistant) {
+          const lastMain = s.lastWeekMain;
+          const lastAsst = s.lastWeekAssistant;
+          const wasLastAssistant = lastAsst && (!lastMain || lastAsst > lastMain);
+          if (wasLastAssistant) {
+            conflicts.push({
+              id: `${week.id}-${a.uid}-assistant-twice`,
+              weekId: week.id!,
+              weekOf: week.weekOf,
+              partUid: a.uid,
+              partType: a.partType,
+              partTitle: a.title,
+              ruleName: "Assistant Policy Check",
+              message: `${assistant.name} (assistant) is assigned as an assistant but their last assignment was also as an assistant. They should be considered for a main role instead.`,
+              severity: "warning",
+              assistantId: assistant.id,
+            });
+          }
+        }
+      }
     }
 
     // Main & Assistant combined rules
@@ -621,12 +646,12 @@ export default function Dashboard({
 
     isBrandNew = assignees.length === 0 && weeks.length === 0;
 
-    const allUpcomingConflicts = upcoming.flatMap((w) => findWeekConflicts(w, assignees, households, settings));
+    const allUpcomingConflicts = upcoming.flatMap((w) => findWeekConflicts(w, assignees, households, settings, stats));
     const ignoredList = settings?.ignoredConflicts ?? [];
     const ignoredUpcomingCount = allUpcomingConflicts.filter((c) => ignoredList.includes(c.id)).length;
 
     const conflictsByWeek = upcoming.reduce<{ weekId: number; weekOf: string; list: Conflict[] }[]>((acc, w) => {
-      const list = findWeekConflicts(w, assignees, households, settings);
+      const list = findWeekConflicts(w, assignees, households, settings, stats);
       const activeList = list.filter((c) => !ignoredList.includes(c.id));
       if (activeList.length > 0) {
         acc.push({ weekId: w.id!, weekOf: w.weekOf, list: activeList });
