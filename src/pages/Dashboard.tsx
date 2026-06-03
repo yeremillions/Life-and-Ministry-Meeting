@@ -469,7 +469,7 @@ export default function Dashboard({
   onNavigate,
   onNavigateToProfile,
 }: {
-  onNavigate: (t: "enrollees" | "schedule" | "reports", weekId?: number) => void;
+  onNavigate: (t: "enrollees" | "schedule" | "reports" | "conflicts", weekId?: number) => void;
   onNavigateToProfile: (id: number) => void;
 }) {
   const rawAssignees =
@@ -791,17 +791,26 @@ export default function Dashboard({
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Upcoming weeks column */}
           <div className="lg:col-span-2 space-y-5">
-            {allConflicts.length > 0 && (
-              <div className="card border-red-200 bg-red-50/20 p-5 space-y-4 animate-fade-in" style={{ borderLeft: '4px solid #ef4444' }}>
-                <div className="flex items-center justify-between border-b border-red-100 pb-3">
+            {weeks.length > 0 && (
+              <div
+                className={`card p-5 space-y-4 animate-fade-in border-l-4 transition-colors ${
+                  allConflicts.length > 0
+                    ? "border-red-200 bg-red-50/20"
+                    : "border-emerald-100 bg-emerald-50/10"
+                }`}
+                style={{ borderLeftColor: allConflicts.length > 0 ? '#ef4444' : '#10b981' }}
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-xl">⚠️</span>
+                    <span className="text-xl">{allConflicts.length > 0 ? "⚠️" : "✅"}</span>
                     <div>
                       <h2 className="font-bold text-slate-900 leading-none flex items-center gap-2 flex-wrap">
                         Rule Conflicts & Warnings
-                        <span className="text-[11px] font-extrabold px-2 py-0.5 bg-red-100 text-red-800 rounded-full border border-red-200 shadow-sm animate-pulse">
-                          {allConflicts.length} {allConflicts.length === 1 ? "Issue" : "Issues"}
-                        </span>
+                        {allConflicts.length > 0 && (
+                          <span className="text-[11px] font-extrabold px-2 py-0.5 bg-red-100 text-red-800 rounded-full border border-red-200 shadow-sm animate-pulse">
+                            {allConflicts.length} {allConflicts.length === 1 ? "Issue" : "Issues"}
+                          </span>
+                        )}
                         {ignoredUpcomingCount > 0 && (
                           <button
                             onClick={handleResetIgnored}
@@ -813,97 +822,108 @@ export default function Dashboard({
                         )}
                       </h2>
                       <p className="text-xs text-slate-500 mt-1">
-                        Scanning 4 upcoming weeks. Click on enrollees or schedule editor to resolve.
+                        {allConflicts.length > 0
+                          ? "Scanning 4 upcoming weeks. Click on enrollees or schedule editor to resolve."
+                          : "No scheduling conflicts detected for the next 4 weeks."}
                       </p>
                     </div>
                   </div>
+                  <button
+                    onClick={() => onNavigate("conflicts")}
+                    className="btn bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 py-1.5 px-3 text-xs shadow-sm flex items-center gap-1.5 font-semibold shrink-0"
+                  >
+                    <span>Manage Conflicts</span>
+                    <span>➡️</span>
+                  </button>
                 </div>
 
-                <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
-                  {conflictsByWeek.map((group) => (
-                    <div key={group.weekOf} className="bg-white border border-slate-200 rounded shadow-sm overflow-hidden">
-                      <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
-                        <span className="font-semibold text-xs text-slate-700 uppercase tracking-wider">
-                          Week of {weekRangeLabel(group.weekOf)}
-                        </span>
-                        <button
-                          onClick={() => onNavigate("schedule", group.weekId)}
-                          className="text-[11px] font-bold hover:underline transition-all flex items-center gap-1"
-                          style={{ color: 'var(--color-primary)' }}
-                        >
-                          <span>Fix Schedule</span>
-                          <span className="text-xs">🗓️</span>
-                        </button>
-                      </div>
+                {allConflicts.length > 0 && (
+                  <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
+                    {conflictsByWeek.map((group) => (
+                      <div key={group.weekOf} className="bg-white border border-slate-200 rounded shadow-sm overflow-hidden">
+                        <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                          <span className="font-semibold text-xs text-slate-700 uppercase tracking-wider">
+                            Week of {weekRangeLabel(group.weekOf)}
+                          </span>
+                          <button
+                            onClick={() => onNavigate("schedule", group.weekId)}
+                            className="text-[11px] font-bold hover:underline transition-all flex items-center gap-1"
+                            style={{ color: 'var(--color-primary)' }}
+                          >
+                            <span>Fix Schedule</span>
+                            <span className="text-xs">🗓️</span>
+                          </button>
+                        </div>
 
-                      <div className="divide-y divide-slate-100">
-                        {group.list.map((c) => {
-                          const assigneeName = c.assigneeId
-                            ? assignees.find((p) => p.id === c.assigneeId)?.name
-                            : null;
-                          const assistantName = c.assistantId
-                            ? assignees.find((p) => p.id === c.assistantId)?.name
-                            : null;
-                          const isError = c.severity === "error";
+                        <div className="divide-y divide-slate-100">
+                          {group.list.map((c) => {
+                            const assigneeName = c.assigneeId
+                              ? assignees.find((p) => p.id === c.assigneeId)?.name
+                              : null;
+                            const assistantName = c.assistantId
+                              ? assignees.find((p) => p.id === c.assistantId)?.name
+                              : null;
+                            const isError = c.severity === "error";
 
-                          return (
-                            <div key={c.id} className="p-3 flex items-start gap-3 hover:bg-slate-50/50 transition-colors">
-                              <span className={`text-base shrink-0 mt-0.5 ${isError ? "text-rose-500" : "text-amber-500"}`}>
-                                {isError ? "🛑" : "⚠️"}
-                              </span>
-                              <div className="flex-1 space-y-1.5 min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-bold text-slate-800 text-xs shrink-0 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
-                                    {c.partTitle || c.partType}
-                                  </span>
-                                  <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
-                                    isError 
-                                      ? "bg-rose-50 border-rose-200 text-rose-700" 
-                                      : "bg-amber-50 border-amber-200 text-amber-700"
-                                  }`}>
-                                    {c.ruleName}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-slate-600 font-medium leading-relaxed break-words">
-                                  {c.message}
-                                </p>
-                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5 w-full justify-between">
-                                  <div className="flex flex-wrap items-center gap-1.5">
-                                    {assigneeName && c.assigneeId && (
-                                      <button
-                                        onClick={() => onNavigateToProfile(c.assigneeId!)}
-                                        className="text-[10px] font-semibold bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-0.5 transition-all flex items-center gap-1"
-                                        style={{ color: 'var(--color-primary)' }}
-                                      >
-                                        <span>👤 {assigneeName}</span>
-                                      </button>
-                                    )}
-                                    {assistantName && c.assistantId && (
-                                      <button
-                                        onClick={() => onNavigateToProfile(c.assistantId!)}
-                                        className="text-[10px] font-semibold bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-0.5 transition-all flex items-center gap-1"
-                                        style={{ color: 'var(--color-primary)' }}
-                                      >
-                                        <span>👥 Assistant: {assistantName}</span>
-                                      </button>
-                                    )}
+                            return (
+                              <div key={c.id} className="p-3 flex items-start gap-3 hover:bg-slate-50/50 transition-colors">
+                                <span className={`text-base shrink-0 mt-0.5 ${isError ? "text-rose-500" : "text-amber-500"}`}>
+                                  {isError ? "🛑" : "⚠️"}
+                                </span>
+                                <div className="flex-1 space-y-1.5 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-bold text-slate-800 text-xs shrink-0 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                                      {c.partTitle || c.partType}
+                                    </span>
+                                    <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                                      isError 
+                                        ? "bg-rose-50 border-rose-200 text-rose-700" 
+                                        : "bg-amber-50 border-amber-200 text-amber-700"
+                                    }`}>
+                                      {c.ruleName}
+                                    </span>
                                   </div>
-                                  <button
-                                    onClick={() => handleIgnoreConflict(c.id)}
-                                    className="text-[10px] font-bold text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-0.5 transition-all flex items-center gap-1 shrink-0 ml-auto"
-                                    title="Ignore this conflict warning on the dashboard"
-                                  >
-                                    <span>🔕 Ignore</span>
-                                  </button>
+                                  <p className="text-xs text-slate-600 font-medium leading-relaxed break-words">
+                                    {c.message}
+                                  </p>
+                                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5 w-full justify-between">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      {assigneeName && c.assigneeId && (
+                                        <button
+                                          onClick={() => onNavigateToProfile(c.assigneeId!)}
+                                          className="text-[10px] font-semibold bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-0.5 transition-all flex items-center gap-1"
+                                          style={{ color: 'var(--color-primary)' }}
+                                        >
+                                          <span>👤 {assigneeName}</span>
+                                        </button>
+                                      )}
+                                      {assistantName && c.assistantId && (
+                                        <button
+                                          onClick={() => onNavigateToProfile(c.assistantId!)}
+                                          className="text-[10px] font-semibold bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-0.5 transition-all flex items-center gap-1"
+                                          style={{ color: 'var(--color-primary)' }}
+                                        >
+                                          <span>👥 Assistant: {assistantName}</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                    <button
+                                      onClick={() => handleIgnoreConflict(c.id)}
+                                      className="text-[10px] font-bold text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-2 py-0.5 transition-all flex items-center gap-1 shrink-0 ml-auto"
+                                      title="Ignore this conflict warning on the dashboard"
+                                    >
+                                      <span>🔕 Ignore</span>
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

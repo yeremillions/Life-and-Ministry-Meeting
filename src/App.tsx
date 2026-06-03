@@ -9,8 +9,9 @@ import SettingsPage from "./pages/SettingsPage";
 import EnrolleeProfile from "./pages/EnrolleeProfile";
 import HelpPage from "./pages/HelpPage";
 import AdminPage from "./pages/AdminPage";
+import ConflictsPage from "./pages/ConflictsPage";
 
-type Tab = "dashboard" | "enrollees" | "schedule" | "reports" | "settings" | "help" | "admin" | "profile";
+type Tab = "dashboard" | "enrollees" | "schedule" | "reports" | "settings" | "help" | "admin" | "profile" | "conflicts";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
@@ -138,6 +139,13 @@ export default function App() {
         {tab === "settings" && <SettingsPage onNavigateToAdmin={() => setTab("admin")} />}
         {tab === "help" && <HelpPage />}
         {tab === "admin" && <AdminPage />}
+        {tab === "conflicts" && (
+          <ConflictsPage
+            onBack={() => setTab("dashboard")}
+            onNavigate={navigate}
+            onNavigateToProfile={navigateToProfile}
+          />
+        )}
         {tab === "profile" && profileEnrolleeId !== null && (
           <EnrolleeProfile 
             id={profileEnrolleeId} 
