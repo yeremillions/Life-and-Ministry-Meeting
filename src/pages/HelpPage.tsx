@@ -260,6 +260,13 @@ function SettingsSection() {
         other publishers.
       </P>
 
+      <SubTitle>Living Parts Assignments Balance</SubTitle>
+      <P>
+        Configure target percentage splits for `Living Part` assignments among Qualified Elders (QE),
+        Elders (E), and Qualified Ministerial Servants (QMS). The remaining share automatically goes to
+        Ministerial Servants (MS). The sliders clamp each other so they always sum to 100% total. Default is 25% each.
+      </P>
+
       <SubTitle>Scheduler Fairness Controls</SubTitle>
       <P>These settings give you precise control over how the auto-assignment algorithm distributes work:</P>
 
@@ -458,6 +465,8 @@ function AutoAssignSection() {
         <li><strong>Total workload</strong> — People with fewer lifetime assignments are preferred</li>
         <li><strong>Monthly cap</strong> — No one receives more than the configured max per 4-week window</li>
         <li><strong>Segment balance</strong> — The scheduler avoids giving the same person the same type of part repeatedly</li>
+        <li><strong>Living Parts Balance</strong> — Scores candidates dynamically based on your configured target shares for QE, E, QMS, and MS.</li>
+        <li><strong>Household Variety</strong> — Avoids giving members of the same household different assignments in the same week (does not affect pairing on the same part as assistant).</li>
         <li><strong>Chairman rotation</strong> — Elders must wait the configured number of weeks before chairing again</li>
         <li><strong>Same-meeting uniqueness</strong> — No person is assigned two main parts in the same meeting</li>
         <li><strong>Individual Restrictions</strong> — The scheduler strictly ignores parts not in an enrollee's custom whitelist</li>
@@ -618,6 +627,12 @@ function TipsSection() {
         the assistant picker for ministry demonstrations will show the spouse as an option, even if
         they are of a different gender. Without a household, the scheduler defaults to same-gender pairings.
       </P>
+      <P>
+        Grouping members into households also enables the <strong>Household variety rule</strong>. 
+        The scheduler actively avoids assigning members of the same household to different parts on the same day. 
+        This keeps meeting parts diverse and shows schedule variety, though family members can still be paired as 
+        main and assistant on the same part.
+      </P>
     </div>
   );
 }
@@ -687,6 +702,17 @@ function FaqSection() {
         Yes! In the <strong>Settings</strong> page, use the <strong>Assignment Eligibility Rules</strong>
         table to change gender, baptism, or privilege requirements for any part type. These changes
         affect every week in the application.
+      </FaqItem>
+
+      <FaqItem q="What is the 'Household Constraint' warning on the Dashboard?">
+        To avoid assigning members of the same household to different parts in the same week (which can make the program feel less varied or strain a family's preparation), the system generates a warning-level conflict. Family members can, however, be paired together as main and assistant on the same part without triggering this warning.
+      </FaqItem>
+
+      <FaqItem q="How can I filter and manage warnings or ignore certain conflicts?">
+        The Dashboard features a <strong>Rule Conflicts &amp; Warnings</strong> section with a link to 
+        <strong>Manage Conflicts &amp; Warnings</strong>. From there, you can filter conflicts by scheduling 
+        period, review pending issues, and mark specific items as "Ignored" if they are acceptable 
+        exceptions for your congregation.
       </FaqItem>
     </div>
   );
