@@ -8,6 +8,7 @@ import {
   Assignment,
   Week,
   AssignmentRule,
+  Household,
 } from "./types";
 import { getMeetingDate, workbookPeriod } from "./utils";
 
@@ -204,6 +205,46 @@ export function tallyTreasures(person: Assignee, split: TreasuresSplit): void {
 }
 
 /**
+ * Aggregate counts used to balance the Living Parts between
+ * QE, E, QMS, and MS.
+ */
+export interface LivingSplit {
+  qeCount: number;
+  elderCount: number;
+  qmsCount: number;
+  msCount: number;
+}
+
+/** Tally past Living Part assignments by group. */
+export function buildLivingSplit(
+  assignees: Assignee[],
+  weeks: Week[]
+): LivingSplit {
+  const split: LivingSplit = { qeCount: 0, elderCount: 0, qmsCount: 0, msCount: 0 };
+  for (const w of weeks) {
+    if (!w || !Array.isArray(w.assignments)) continue;
+    for (const a of w.assignments) {
+      if (a.partType !== "Living Part") continue;
+      if (a.assigneeId == null) continue;
+      const person = assignees.find((p) => p.id === a.assigneeId);
+      if (person) tallyLiving(person, split);
+    }
+  }
+  return split;
+}
+
+export function tallyLiving(person: Assignee, split: LivingSplit): void {
+  const isQE = person.privileges?.includes("QE") ?? false;
+  const isE = !isQE && (person.privileges?.includes("E") ?? false);
+  const isQMS = person.privileges?.includes("QMS") ?? false;
+  const isMS = !isQE && !isE && !isQMS && (person.privileges?.includes("MS") ?? false);
+  if (isQE) split.qeCount += 1;
+  else if (isE) split.elderCount += 1;
+  else if (isQMS) split.qmsCount += 1;
+  else if (isMS) split.msCount += 1;
+}
+
+/**
  * Score a candidate for an assignment. Higher = better.
  *
  * Main role scoring uses main-only history (days since last main,
@@ -221,6 +262,7 @@ export function scoreCandidate(
   seed: number,
   talkSplit: TalkSplit,
   treasuresSplit: TreasuresSplit,
+  livingSplit: LivingSplit,
   role: "main" | "assistant",
   opts: Pick<
     AutoAssignOptions,
@@ -228,6 +270,9 @@ export function scoreCandidate(
     | "catchUpIntensity"
     | "msTreasuresRatio"
     | "qmsTreasuresRatio"
+    | "qeLivingRatio"
+    | "eLivingRatio"
+    | "qmsLivingRatio"
     | "shareMinistryQE"
     | "shareMinistryE"
     | "shareMinistryMS"
@@ -363,6 +408,65 @@ export function scoreCandidate(
     } else if (part.segment === "living") {
       if (part.partType === "Living Part") {
         if (isPrivileged(a)) score -= 10;
+
+        const candIsQE = a.privileges?.includes("QE") ?? false;
+        const candIsE = !candIsQE && (a.privileges?.includes("E") ?? false);
+        const candIsQMS = a.privileges?.includes("QMS") ?? false;
+        const candIsMS = !candIsQE && !candIsE && !candIsQMS && (a.privileges?.includes("MS") ?? false);
+
+        if (candIsQE || candIsE || candIsQMS || candIsMS) {
+          const targetQeShare = (opts.qeLivingRatio ?? 25) / 100;
+          const targetElderShare = (opts.eLivingRatio ?? 25) / 100;
+          const targetQmsShare = (opts.qmsLivingRatio ?? 25) / 100;
+          const targetMsShare = Math.max(0, 1 - targetQeShare - targetElderShare - targetQmsShare);
+
+          const total = livingSplit.qeCount + livingSplit.elderCount + livingSplit.qmsCount + livingSplit.msCount;
+          if (total === 0) {
+            // First assignment: use the target share directly to bias
+            if (candIsQE) {
+              score += (targetQeShare - 0.25) * 40;
+            } else if (candIsE) {
+              score += (targetElderShare - 0.25) * 40;
+            } else if (candIsQMS) {
+              score += (targetQmsShare - 0.25) * 40;
+            } else if (candIsMS) {
+              score += (targetMsShare - 0.25) * 40;
+            }
+          } else {
+            const currentQeShare = livingSplit.qeCount / total;
+            const currentElderShare = livingSplit.elderCount / total;
+            const currentQmsShare = livingSplit.qmsCount / total;
+            const currentMsShare = livingSplit.msCount / total;
+
+            if (candIsQE) {
+              const diff = targetQeShare - currentQeShare;
+              score += diff * 50;
+            } else if (candIsE) {
+              const diff = targetElderShare - currentElderShare;
+              score += diff * 50;
+            } else if (candIsQMS) {
+              const diff = targetQmsShare - currentQmsShare;
+              score += diff * 50;
+            } else if (candIsMS) {
+              const diff = targetMsShare - currentMsShare;
+              score += diff * 50;
+            }
+          }
+
+          // Hard boundary constraints:
+          if (candIsQE && targetQeShare === 0) {
+            score -= 5000;
+          }
+          if (candIsE && targetElderShare === 0) {
+            score -= 5000;
+          }
+          if (candIsQMS && targetQmsShare === 0) {
+            score -= 5000;
+          }
+          if (candIsMS && targetMsShare === 0) {
+            score -= 5000;
+          }
+        }
       }
       if (
         part.partType === "Local Needs" ||
@@ -448,6 +552,8 @@ export function scoreCandidate(
 }
 
 export interface AutoAssignOptions {
+  /** Households in the congregation for family pairing and avoidance constraints. */
+  households?: Household[];
   shareMinistryQE?: number;
   shareMinistryE?: number;
   shareMinistryMS?: number;
@@ -473,6 +579,12 @@ export interface AutoAssignOptions {
   msTreasuresRatio?: number;
   /** Custom balance ratio for Treasures parts between QMS and Elders. */
   qmsTreasuresRatio?: number;
+  /** Custom balance ratio for Living parts for QE. */
+  qeLivingRatio?: number;
+  /** Custom balance ratio for Living parts for E. */
+  eLivingRatio?: number;
+  /** Custom balance ratio for Living parts for QMS. */
+  qmsLivingRatio?: number;
   /** The weekday that the midweek meeting is held. */
   midweekMeetingDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
   /** How availability ranges are tracked. "unavailable" means away dates, "available" means in-town dates. */
@@ -532,6 +644,7 @@ export function autoAssignWeek(
   // Track running splits — seeded from history only.
   const talkSplit: TalkSplit = buildTalkSplit(assignees, workingWeeks);
   const treasuresSplit: TreasuresSplit = buildTreasuresSplit(assignees, workingWeeks);
+  const livingSplit: LivingSplit = buildLivingSplit(assignees, workingWeeks);
 
   // Order parts so Treasures is filled before Ministry (which depends on
   // the privileged-share counter) — the array is already in this order.
@@ -567,7 +680,9 @@ export function autoAssignWeek(
         ministryCounts,
         talkSplit,
         treasuresSplit,
+        livingSplit,
         opts,
+        assignments,
       });
       if (candidate) {
         assignment.assigneeId = candidate.id!;
@@ -585,6 +700,9 @@ export function autoAssignWeek(
         if (assignment.partType === "Talk" || assignment.partType === "Spiritual Gems") {
           tallyTreasures(candidate, treasuresSplit);
         }
+        if (assignment.partType === "Living Part") {
+          tallyLiving(candidate, livingSplit);
+        }
       }
     } else {
       if (assignment.partType === "Talk") {
@@ -594,6 +712,10 @@ export function autoAssignWeek(
       if (assignment.partType === "Talk" || assignment.partType === "Spiritual Gems") {
         const person = assignees.find((p) => p.id === assignment.assigneeId);
         if (person) tallyTreasures(person, treasuresSplit);
+      }
+      if (assignment.partType === "Living Part") {
+        const person = assignees.find((p) => p.id === assignment.assigneeId);
+        if (person) tallyLiving(person, livingSplit);
       }
     }
 
@@ -617,7 +739,9 @@ export function autoAssignWeek(
           ministryCounts,
           talkSplit,
           treasuresSplit,
+          livingSplit,
           opts,
+          assignments,
         });
         if (candidate) {
           assignment.assistantId = candidate.id!;
@@ -642,8 +766,10 @@ interface PickArgs {
   ministryCounts: { QE: number; E: number; QMS: number; MS: number; Brothers: number };
   talkSplit: TalkSplit;
   treasuresSplit: TreasuresSplit;
+  livingSplit: LivingSplit;
   isMinorMain?: boolean;
   opts: AutoAssignOptions;
+  assignments?: Assignment[];
 }
 
 function pickCandidate(args: PickArgs): Assignee | null {
@@ -659,7 +785,9 @@ function pickCandidate(args: PickArgs): Assignee | null {
     ministryCounts,
     talkSplit,
     treasuresSplit,
+    livingSplit,
     opts,
+    assignments,
   } = args;
 
   const minGapDays = (opts.minGapWeeks ?? 2) * 7;
@@ -797,9 +925,11 @@ function pickCandidate(args: PickArgs): Assignee | null {
     seed,
     talkSplit,
     treasuresSplit,
+    livingSplit,
     role,
     opts,
-    isMinorMain
+    isMinorMain,
+    assignments
   );
 }
 
@@ -811,20 +941,11 @@ function rankAndPick(
   seed: number,
   talkSplit: TalkSplit,
   treasuresSplit: TreasuresSplit,
+  livingSplit: LivingSplit,
   role: "main" | "assistant",
-  opts: Pick<
-    AutoAssignOptions,
-    | "minGapWeeks"
-    | "catchUpIntensity"
-    | "msTreasuresRatio"
-    | "qmsTreasuresRatio"
-    | "shareMinistryQE"
-    | "shareMinistryE"
-    | "shareMinistryMS"
-    | "shareMinistryQMS"
-    | "shareMinistryBrothers"
-  >,
-  isMinorMain?: boolean
+  opts: AutoAssignOptions,
+  isMinorMain?: boolean,
+  assignments?: Assignment[]
 ): Assignee {
   const empty: AssigneeStats = {
     totalMain: 0,
@@ -835,35 +956,47 @@ function rankAndPick(
     recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
     recentPrayerDates: [],
   };
+
+  const getScore = (candidate: Assignee, s: AssigneeStats) => {
+    let score = scoreCandidate(
+      candidate,
+      part,
+      weekOf,
+      s,
+      seed,
+      talkSplit,
+      treasuresSplit,
+      livingSplit,
+      role,
+      opts,
+      isMinorMain
+    );
+
+    // Apply household different assignments penalty
+    if (assignments && opts.households && candidate.id != null) {
+      const h = opts.households.find((h) => h.memberIds.includes(candidate.id!));
+      if (h) {
+        const hasClash = assignments.some((ass) => {
+          if (ass.uid === part.uid) return false; // same part is fine
+
+          const isAssigneeClash = ass.assigneeId != null && ass.assigneeId !== candidate.id && h.memberIds.includes(ass.assigneeId);
+          const isAssistantClash = ass.assistantId != null && ass.assistantId !== candidate.id && h.memberIds.includes(ass.assistantId);
+
+          return isAssigneeClash || isAssistantClash;
+        });
+
+        if (hasClash) {
+          score -= 40; // Discourage assigning another family member to a different part in the same week
+        }
+      }
+    }
+    return score;
+  };
+
   const ranked = [...pool].sort((a, b) => {
     const sa = stats.get(a.id!) ?? empty;
     const sb = stats.get(b.id!) ?? empty;
-    return (
-      scoreCandidate(
-        b,
-        part,
-        weekOf,
-        sb,
-        seed,
-        talkSplit,
-        treasuresSplit,
-        role,
-        opts,
-        isMinorMain
-      ) -
-      scoreCandidate(
-        a,
-        part,
-        weekOf,
-        sa,
-        seed,
-        talkSplit,
-        treasuresSplit,
-        role,
-        opts,
-        isMinorMain
-      )
-    );
+    return getScore(b, sb) - getScore(a, sa);
   });
   return ranked[0];
 }
@@ -941,6 +1074,7 @@ export function analyzeWeekOptimization(
   const seed = parseInt(week.weekOf.replace(/-/g, ""), 10) || 1;
   const talkSplit = buildTalkSplit(assignees, workingWeeks);
   const treasuresSplit = buildTreasuresSplit(assignees, workingWeeks);
+  const livingSplit = buildLivingSplit(assignees, workingWeeks);
   const stats = buildStats(assignees, workingWeeks);
 
   const skipped = week.skippedOptimizations ?? [];
@@ -985,12 +1119,13 @@ export function analyzeWeekOptimization(
           recentPrayerDates: [],
         };
         const currentScore = scoreCandidate(
-          currentPerson, a, week.weekOf, s, seed, talkSplit, treasuresSplit, "main", opts
+          currentPerson, a, week.weekOf, s, seed, talkSplit, treasuresSplit, livingSplit, "main", opts
         );
  
         const best = pickCandidate({
           part: a, role: "main", assignees, stats, weekOf: week.weekOf, seed, used: usedForPick,
-          ministryTotal, ministryCounts, talkSplit, treasuresSplit, opts
+          ministryTotal, ministryCounts, talkSplit, treasuresSplit, livingSplit, opts,
+          assignments: week.assignments,
         });
  
         if (best && best.id !== currentPerson.id) {
@@ -1001,7 +1136,7 @@ export function analyzeWeekOptimization(
             recentPrayerDates: [],
           };
           const bestScore = scoreCandidate(
-            best, a, week.weekOf, bestStats, seed, talkSplit, treasuresSplit, "main", opts
+            best, a, week.weekOf, bestStats, seed, talkSplit, treasuresSplit, livingSplit, "main", opts
           );
  
           const threshold = opts.optimizationThresholdMain ?? 50;
@@ -1032,12 +1167,13 @@ export function analyzeWeekOptimization(
         };
  
         const currentScore = scoreCandidate(
-          currentAssistant, a, week.weekOf, s, seed + 1, talkSplit, treasuresSplit, "assistant", opts, isMinorMain
+          currentAssistant, a, week.weekOf, s, seed + 1, talkSplit, treasuresSplit, livingSplit, "assistant", opts, isMinorMain
         );
  
         const bestAss = pickCandidate({
           part: a, role: "assistant", assignees, stats, weekOf: week.weekOf, seed: seed + 1, used: usedForAssistant,
-          ministryTotal, ministryCounts, talkSplit, treasuresSplit, opts, isMinorMain
+          ministryTotal, ministryCounts, talkSplit, treasuresSplit, livingSplit, opts, isMinorMain,
+          assignments: week.assignments,
         });
  
         if (bestAss && bestAss.id !== currentAssistant.id) {
@@ -1048,7 +1184,7 @@ export function analyzeWeekOptimization(
             recentPrayerDates: [],
           };
           const bestScore = scoreCandidate(
-            bestAss, a, week.weekOf, bestAssStats, seed + 1, talkSplit, treasuresSplit, "assistant", opts, isMinorMain
+            bestAss, a, week.weekOf, bestAssStats, seed + 1, talkSplit, treasuresSplit, livingSplit, "assistant", opts, isMinorMain
           );
  
           const threshold = opts.optimizationThresholdAssistant ?? 40;

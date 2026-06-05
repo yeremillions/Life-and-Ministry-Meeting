@@ -23,6 +23,7 @@ import {
   buildStats,
   buildTalkSplit,
   buildTreasuresSplit,
+  buildLivingSplit,
   scoreCandidate,
   getWeeksInCalendarMonth,
   getWeeksInWorkbookPeriod,
@@ -30,6 +31,7 @@ import {
   type AssigneeStats,
   type TalkSplit,
   type TreasuresSplit,
+  type LivingSplit,
   type OptimizationSuggestion,
 } from "../scheduler";
 import type { AppSettings } from "../types";
@@ -69,13 +71,14 @@ export default function WeekEditor(props: WeekEditorProps) {
     return map;
   }, [week.assignments]);
 
-  // Compute stats and talkSplit based on weeks BEFORE this one.
-  const { stats, talkSplit, treasuresSplit } = useMemo(() => {
+  // Compute stats, splits based on weeks BEFORE this one.
+  const { stats, talkSplit, treasuresSplit, livingSplit } = useMemo(() => {
     const before = props.allWeeks.filter((w) => w.weekOf < week.weekOf);
     return {
       stats: buildStats(assignees, before),
       talkSplit: buildTalkSplit(assignees, before),
       treasuresSplit: buildTreasuresSplit(assignees, before),
+      livingSplit: buildLivingSplit(assignees, before),
     };
   }, [props.allWeeks, week.weekOf, assignees]);
 
@@ -158,6 +161,7 @@ export default function WeekEditor(props: WeekEditorProps) {
       props.allWeeks,
       { 
         ...props.settings, 
+        households: props.households,
         preserveExisting: true,
         minGapWeeks: props.settings.minGapWeeks ?? 2,
         chairmanGapWeeks: props.settings.chairmanGapWeeks ?? 3,
@@ -395,6 +399,7 @@ export default function WeekEditor(props: WeekEditorProps) {
             stats={stats}
             talkSplit={talkSplit}
             treasuresSplit={treasuresSplit}
+            livingSplit={livingSplit}
             settings={props.settings}
             allWeeks={props.allWeeks}
             partNumbers={partNumbers}
@@ -433,6 +438,7 @@ export default function WeekEditor(props: WeekEditorProps) {
               stats={stats}
               talkSplit={talkSplit}
               treasuresSplit={treasuresSplit}
+              livingSplit={livingSplit}
               settings={props.settings}
               allWeeks={props.allWeeks}
               partNumbers={partNumbers}
@@ -728,6 +734,7 @@ function SegmentCard({
   stats,
   talkSplit,
   treasuresSplit,
+  livingSplit,
   settings,
   allWeeks,
   partNumbers,
@@ -747,6 +754,7 @@ function SegmentCard({
   stats: Map<number, AssigneeStats>;
   talkSplit: TalkSplit;
   treasuresSplit: TreasuresSplit;
+  livingSplit: LivingSplit;
   settings: AppSettings;
   allWeeks: Week[];
   partNumbers: Map<string, number>;
@@ -834,6 +842,7 @@ function SegmentCard({
               stats={stats}
               talkSplit={talkSplit}
               treasuresSplit={treasuresSplit}
+              livingSplit={livingSplit}
               settings={settings}
               allWeeks={allWeeks}
               partNumber={partNumbers.get(a.uid)}
@@ -857,6 +866,7 @@ function PartRow({
   stats,
   talkSplit,
   treasuresSplit,
+  livingSplit,
   settings,
   allWeeks,
   partNumber,
@@ -872,6 +882,7 @@ function PartRow({
   stats: Map<number, AssigneeStats>;
   talkSplit: TalkSplit;
   treasuresSplit: TreasuresSplit;
+  livingSplit: LivingSplit;
   settings: AppSettings;
   allWeeks: Week[];
   partNumber?: number;
@@ -1079,6 +1090,7 @@ function PartRow({
               stats={stats}
               talkSplit={talkSplit}
               treasuresSplit={treasuresSplit}
+              livingSplit={livingSplit}
               settings={settings}
               assignment={assignment}
               role="main"
@@ -1137,6 +1149,7 @@ function PartRow({
                 stats={stats}
                 talkSplit={talkSplit}
                 treasuresSplit={treasuresSplit}
+                livingSplit={livingSplit}
                 settings={settings}
                 assignment={assignment}
                 role="assistant"
@@ -1276,6 +1289,7 @@ function AssigneePicker({
   stats,
   talkSplit,
   treasuresSplit,
+  livingSplit,
   settings,
   assignment,
   role,
@@ -1297,6 +1311,7 @@ function AssigneePicker({
   stats: Map<number, AssigneeStats>;
   talkSplit: TalkSplit;
   treasuresSplit: TreasuresSplit;
+  livingSplit: LivingSplit;
   settings: AppSettings;
   assignment: Assignment;
   role: "main" | "assistant";
@@ -1354,12 +1369,16 @@ function AssigneePicker({
         0, // seed
         talkSplit,
         treasuresSplit,
+        livingSplit,
         role,
         {
           minGapWeeks: settings.minGapWeeks ?? 2,
           catchUpIntensity: settings.catchUpIntensity ?? 1,
           msTreasuresRatio: settings.msTreasuresRatio ?? 0,
           qmsTreasuresRatio: settings.qmsTreasuresRatio ?? 0,
+          qeLivingRatio: settings.qeLivingRatio ?? 25,
+          eLivingRatio: settings.eLivingRatio ?? 25,
+          qmsLivingRatio: settings.qmsLivingRatio ?? 25,
           shareMinistryQE: settings.shareMinistryQE ?? 2,
           shareMinistryE: settings.shareMinistryE ?? 2,
           shareMinistryMS: settings.shareMinistryMS ?? 2,
@@ -1575,7 +1594,7 @@ function AssigneePicker({
       item.a.name.toLowerCase().includes(q) ||
       (privilegeLabel(item.a) ?? "").toLowerCase().includes(q)
     );
-  }, [options, query, stats, talkSplit, treasuresSplit, settings, assignment, weekOf, role, allWeeks, mainIsMinor, mainPerson, assistantPerson, households]);
+  }, [options, query, stats, talkSplit, treasuresSplit, livingSplit, settings, assignment, weekOf, role, allWeeks, mainIsMinor, mainPerson, assistantPerson, households]);
 
   function selectOption(id: number | undefined) {
     onChange(id);

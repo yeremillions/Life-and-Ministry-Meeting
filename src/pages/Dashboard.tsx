@@ -4,7 +4,7 @@ import { db } from "../db";
 import { buildStats, dueSoon, AssigneeStats } from "../scheduler";
 import { SEGMENTS, segmentOf, needsAssistant } from "../meeting";
 import { todayIso, weekRangeLabel, toIso, mondayOf, getMeetingDate } from "../utils";
-import type { Week, Assignee, AppSettings, Household } from "../types";
+import type { Week, Assignee, AppSettings, Household, Assignment } from "../types";
 import { DEFAULT_ASSIGNMENT_RULES } from "../types";
 import QuickStartWizard from "../components/QuickStartWizard";
 import ConfirmationModal from "../components/ConfirmationModal";
@@ -459,6 +459,48 @@ export function findWeekConflicts(
           });
         }
       }
+    }
+  }
+
+  // 12. Household Different Assignments Check
+  for (const h of households) {
+    const memberAssignments: { member: Assignee; assignment: Assignment; role: "main" | "assistant" }[] = [];
+    for (const a of week.assignments) {
+      if (a.assigneeId != null && h.memberIds.includes(a.assigneeId)) {
+        const member = assignees.find((p) => p.id === a.assigneeId);
+        if (member) {
+          memberAssignments.push({ member, assignment: a, role: "main" });
+        }
+      }
+      if (a.assistantId != null && h.memberIds.includes(a.assistantId)) {
+        const member = assignees.find((p) => p.id === a.assistantId);
+        if (member) {
+          memberAssignments.push({ member, assignment: a, role: "assistant" });
+        }
+      }
+    }
+
+    // Check if they are on different parts
+    const uniquePartUids = new Set(memberAssignments.map((ma) => ma.assignment.uid));
+    if (uniquePartUids.size > 1) {
+      const memberNames = memberAssignments.map((ma) => ma.member.name);
+      const uniqueNames = Array.from(new Set(memberNames));
+      const partTitles = memberAssignments.map((ma) => ma.assignment.title || ma.assignment.partType);
+      const uniqueParts = Array.from(new Set(partTitles));
+
+      conflicts.push({
+        id: `${week.id}-household-multi-${h.id}`,
+        weekId: week.id!,
+        weekOf: week.weekOf,
+        partUid: memberAssignments[0].assignment.uid,
+        partType: memberAssignments[0].assignment.partType,
+        partTitle: memberAssignments[0].assignment.title,
+        ruleName: "Household Constraint",
+        message: `Members of the same household (${h.name}: ${uniqueNames.join(" & ")}) are assigned to different parts in the same week (${uniqueParts.join(" & ")}).`,
+        severity: "warning",
+        assigneeId: memberAssignments[0]?.member.id,
+        assistantId: memberAssignments[1]?.member.id,
+      });
     }
   }
 

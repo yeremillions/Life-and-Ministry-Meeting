@@ -169,6 +169,7 @@ export default function QuickStartWizard({
         throw new Error("You must have enrollees to auto-assign parts.");
       }
       
+      const households = await db.households.toArray();
       const historicalWeeks = await db.weeks.toArray();
       const updatedWeeks = [];
       
@@ -183,6 +184,7 @@ export default function QuickStartWizard({
           historicalWeeks,
           { 
             ...settings, 
+            households,
             preserveExisting: true,
             minGapWeeks: settings.minGapWeeks ?? 2,
             chairmanGapWeeks: settings.chairmanGapWeeks ?? 3,

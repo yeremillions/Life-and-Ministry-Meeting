@@ -151,6 +151,7 @@ export default function SchedulePage({
     const settings = await ensureSettings();
     const allWeeks = await db.weeks.toArray();
     const updated = autoAssignWeek(week, assignees, allWeeks, {
+      households,
       shareMinistryQE: settings.shareMinistryQE ?? 2,
       shareMinistryE: settings.shareMinistryE ?? 2,
       shareMinistryMS: settings.shareMinistryMS ?? 2,
@@ -163,6 +164,11 @@ export default function SchedulePage({
       maxAssignmentsPerMonth: settings.maxAssignmentsPerMonth ?? 2,
       assignmentRules: settings.assignmentRules,
       preventMinorAssistantToAdult: settings.preventMinorAssistantToAdult,
+      msTreasuresRatio: settings.msTreasuresRatio,
+      qmsTreasuresRatio: settings.qmsTreasuresRatio,
+      qeLivingRatio: settings.qeLivingRatio,
+      eLivingRatio: settings.eLivingRatio,
+      qmsLivingRatio: settings.qmsLivingRatio,
       midweekMeetingDay: settings.midweekMeetingDay ?? "Thursday",
       availabilityMode: settings.availabilityMode,
     });

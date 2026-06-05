@@ -757,6 +757,113 @@ export default function SettingsPage({
               </div>
             </div>
 
+            <div className="space-y-4 border-t border-slate-100 pt-4">
+              <h4 className="text-sm font-semibold text-slate-700">Living Parts Assignments Balance</h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Control the percentage split of Living Parts among Qualified Elders, Elders, and Qualified Ministerial Servants. The remaining portion is automatically allocated to Ministerial Servants. Default is 25% each.
+              </p>
+
+              <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                {/* QE Slider */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-slate-600">Qualified Elders (QE) Share</span>
+                    <span className="text-xs font-semibold text-slate-700 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-200 min-w-[3rem] text-center font-mono">
+                      {draft.qeLivingRatio ?? 0}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    value={draft.qeLivingRatio ?? 0}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const remaining = 100 - val;
+                      const clampedE = Math.min(draft.eLivingRatio ?? 25, remaining);
+                      const clampedQms = Math.min(draft.qmsLivingRatio ?? 25, remaining - clampedE);
+                      setDraft({
+                        ...draft,
+                        qeLivingRatio: val,
+                        eLivingRatio: clampedE,
+                        qmsLivingRatio: clampedQms,
+                      });
+                    }}
+                  />
+                </div>
+
+                {/* E Slider */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-slate-600">Elders (E) Share</span>
+                    <span className="text-xs font-semibold text-slate-700 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-200 min-w-[3rem] text-center font-mono">
+                      {draft.eLivingRatio ?? 0}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    value={draft.eLivingRatio ?? 0}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const remaining = 100 - val;
+                      const clampedQe = Math.min(draft.qeLivingRatio ?? 25, remaining);
+                      const clampedQms = Math.min(draft.qmsLivingRatio ?? 25, remaining - clampedQe);
+                      setDraft({
+                        ...draft,
+                        eLivingRatio: val,
+                        qeLivingRatio: clampedQe,
+                        qmsLivingRatio: clampedQms,
+                      });
+                    }}
+                  />
+                </div>
+
+                {/* QMS Slider */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-slate-600">Qualified MS (QMS) Share</span>
+                    <span className="text-xs font-semibold text-slate-700 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-200 min-w-[3rem] text-center font-mono">
+                      {draft.qmsLivingRatio ?? 0}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    value={draft.qmsLivingRatio ?? 0}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const remaining = 100 - val;
+                      const clampedQe = Math.min(draft.qeLivingRatio ?? 25, remaining);
+                      const clampedE = Math.min(draft.eLivingRatio ?? 25, remaining - clampedQe);
+                      setDraft({
+                        ...draft,
+                        qmsLivingRatio: val,
+                        qeLivingRatio: clampedQe,
+                        eLivingRatio: clampedE,
+                      });
+                    }}
+                  />
+                </div>
+
+                {/* MS Read-only Share */}
+                <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-xs font-medium text-slate-600">
+                  <span>Calculated Ministerial Servants (MS) Share</span>
+                  <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 min-w-[3rem] text-center font-mono">
+                    {Math.max(0, 100 - (draft.qeLivingRatio ?? 0) - (draft.eLivingRatio ?? 0) - (draft.qmsLivingRatio ?? 0))}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div>
               <label className="label">Max assignments per month</label>
               <input

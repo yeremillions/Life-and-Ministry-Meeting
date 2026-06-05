@@ -206,6 +206,21 @@ export interface AppSettings {
    * The default is 0% (always assign to Elders).
    */
   qmsTreasuresRatio: number;
+  /**
+   * Percentage (0-100) of Living Parts that should go to Qualified Elders (QE).
+   * Default is 25%.
+   */
+  qeLivingRatio: number;
+  /**
+   * Percentage (0-100) of Living Parts that should go to Elders (E).
+   * Default is 25%.
+   */
+  eLivingRatio: number;
+  /**
+   * Percentage (0-100) of Living Parts that should go to QMS (Qualified Ministerial Servants).
+   * Default is 25%.
+   */
+  qmsLivingRatio: number;
   /** The weekday that the midweek meeting is held. Defaults to "Thursday". */
   midweekMeetingDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
   /** How availability ranges are tracked. "unavailable" means away dates, "available" means in-town dates. */
@@ -358,6 +373,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   preventMinorAssistantToAdult: true,
   msTreasuresRatio: 0,
   qmsTreasuresRatio: 0,
+  qeLivingRatio: 25,
+  eLivingRatio: 25,
+  qmsLivingRatio: 25,
   midweekMeetingDay: "Thursday",
   availabilityMode: "unavailable",
   ignoredConflicts: [],
