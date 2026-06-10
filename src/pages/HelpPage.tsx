@@ -593,20 +593,23 @@ function ReportsSection() {
 
       <SubTitle>2. Workbook Period Snapshot</SubTitle>
       <P>
-        This tab provides a focused audit of how assignments are distributed among appointed brothers (Elders and Ministerial Servants) during a selected bi-monthly workbook period.
+        This tab provides a focused audit of how assignments are distributed among all active enrollees during a selected bi-monthly workbook period.
       </P>
       <ul className="text-sm text-gray-600 space-y-2 mb-4 ml-4 list-disc">
         <li>
           <strong>Period Selection:</strong> Choose any workbook period from the dropdown (defaults to the most recent one).
         </li>
         <li>
+          <strong>Privilege Filtering:</strong> Filter the enrollees displayed in the snapshot list by selecting a privilege (e.g., All Enrollees, Appointed Brothers only, QE, E, QMS, MS, RP, CBSR, or No Privilege).
+        </li>
+        <li>
           <strong>Summary Cards:</strong> View overall metrics for the period, including the total scheduled parts and the percentage of active Elders (QE/E) and Ministerial Servants (QMS/MS) who are scheduled.
         </li>
         <li>
-          <strong>Appointed Brothers Mix Table:</strong> Displays each appointed brother's privilege, main parts count, assistant/reader parts count (marked with a teal <span className="text-[9px] font-bold text-teal-600 bg-teal-50 px-1 py-0.5 rounded border border-teal-200">(R)</span> indicator), total parts, and a list of their specific dates and parts.
+          <strong>Enrollee Assignment Mix Table:</strong> Displays each active enrollee's privilege, main parts count, assistant/reader parts count (marked with a teal <span className="text-[9px] font-bold text-teal-600 bg-teal-50 px-1 py-0.5 rounded border border-teal-200">(R)</span> indicator), total parts, and a list of their specific dates and parts.
         </li>
         <li>
-          <strong>Overlooked Brothers:</strong> The table is sorted by total assignments in descending order. Any brother who has 0 parts is highlighted in amber/red, allowing you to easily find and assign overlooked brothers.
+          <strong>Overlooked Publishers:</strong> The table is sorted by total assignments in descending order. Any publisher who has 0 parts in the selected period is highlighted in amber/red, allowing you to easily find and assign overlooked members of the congregation.
         </li>
       </ul>
 

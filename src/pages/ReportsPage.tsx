@@ -274,18 +274,10 @@ export default function ReportsPage({
     // Filter weeks for the selected period
     const periodWeeks = weeks.filter((w) => workbookPeriod(w.weekOf).key === selectedPeriodKey);
     
-    // Get all active elders/MS
-    const appointed = assignees.filter(
-      (a) =>
-        !a.archived &&
-        a.active &&
-        (a.privileges.includes("E") ||
-          a.privileges.includes("QE") ||
-          a.privileges.includes("MS") ||
-          a.privileges.includes("QMS"))
-    );
+    // Get all active assignees
+    const activeAssignees = assignees.filter((a) => !a.archived && a.active);
 
-    return appointed.map((a) => {
+    return activeAssignees.map((a) => {
       const details: { dateLabel: string; partType: string; role: "main" | "assistant"; title: string }[] = [];
       let mainCount = 0;
       let assistantCount = 0;
@@ -739,27 +731,74 @@ function SnapshotView({
   };
   onNavigateToProfile: (id: number) => void;
 }) {
+  const [privilegeFilter, setPrivilegeFilter] = useState<string>("all");
+
+  const filteredData = useMemo(() => {
+    return snapshotData.filter((row) => {
+      if (privilegeFilter === "all") return true;
+      if (privilegeFilter === "appointed") {
+        return (
+          row.assignee.privileges.includes("QE") ||
+          row.assignee.privileges.includes("E") ||
+          row.assignee.privileges.includes("QMS") ||
+          row.assignee.privileges.includes("MS")
+        );
+      }
+      if (privilegeFilter === "none") {
+        return row.assignee.privileges.length === 0;
+      }
+      return row.assignee.privileges.includes(privilegeFilter);
+    });
+  }, [snapshotData, privilegeFilter]);
+
+  const headingLabel = useMemo(() => {
+    if (privilegeFilter === "all") return "All Enrollees Assignment Mix";
+    if (privilegeFilter === "appointed") return "Appointed Brothers Assignment Mix";
+    if (privilegeFilter === "none") return "Publishers (No Privilege) Assignment Mix";
+    return `${privilegeFilter} Enrollees Assignment Mix`;
+  }, [privilegeFilter]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3 items-center">
         <h2 className="text-xl font-bold mr-auto">Workbook Period Snapshot</h2>
-        <div className="flex gap-2 items-center">
-          <label className="text-sm font-medium text-slate-600">Select Period:</label>
-          <select
-            className="input w-56"
-            value={selectedPeriodKey}
-            onChange={(e) => onPeriodChange(e.target.value)}
-          >
-            {periods.length === 0 ? (
-              <option value="">No periods found</option>
-            ) : (
-              periods.map((p) => (
-                <option key={p.key} value={p.key}>
-                  {p.label}
-                </option>
-              ))
-            )}
-          </select>
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex gap-2 items-center">
+            <label className="text-sm font-medium text-slate-600">Period:</label>
+            <select
+              className="input w-48 text-xs"
+              value={selectedPeriodKey}
+              onChange={(e) => onPeriodChange(e.target.value)}
+            >
+              {periods.length === 0 ? (
+                <option value="">No periods found</option>
+              ) : (
+                periods.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+          <div className="flex gap-2 items-center">
+            <label className="text-sm font-medium text-slate-600">Privilege:</label>
+            <select
+              className="input w-48 text-xs"
+              value={privilegeFilter}
+              onChange={(e) => setPrivilegeFilter(e.target.value)}
+            >
+              <option value="all">All Enrollees</option>
+              <option value="appointed">Appointed (QE, E, QMS, MS)</option>
+              <option value="QE">QE (Qualified Elders)</option>
+              <option value="E">E (Elders)</option>
+              <option value="QMS">QMS (Qualified MS)</option>
+              <option value="MS">MS (Ministerial Servants)</option>
+              <option value="RP">RP (Regular Pioneers)</option>
+              <option value="CBSR">CBSR (CBS Readers)</option>
+              <option value="none">No Privilege (Publisher)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -807,13 +846,13 @@ function SnapshotView({
           {/* Snapshot Table */}
           <div className="card p-0 overflow-hidden">
             <div className="px-4 py-3 border-b bg-slate-50/50">
-              <h3 className="font-semibold text-slate-800">Appointed Brothers Assignment Mix</h3>
+              <h3 className="font-semibold text-slate-800">{headingLabel}</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm table-zebra">
                 <thead className="bg-slate-50/80 text-xs uppercase tracking-wide text-slate-500 font-bold">
                   <tr>
-                    <th className="py-3 px-4 text-left">Appointed Brother</th>
+                    <th className="py-3 px-4 text-left">Enrollee</th>
                     <th className="py-3 px-4 text-left">Privilege</th>
                     <th className="py-3 px-4 text-center">Main</th>
                     <th className="py-3 px-4 text-center">Asst / Reader</th>
@@ -822,7 +861,7 @@ function SnapshotView({
                   </tr>
                 </thead>
                 <tbody>
-                  {snapshotData.map((row) => {
+                  {filteredData.map((row) => {
                     const isZero = row.totalCount === 0;
                     return (
                       <tr
@@ -839,7 +878,7 @@ function SnapshotView({
                         </td>
                         <td className="py-3 px-4">
                           <span className="font-semibold text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded shadow-sm border border-slate-200">
-                            {privilegeLabel(row.assignee)}
+                            {privilegeLabel(row.assignee) ?? "Publisher"}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center tabular-nums">{row.mainCount}</td>
