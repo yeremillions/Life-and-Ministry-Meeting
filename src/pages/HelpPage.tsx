@@ -163,6 +163,15 @@ function OverviewSection() {
         <li>Tracks assignment history and provides reports on workload distribution</li>
       </ul>
 
+      <SubTitle>Dashboard &amp; Proactive Scanner</SubTitle>
+      <P>
+        The main dashboard provides an immediate overview of your congregation's rotation status and schedule health.
+        It features an <strong>Upcoming Availability Coverage Scanner</strong> that proactively scans the next several
+        weeks to highlight any dates where you might have an insufficient pool of available, qualified
+        publishers for critical parts (e.g. Chairman, CBS Reader, or Opening/Closing Prayers). This allows you to address
+        potential bottlenecks long before they become schedule conflicts.
+      </P>
+
       <SubTitle>Meeting Segments</SubTitle>
       <P>The meeting is divided into four colour-coded segments, matching the official workbook:</P>
       <div className="space-y-2 mb-4">
@@ -252,12 +261,13 @@ function SettingsSection() {
         exported S-140 PDF schedule.
       </P>
 
-      <SubTitle>Privileged Ministry Share</SubTitle>
+      <SubTitle>Ministry Category Shares</SubTitle>
       <P>
-        Controls what percentage of Apply Yourself to the Field Ministry parts may go to elders
-        and ministerial servants. The default is 10%. These brothers typically handle Treasures
-        and Living as Christians parts instead, so this keeps ministry demos available for
-        other publishers.
+        Configure specific target percentage shares of Apply Yourself to the Field Ministry parts
+        among Qualified Elders (QE), Elders (E), Qualified Ministerial Servants (QMS), Ministerial
+        Servants (MS), and Baptised Brothers. The remaining share automatically goes to Sisters.
+        This allows you to balance demo roles and ensure that the ministry parts are primarily
+        distributed among publishers while elders and ministerial servants focus on Gems and Living parts.
       </P>
 
       <SubTitle>Living Parts Assignments Balance</SubTitle>
@@ -265,6 +275,14 @@ function SettingsSection() {
         Configure target percentage splits for `Living Part` assignments among Qualified Elders (QE),
         Elders (E), and Qualified Ministerial Servants (QMS). The remaining share automatically goes to
         Ministerial Servants (MS). The sliders clamp each other so they always sum to 100% total. Default is 25% each.
+      </P>
+
+      <SubTitle>Decoupled Prayer Assignments</SubTitle>
+      <P>
+        Opening and closing prayer assignments are decoupled from standard main speech parts. This means
+        praying in a meeting does not count as a "main assignment" for workload fatigue stats or minimum-gap
+        rules. It is tracked separately so brothers can be scheduled to say prayers without blocking them
+        from giving talks or reading.
       </P>
 
       <SubTitle>Scheduler Fairness Controls</SubTitle>
@@ -474,6 +492,23 @@ function AutoAssignSection() {
         <li><strong>Optimization Suggestions</strong> — When you manually edit a part, the system scores every eligible enrollee and suggests a better candidate if one exists above your configured threshold.</li>
       </ul>
 
+      <SubTitle>Multi-Scope Review &amp; Health Dashboard</SubTitle>
+      <P>
+        The scheduler evaluates the schedule across three scopes: **Week**, **Month**, and **Month Pair**
+        (bi-monthly workbook period). It computes a reactive **Health Score** that is displayed
+        on the Dashboard. The score updates in real-time as you assign, swap, or remove publishers,
+        giving you instant visual feedback on rotation health, capacity constraints, and household rules.
+      </P>
+
+      <SubTitle>Optimization Suggestions &amp; Skip Recommendations</SubTitle>
+      <P>
+        When you select a part in the editor, the system scores all eligible enrollees and shows the
+        best options. If the current assignee is less optimal than another available candidate, the system
+        will suggest a swap. If a suggestion is not practical for your congregation, you can choose to
+        <strong>Skip</strong> the suggestion. The skipped option is saved persistently so it will
+        no longer count against your overall health score or clutter your dashboard optimization lists.
+      </P>
+
       <Tip>
         After auto-filling, review the assignments and make any manual adjustments. The scheduler provides
         a strong starting point, but your knowledge of the congregation may lead you to swap certain names.
@@ -533,35 +568,53 @@ function ReportsSection() {
     <div>
       <SectionTitle>Reports</SectionTitle>
       <P>
-        The <strong>Reports</strong> tab provides a comprehensive view of assignment history
-        and workload distribution across all enrollees.
+        The <strong>Reports</strong> page features a tabbed interface divided into two specialized views:
+        <strong>Decision Insights</strong> and <strong>Workbook Period Snapshot</strong>.
       </P>
 
-      <SubTitle>Assignment History Table</SubTitle>
+      <SubTitle>1. Decision Insights</SubTitle>
       <P>
-        The main table shows every enrollee with their total assignment count and last assignment
-        date. You can sort by name, total assignments, or last assigned date. Click any name to
-        view their detailed profile.
+        This tab provides a comprehensive view of assignment history and workload distribution across all enrollees.
       </P>
+      <ul className="text-sm text-gray-600 space-y-2 mb-4 ml-4 list-disc">
+        <li>
+          <strong>Assignment History Table:</strong> Shows every active enrollee with their total main assignments, segment distribution (stacked bars), and last assignment date. Sort by oldest assignment, most assignments, or name.
+        </li>
+        <li>
+          <strong>Capacity &amp; Bottlenecks Scanner:</strong> Evaluates your current enrollee pool to flag critical roles that have too few qualified publishers.
+        </li>
+        <li>
+          <strong>Ministry Share Compliance:</strong> Compares your actual assignment percentages against the target shares configured in settings.
+        </li>
+        <li>
+          <strong>Workload Diagnostics:</strong> Automatically lists the top overburdened and underutilized (starved) publishers.
+        </li>
+      </ul>
 
-      <SubTitle>Filtering by Time Range</SubTitle>
+      <SubTitle>2. Workbook Period Snapshot</SubTitle>
       <P>
-        Use the range filter to view statistics for all time, the last 6 months, or the last year.
-        This helps you see recent trends without historical data skewing the picture.
+        This tab provides a focused audit of how assignments are distributed among appointed brothers (Elders and Ministerial Servants) during a selected bi-monthly workbook period.
       </P>
+      <ul className="text-sm text-gray-600 space-y-2 mb-4 ml-4 list-disc">
+        <li>
+          <strong>Period Selection:</strong> Choose any workbook period from the dropdown (defaults to the most recent one).
+        </li>
+        <li>
+          <strong>Summary Cards:</strong> View overall metrics for the period, including the total scheduled parts and the percentage of active Elders (QE/E) and Ministerial Servants (QMS/MS) who are scheduled.
+        </li>
+        <li>
+          <strong>Appointed Brothers Mix Table:</strong> Displays each appointed brother's privilege, main parts count, assistant/reader parts count (marked with a teal <span className="text-[9px] font-bold text-teal-600 bg-teal-50 px-1 py-0.5 rounded border border-teal-200">(R)</span> indicator), total parts, and a list of their specific dates and parts.
+        </li>
+        <li>
+          <strong>Overlooked Brothers:</strong> The table is sorted by total assignments in descending order. Any brother who has 0 parts is highlighted in amber/red, allowing you to easily find and assign overlooked brothers.
+        </li>
+      </ul>
 
-      <SubTitle>CSV Export</SubTitle>
+      <SubTitle>Filtering &amp; Exporting</SubTitle>
       <P>
-        Click <strong>Export CSV</strong> to download the full assignment schedule as a spreadsheet.
-        This includes every week, part, assignee, and assistant — useful for records or sharing
-        with the body of elders.
-      </P>
-
-      <SubTitle>Enrollee Profiles</SubTitle>
-      <P>
-        Click on any enrollee's name (in Reports, Dashboard, or the Schedule) to see their
-        detailed profile page. This shows their complete assignment history, segment distribution,
-        and any insights about their usage patterns.
+        Use the range filter (All time, 12 months, 6 months) to isolate trends. Click <strong>Export CSV</strong>
+        to download a complete spreadsheet of the assignment database or enrollee history. Click any publisher's name
+        to open their detailed profile, showing segment charts and individual statistics.
       </P>
     </div>
   );
