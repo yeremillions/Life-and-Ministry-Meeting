@@ -32,6 +32,26 @@ export default function EnrolleeProfile({
   const [editOpen, setEditOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
+  function handleStartChange(val: string) {
+    setNewStart(val);
+    if (!val) return;
+    const startYear = val.split("-")[0];
+    if (!startYear || startYear.length !== 4) return;
+    if (newEnd) {
+      const parts = newEnd.split("-");
+      if (parts.length === 3) {
+        const updatedEnd = `${startYear}-${parts[1]}-${parts[2]}`;
+        if (updatedEnd < val) {
+          setNewEnd(val);
+        } else {
+          setNewEnd(updatedEnd);
+        }
+      }
+    } else {
+      setNewEnd(val);
+    }
+  }
+
   useEffect(() => {
     setCurrentPage(1);
   }, [id]);
@@ -341,7 +361,7 @@ export default function EnrolleeProfile({
                     type="date"
                     className="input text-[10px] py-0.5 px-1.5 h-6"
                     value={newStart}
-                    onChange={(e) => setNewStart(e.target.value)}
+                    onChange={(e) => handleStartChange(e.target.value)}
                   />
                 </div>
                 <div>

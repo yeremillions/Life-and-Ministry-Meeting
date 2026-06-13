@@ -1,5 +1,5 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { db, ensureSettings, addLog } from "../db";
 import {
   Assignee,
@@ -442,6 +442,7 @@ function WeekListGrouped({
 }) {
   const [completionPeriod, setCompletionPeriod] = useState<{key: string, label: string, weeks: Week[]} | null>(null);
   const [notifiedPeriods, setNotifiedPeriods] = useState<Set<string>>(new Set());
+  const isInitializedRef = useRef(false);
   const todayIso = new Date().toISOString().slice(0, 10);
   const todayKey = workbookPeriod(todayIso).key;
 
@@ -557,20 +558,40 @@ function WeekListGrouped({
       periodMap.get(key)!.weeks.push(w);
     }
 
+    const currentlyFullPeriods = new Set<string>();
     for (const group of periodMap.values()) {
       const totalParts = group.weeks.reduce((s, w) => s + w.assignments.length, 0);
       const filledParts = group.weeks.reduce((s, w) => s + w.assignments.filter(a => a.assigneeId).length, 0);
       
       const isFull = totalParts > 0 && filledParts === totalParts;
+      if (isFull) {
+        currentlyFullPeriods.add(group.key);
+      }
+    }
+
+    if (!isInitializedRef.current) {
+      // Initialize notifiedPeriods with all currently full periods so they don't trigger the modal on load
+      setNotifiedPeriods(currentlyFullPeriods);
+      isInitializedRef.current = true;
+      return;
+    }
+
+    for (const group of periodMap.values()) {
+      const isFull = currentlyFullPeriods.has(group.key);
+      const wasNotified = notifiedPeriods.has(group.key);
       
-      if (isFull && !notifiedPeriods.has(group.key)) {
+      if (isFull && !wasNotified) {
         // This period is full and we haven't notified yet.
         // But only trigger if it's the current or a future period to avoid spamming old history.
         if (group.key >= todayKey) {
           setCompletionPeriod(group);
-          setNotifiedPeriods(prev => new Set(prev).add(group.key));
+          setNotifiedPeriods(prev => {
+            const next = new Set(prev);
+            next.add(group.key);
+            return next;
+          });
         }
-      } else if (!isFull && notifiedPeriods.has(group.key)) {
+      } else if (!isFull && wasNotified) {
         // If it was full but now isn't (unassigned), remove from notified set so it can trigger again.
         setNotifiedPeriods(prev => {
           const next = new Set(prev);
@@ -587,15 +608,13 @@ function WeekListGrouped({
       const w = weeks.find((x) => x.id === selectedId);
       if (w) {
         const periodYear = parseInt(workbookPeriod(w.weekOf).key.slice(0, 4), 10);
-        if (periodYear !== activeYear) {
-          setActiveYear(periodYear);
-        }
+        setActiveYear((prev) => (prev !== periodYear ? periodYear : prev));
         setOpenGroup(workbookPeriod(w.weekOf).key);
       }
     }
-  }, [selectedId, weeks, activeYear]);
+  }, [selectedId, weeks]);
 
-  // When year changes, auto-open the best group for that year.
+  // When year changes, auto-open the best group for that year and sync selected week.
   useEffect(() => {
     if (groups.length > 0) {
       // If viewing the current year, open the current period.
@@ -606,10 +625,32 @@ function WeekListGrouped({
         // For other years, open the first group.
         setOpenGroup(groups[0].key);
       }
+
+      // Sync selected week to match the new activeYear
+      if (selectedId != null) {
+        const w = weeks.find((x) => x.id === selectedId);
+        if (w) {
+          const periodYear = parseInt(workbookPeriod(w.weekOf).key.slice(0, 4), 10);
+          if (periodYear !== activeYear) {
+            // Find the weeks of the new activeYear
+            const yearWeeks = weeks.filter(
+              (x) => parseInt(workbookPeriod(x.weekOf).key.slice(0, 4), 10) === activeYear
+            );
+            if (yearWeeks.length > 0) {
+              onSelect(yearWeeks[0].id ?? null);
+            } else {
+              onSelect(null);
+            }
+          }
+        }
+      }
     } else {
       setOpenGroup(null);
+      if (selectedId != null) {
+        onSelect(null);
+      }
     }
-  }, [activeYear, groups.length]);
+  }, [activeYear, groups.length, weeks, selectedId, onSelect, currentYear, todayKey]);
 
   async function moveGroupToYear(group: { key: string; label: string; weeks: Week[] }) {
     const currentYear = group.key.slice(0, 4);

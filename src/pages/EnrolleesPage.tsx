@@ -1168,6 +1168,26 @@ export function EnrolleeModal({
   const [newEnd, setNewEnd] = useState("");
   const [newReason, setNewReason] = useState("");
 
+  function handleStartChange(val: string) {
+    setNewStart(val);
+    if (!val) return;
+    const startYear = val.split("-")[0];
+    if (!startYear || startYear.length !== 4) return;
+    if (newEnd) {
+      const parts = newEnd.split("-");
+      if (parts.length === 3) {
+        const updatedEnd = `${startYear}-${parts[1]}-${parts[2]}`;
+        if (updatedEnd < val) {
+          setNewEnd(val);
+        } else {
+          setNewEnd(updatedEnd);
+        }
+      }
+    } else {
+      setNewEnd(val);
+    }
+  }
+
   const [modalAlert, setModalAlert] = useState<{
     isOpen: boolean;
     title: string;
@@ -1475,7 +1495,7 @@ export function EnrolleeModal({
                     type="date"
                     className="input text-xs py-1"
                     value={newStart}
-                    onChange={(e) => setNewStart(e.target.value)}
+                    onChange={(e) => handleStartChange(e.target.value)}
                   />
                 </div>
                 <div>
