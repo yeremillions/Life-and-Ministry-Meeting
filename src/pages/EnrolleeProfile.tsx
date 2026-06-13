@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, addLog } from "../db";
 import { AppSettings, Assignee, Week, Assignment, PartType } from "../types";
@@ -131,25 +131,23 @@ export default function EnrolleeProfile({
   });
 
   const currentWeekMonday = toIso(mondayOf(new Date()));
-  const filteredHistory = useMemo<{ week: Week; assignment: Assignment; role: "main" | "assistant" }[]>(() => {
-    const list = history.filter((item) => {
-      if (historyFilter === "upcoming") {
-        return item.week.weekOf >= currentWeekMonday;
-      }
-      if (historyFilter === "past") {
-        return item.week.weekOf < currentWeekMonday;
-      }
-      return true;
-    });
-
+  const filteredHistory = history.filter((item) => {
     if (historyFilter === "upcoming") {
-      // Sort upcoming ascending (soonest first)
-      return [...list].sort((a, b) => a.week.weekOf.localeCompare(b.week.weekOf));
-    } else {
-      // Sort all/past descending (most recent first)
-      return [...list].sort((a, b) => b.week.weekOf.localeCompare(a.week.weekOf));
+      return item.week.weekOf >= currentWeekMonday;
     }
-  }, [history, historyFilter, currentWeekMonday]);
+    if (historyFilter === "past") {
+      return item.week.weekOf < currentWeekMonday;
+    }
+    return true;
+  });
+
+  if (historyFilter === "upcoming") {
+    // Sort upcoming ascending (soonest first)
+    filteredHistory.sort((a, b) => a.week.weekOf.localeCompare(b.week.weekOf));
+  } else {
+    // Sort all/past descending (most recent first)
+    filteredHistory.sort((a, b) => b.week.weekOf.localeCompare(a.week.weekOf));
+  }
 
   const historyPageSize = 8;
   const totalHistoryItems = filteredHistory.length;
