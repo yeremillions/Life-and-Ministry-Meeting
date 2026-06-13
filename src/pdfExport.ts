@@ -16,7 +16,7 @@
 
 import { jsPDF } from "jspdf";
 import type { Assignee, Assignment, PartType, Week } from "./types";
-import { weekRangeLabel } from "./utils";
+import { weekRangeLabel, workbookPeriod } from "./utils";
 
 // ─── Canonical segment for each part type ────────────────────────────────────
 //
@@ -127,10 +127,14 @@ export function exportSchedulePdf(opts: ExportOptions): boolean {
     yTop += 6;
   }
 
+  const uniquePeriods = Array.from(
+    new Set(sorted.map((w) => workbookPeriod(w.weekOf).label))
+  );
+
   const filename =
-    sorted.length === 1
-      ? `schedule-${sorted[0].weekOf}.pdf`
-      : `schedule-${sorted[0].weekOf}--${sorted[sorted.length - 1].weekOf}.pdf`;
+    uniquePeriods.length === 1
+      ? `S-140_E - Life and Ministry Meeting Schedule - ${uniquePeriods[0]}.pdf`
+      : `S-140_E - Life and Ministry Meeting Schedule - ${uniquePeriods[0]} - ${uniquePeriods[uniquePeriods.length - 1]}.pdf`;
 
   doc.save(filename);
   return true;
