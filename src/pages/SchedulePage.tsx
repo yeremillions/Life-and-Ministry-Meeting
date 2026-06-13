@@ -443,6 +443,7 @@ function WeekListGrouped({
   const [completionPeriod, setCompletionPeriod] = useState<{key: string, label: string, weeks: Week[]} | null>(null);
   const [notifiedPeriods, setNotifiedPeriods] = useState<Set<string>>(new Set());
   const isInitializedRef = useRef(false);
+  const lastActiveYearRef = useRef<number | null>(null);
   const todayIso = new Date().toISOString().slice(0, 10);
   const todayKey = workbookPeriod(todayIso).key;
 
@@ -616,38 +617,42 @@ function WeekListGrouped({
 
   // When year changes, auto-open the best group for that year and sync selected week.
   useEffect(() => {
-    if (groups.length > 0) {
-      // If viewing the current year, open the current period.
-      if (activeYear === currentYear) {
-        const current = groups.find((g) => g.key === todayKey);
-        setOpenGroup(current ? current.key : groups[0].key);
-      } else {
-        // For other years, open the first group.
-        setOpenGroup(groups[0].key);
-      }
+    if (lastActiveYearRef.current !== activeYear) {
+      lastActiveYearRef.current = activeYear;
 
-      // Sync selected week to match the new activeYear
-      if (selectedId != null) {
-        const w = weeks.find((x) => x.id === selectedId);
-        if (w) {
-          const periodYear = parseInt(workbookPeriod(w.weekOf).key.slice(0, 4), 10);
-          if (periodYear !== activeYear) {
-            // Find the weeks of the new activeYear
-            const yearWeeks = weeks.filter(
-              (x) => parseInt(workbookPeriod(x.weekOf).key.slice(0, 4), 10) === activeYear
-            );
-            if (yearWeeks.length > 0) {
-              onSelect(yearWeeks[0].id ?? null);
-            } else {
-              onSelect(null);
+      if (groups.length > 0) {
+        // If viewing the current year, open the current period.
+        if (activeYear === currentYear) {
+          const current = groups.find((g) => g.key === todayKey);
+          setOpenGroup(current ? current.key : groups[0].key);
+        } else {
+          // For other years, open the first group.
+          setOpenGroup(groups[0].key);
+        }
+
+        // Sync selected week to match the new activeYear
+        if (selectedId != null) {
+          const w = weeks.find((x) => x.id === selectedId);
+          if (w) {
+            const periodYear = parseInt(workbookPeriod(w.weekOf).key.slice(0, 4), 10);
+            if (periodYear !== activeYear) {
+              // Find the weeks of the new activeYear
+              const yearWeeks = weeks.filter(
+                (x) => parseInt(workbookPeriod(x.weekOf).key.slice(0, 4), 10) === activeYear
+              );
+              if (yearWeeks.length > 0) {
+                onSelect(yearWeeks[0].id ?? null);
+              } else {
+                onSelect(null);
+              }
             }
           }
         }
-      }
-    } else {
-      setOpenGroup(null);
-      if (selectedId != null) {
-        onSelect(null);
+      } else {
+        setOpenGroup(null);
+        if (selectedId != null) {
+          onSelect(null);
+        }
       }
     }
   }, [activeYear, groups.length, weeks, selectedId, onSelect, currentYear, todayKey]);
