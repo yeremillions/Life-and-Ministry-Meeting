@@ -284,6 +284,14 @@ export function scoreCandidate(
   void talkSplit;
   let score = 0;
 
+  // ── Rotation Fairness Rules ─────────────────────────────────────────
+  const count = role === "main" ? (stats.totalMain ?? 0) : (stats.totalAssistant ?? 0);
+  if (count === 0) {
+    score += 100000;
+  } else {
+    score -= count * 10000;
+  }
+
   // ── Gap-based scoring ────────────────────────────────────────────────
   const minGapDays = (opts.minGapWeeks ?? 2) * 7;
   // Catch-up intensity: 1–5.
@@ -455,16 +463,16 @@ export function scoreCandidate(
 
           // Hard boundary constraints:
           if (candIsQE && targetQeShare === 0) {
-            score -= 5000;
+            score -= 1000000;
           }
           if (candIsE && targetElderShare === 0) {
-            score -= 5000;
+            score -= 1000000;
           }
           if (candIsQMS && targetQmsShare === 0) {
-            score -= 5000;
+            score -= 1000000;
           }
           if (candIsMS && targetMsShare === 0) {
-            score -= 5000;
+            score -= 1000000;
           }
         }
       }
@@ -515,13 +523,13 @@ export function scoreCandidate(
 
           // Hard boundary constraints:
           if (candIsMS && targetMsShare === 0) {
-            score -= 5000;
+            score -= 1000000;
           }
           if (candIsQMS && targetQmsShare === 0) {
-            score -= 5000;
+            score -= 1000000;
           }
           if (candIsE && targetElderShare === 0) {
-            score -= 5000;
+            score -= 1000000;
           }
         }
       }
