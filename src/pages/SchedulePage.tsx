@@ -621,13 +621,15 @@ function WeekListGrouped({
       lastActiveYearRef.current = activeYear;
 
       if (groups.length > 0) {
-        // If viewing the current year, open the current period.
-        if (activeYear === currentYear) {
-          const current = groups.find((g) => g.key === todayKey);
-          setOpenGroup(current ? current.key : groups[0].key);
-        } else {
-          // For other years, open the first group.
-          setOpenGroup(groups[0].key);
+        // Only auto-open today's or the first group if no week is selected.
+        // If a week is selected, Hook 1 handles expanding its correct group.
+        if (selectedId == null) {
+          if (activeYear === currentYear) {
+            const current = groups.find((g) => g.key === todayKey);
+            setOpenGroup(current ? current.key : groups[0].key);
+          } else {
+            setOpenGroup(groups[0].key);
+          }
         }
 
         // Sync selected week to match the new activeYear
