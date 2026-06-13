@@ -6,7 +6,9 @@ import {
   SegmentId,
   AssignmentRule,
   DEFAULT_ASSIGNMENT_RULES,
+  AppSettings,
 } from "./types";
+import { getMeetingDate } from "./utils";
 
 export const SEGMENTS: {
   id: SegmentId;
@@ -215,10 +217,35 @@ export function getRuleViolations(
   rules: Record<string, AssignmentRule> = DEFAULT_ASSIGNMENT_RULES,
   mainIsMinor?: boolean,
   preventMinorAssistantToAdult?: boolean,
-  lastAssignmentRole?: "main" | "assistant"
+  lastAssignmentRole?: "main" | "assistant",
+  weekOf?: string,
+  settings?: AppSettings
 ): string[] {
   const violations: string[] = [];
   if (a.archived || !a.active) return violations;
+
+  // Calendar Availability Check
+  if (weekOf && settings) {
+    const mode = settings.availabilityMode || "unavailable";
+    const meetingDay = settings.midweekMeetingDay || "Thursday";
+    const meetingDateStr = getMeetingDate(weekOf, meetingDay);
+    const ranges = a.unavailableRanges ?? [];
+    const overlapsAny = ranges.some((range) => {
+      return meetingDateStr >= range.start && meetingDateStr <= range.end;
+    });
+
+    if (mode === "available") {
+      if (ranges.length > 0 && !overlapsAny) {
+        violations.push(`Not available on this meeting date (${meetingDateStr})`);
+      }
+    } else {
+      if (overlapsAny) {
+        const matchingRange = ranges.find((range) => meetingDateStr >= range.start && meetingDateStr <= range.end);
+        const reasonStr = matchingRange?.reason ? ` (${matchingRange.reason})` : "";
+        violations.push(`Unavailable on this meeting date (${meetingDateStr})${reasonStr}`);
+      }
+    }
+  }
 
   const rule = rules[partType] || DEFAULT_ASSIGNMENT_RULES[partType];
   if (!rule) return violations;

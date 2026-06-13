@@ -189,7 +189,10 @@ export default function WeekEditor(props: WeekEditorProps) {
             "main",
             props.settings.assignmentRules,
             undefined,
-            props.settings.preventMinorAssistantToAdult
+            props.settings.preventMinorAssistantToAdult,
+            undefined,
+            w.weekOf,
+            props.settings
           );
           criticalViolations += mainV.length;
         }
@@ -201,7 +204,10 @@ export default function WeekEditor(props: WeekEditorProps) {
             "assistant",
             props.settings.assignmentRules,
             mainPerson?.isMinor ?? false,
-            props.settings.preventMinorAssistantToAdult
+            props.settings.preventMinorAssistantToAdult,
+            undefined,
+            w.weekOf,
+            props.settings
           );
           criticalViolations += assistantV.length;
         }
@@ -910,9 +916,12 @@ function PartRow({
       "main",
       settings.assignmentRules,
       undefined,
-      settings.preventMinorAssistantToAdult
+      settings.preventMinorAssistantToAdult,
+      undefined,
+      week.weekOf,
+      settings
     );
-  }, [mainPerson, assignment.partType, settings.assignmentRules, settings.preventMinorAssistantToAdult]);
+  }, [mainPerson, assignment.partType, settings.assignmentRules, settings.preventMinorAssistantToAdult, week.weekOf, settings]);
 
   const assistantPerson = assignees.find((a) => a.id === assignment.assistantId);
   const assistantViolations = useMemo(() => {
@@ -937,9 +946,11 @@ function PartRow({
       settings.assignmentRules,
       mainPerson?.isMinor ?? false,
       settings.preventMinorAssistantToAdult,
-      lastAssignmentRole
+      lastAssignmentRole,
+      week.weekOf,
+      settings
     );
-  }, [assistantPerson, assignment.partType, settings.assignmentRules, mainPerson, settings.preventMinorAssistantToAdult, stats]);
+  }, [assistantPerson, assignment.partType, settings.assignmentRules, mainPerson, settings.preventMinorAssistantToAdult, stats, week.weekOf, settings]);
 
   const seg = segmentOf(assignment.segment);
   const showAssistant = needsAssistant(assignment.partType);
@@ -1475,7 +1486,9 @@ function AssigneePicker({
         settings.assignmentRules,
         mainIsMinor,
         settings.preventMinorAssistantToAdult,
-        lastAssignmentRole
+        lastAssignmentRole,
+        weekOf,
+        settings
       );
 
       // Same-Sex Demo Match Check inside options map
