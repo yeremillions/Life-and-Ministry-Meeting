@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, addLog } from "../db";
 import { AppSettings, Assignee, Week, Assignment, PartType } from "../types";
 import { segmentOf, isEligible } from "../meeting";
-import { todayIso } from "../utils";
+import { todayIso, toIso, mondayOf } from "../utils";
 import { buildStats, AssigneeStats } from "../scheduler";
 import ConfirmationModal from "../components/ConfirmationModal";
 import { EnrolleeModal } from "./EnrolleesPage";
@@ -31,6 +31,7 @@ export default function EnrolleeProfile({
   const [newReason, setNewReason] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [historyFilter, setHistoryFilter] = useState<"all" | "upcoming" | "past">("all");
 
   function handleStartChange(val: string) {
     setNewStart(val);
@@ -54,7 +55,7 @@ export default function EnrolleeProfile({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [id]);
+  }, [id, historyFilter]);
 
   async function handleSaveEnrollee(updatedFields: Omit<Assignee, "id" | "createdAt">) {
     if (!enrollee) return;
@@ -129,16 +130,34 @@ export default function EnrolleeProfile({
     });
   });
 
-  // Sort history descending
-  history.sort((a, b) => b.week.weekOf.localeCompare(a.week.weekOf));
+  const currentWeekMonday = toIso(mondayOf(new Date()));
+  const filteredHistory = useMemo<{ week: Week; assignment: Assignment; role: "main" | "assistant" }[]>(() => {
+    const list = history.filter((item) => {
+      if (historyFilter === "upcoming") {
+        return item.week.weekOf >= currentWeekMonday;
+      }
+      if (historyFilter === "past") {
+        return item.week.weekOf < currentWeekMonday;
+      }
+      return true;
+    });
+
+    if (historyFilter === "upcoming") {
+      // Sort upcoming ascending (soonest first)
+      return [...list].sort((a, b) => a.week.weekOf.localeCompare(b.week.weekOf));
+    } else {
+      // Sort all/past descending (most recent first)
+      return [...list].sort((a, b) => b.week.weekOf.localeCompare(a.week.weekOf));
+    }
+  }, [history, historyFilter, currentWeekMonday]);
 
   const historyPageSize = 8;
-  const totalHistoryItems = history.length;
+  const totalHistoryItems = filteredHistory.length;
   const totalHistoryPages = Math.ceil(totalHistoryItems / historyPageSize) || 1;
   const activeHistoryPage = Math.min(currentPage, totalHistoryPages);
   const startHistoryIndex = (activeHistoryPage - 1) * historyPageSize;
   const endHistoryIndex = startHistoryIndex + historyPageSize;
-  const paginatedHistory = history.slice(startHistoryIndex, endHistoryIndex);
+  const paginatedHistory = filteredHistory.slice(startHistoryIndex, endHistoryIndex);
 
   const maxVisiblePages = 5;
   let startPage = Math.max(1, activeHistoryPage - 2);
@@ -447,12 +466,29 @@ export default function EnrolleeProfile({
       </div>
 
       <div className="card shadow-sm border-slate-200 overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between flex-wrap gap-2">
             <h2 className="font-semibold text-slate-800">Activity History</h2>
+            <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/50">
+              {(["all", "upcoming", "past"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setHistoryFilter(f)}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                    historyFilter === f
+                      ? "bg-white text-indigo-600 shadow-xs border border-slate-200/20"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  {f === "all" ? "All" : f === "upcoming" ? "Upcoming" : "Past"}
+                </button>
+              ))}
+            </div>
         </div>
-        {history.length === 0 ? (
+        {filteredHistory.length === 0 ? (
           <div className="py-12 text-center">
-            <p className="text-slate-400 italic">No activity recorded yet.</p>
+            <p className="text-slate-400 italic">
+              {history.length === 0 ? "No activity recorded yet." : "No matching activity."}
+            </p>
           </div>
         ) : (
           <>
