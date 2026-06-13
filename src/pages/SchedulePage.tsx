@@ -778,7 +778,7 @@ function WeekListGrouped({
         <p className="p-3 text-sm text-slate-500">No weeks in {activeYear}.</p>
       )}
       {groups.map((group) => {
-        const isOpen = openGroup === group.key;
+        const isOpen = selectedGroupKey === group.key || openGroup === group.key;
         const isPast = group.key < todayKey;
 
         // Period-level fill stats (ignore special weeks)
