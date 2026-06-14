@@ -38,6 +38,8 @@ export interface AssigneeStats {
   recentMainDatesBySegment: { opening: string[]; treasures: string[]; ministry: string[]; living: string[] };
   lastWeekPrayer?: string;
   recentPrayerDates?: string[];
+  lastWeekByPartTypeMain?: Record<string, string>;
+  lastWeekByPartTypeAssistant?: Record<string, string>;
 }
 
 /** Compute per-assignee assignment history from weeks. */
@@ -58,6 +60,8 @@ export function buildStats(
       recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
       lastWeekPrayer: undefined,
       recentPrayerDates: [],
+      lastWeekByPartTypeMain: {},
+      lastWeekByPartTypeAssistant: {},
     });
   }
 
@@ -67,6 +71,7 @@ export function buildStats(
 
   for (const w of sortedWeeks) {
     if (!w || !Array.isArray(w.assignments)) continue;
+
     for (const ass of w.assignments) {
       if (!ass) continue;
       // Main assignee — counts toward main history only.
@@ -100,6 +105,8 @@ export function buildStats(
             if (!s.lastWeekChairman || w.weekOf > s.lastWeekChairman)
               s.lastWeekChairman = w.weekOf;
           }
+          if (!s.lastWeekByPartTypeMain) s.lastWeekByPartTypeMain = {};
+          s.lastWeekByPartTypeMain[ass.partType] = w.weekOf;
         }
       }
       // Assistant — counts toward assistant history only.
@@ -110,6 +117,8 @@ export function buildStats(
           if (!s.lastWeekAssistant || w.weekOf > s.lastWeekAssistant)
             s.lastWeekAssistant = w.weekOf;
           if (s.recentAssistantDates) s.recentAssistantDates.push(w.weekOf);
+          if (!s.lastWeekByPartTypeAssistant) s.lastWeekByPartTypeAssistant = {};
+          s.lastWeekByPartTypeAssistant[ass.partType] = w.weekOf;
         }
       }
     }
@@ -284,12 +293,19 @@ export function scoreCandidate(
   void talkSplit;
   let score = 0;
 
-  // ── Rotation Fairness Rules ─────────────────────────────────────────
-  const count = role === "main" ? (stats.totalMain ?? 0) : (stats.totalAssistant ?? 0);
-  if (count === 0) {
-    score += 100000;
+  // ── Rotation Fairness Rules (Date-Based Rotation Mark System) ──────
+  const lastWeekForPart = role === "main"
+    ? stats.lastWeekByPartTypeMain?.[part.partType]
+    : stats.lastWeekByPartTypeAssistant?.[part.partType];
+
+  if (!lastWeekForPart) {
+    // Never assigned to this specific part type: highest priority!
+    score += 1000000;
   } else {
-    score -= count * 10000;
+    // Has been assigned before. Add bonus proportional to the gap in days
+    // since their last assignment in this specific category (oldest first).
+    const catGap = daysBetween(lastWeekForPart, weekOf);
+    score += catGap * 100;
   }
 
   // ── Gap-based scoring ────────────────────────────────────────────────
