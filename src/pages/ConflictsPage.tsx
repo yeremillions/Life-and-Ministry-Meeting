@@ -128,7 +128,7 @@ export default function ConflictsPage({
   // Generate conflicts for the selected weeks
   const allPeriodConflicts = useMemo(() => {
     const stats = buildStats(assignees, weeks);
-    return periodWeeks.flatMap((w) => findWeekConflicts(w, assignees, households, settings, stats));
+    return periodWeeks.flatMap((w) => findWeekConflicts(w, assignees, households, settings, stats, weeks));
   }, [periodWeeks, assignees, weeks, households, settings]);
 
   // Read ignored list from settings

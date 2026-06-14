@@ -55,6 +55,7 @@ function sanitizeSettings(raw: any): AppSettings {
   base.eLivingRatio = typeof raw?.eLivingRatio === "number" ? raw.eLivingRatio : DEFAULT_SETTINGS.eLivingRatio;
   base.qmsLivingRatio = typeof raw?.qmsLivingRatio === "number" ? raw.qmsLivingRatio : DEFAULT_SETTINGS.qmsLivingRatio;
   base.privilegedBibleReadingRatio = typeof raw?.privilegedBibleReadingRatio === "number" ? raw.privilegedBibleReadingRatio : DEFAULT_SETTINGS.privilegedBibleReadingRatio;
+  base.pairingAvoidance = ["strict", "relaxed", "off"].includes(raw?.pairingAvoidance) ? raw.pairingAvoidance : "strict";
   
   base.customPartTypes = raw?.customPartTypes && typeof raw.customPartTypes === "object"
     ? {
@@ -1065,6 +1066,27 @@ export default function SettingsPage({
             <p className="text-xs text-slate-500 col-span-full">
               If enabled, the scheduler will never assign a minor as an assistant to an adult main participant in the field ministry section. Adults will also be strongly preferred as assistants for minors.
             </p>
+
+            <div className="flex flex-col gap-1 pt-4 col-span-full">
+              <label htmlFor="pairingAvoidance" className="font-semibold text-slate-700">
+                Main/Assistant Pairing Avoidance
+              </label>
+              <select
+                id="pairingAvoidance"
+                className="input max-w-xs"
+                value={draft.pairingAvoidance || "strict"}
+                onChange={(e) =>
+                  setDraft({ ...draft, pairingAvoidance: e.target.value as any })
+                }
+              >
+                <option value="strict">Strict (prevent pairing with same person in last/next 2 parts)</option>
+                <option value="relaxed">Relaxed (allow pairing with score penalty and warning)</option>
+                <option value="off">Off (disabled)</option>
+              </select>
+              <p className="text-xs text-slate-500">
+                Controls pairing repetition: avoids pairing a publisher with the same assistant (or main assignee) within their last 2 or next 2 parts.
+              </p>
+            </div>
           </div>
 
           <div>

@@ -7,6 +7,7 @@ import {
   AssignmentRule,
   DEFAULT_ASSIGNMENT_RULES,
   AppSettings,
+  Week,
 } from "./types";
 import { getMeetingDate } from "./utils";
 
@@ -441,4 +442,66 @@ export function ensureRequiredParts(
 
   // Final sort and canonical integer ordering
   return result.sort(byOrder).map((a, i) => ({ ...a, order: i }));
+}
+
+/**
+ * Checks whether person A and person B have been paired together in person A's
+ * or person B's last 2 or next 2 parts (where both a main assignee and an assistant
+ * are assigned).
+ */
+export function checkPairingViolation(
+  personAId: number,
+  personBId: number,
+  currentWeekOf: string,
+  allWeeks: Week[]
+): boolean {
+  if (personAId === personBId) return false;
+
+  // Sort weeks chronologically
+  const wList = [...allWeeks].sort((w1, w2) => w1.weekOf.localeCompare(w2.weekOf));
+
+  // Collect pairings for personA and personB
+  const aPairings: { weekOf: string; partnerId: number }[] = [];
+  const bPairings: { weekOf: string; partnerId: number }[] = [];
+
+  for (const w of wList) {
+    if (w.weekOf === currentWeekOf) continue;
+    for (const a of w.assignments) {
+      if (a.assigneeId != null && a.assistantId != null) {
+        if (a.assigneeId === personAId) {
+          aPairings.push({ weekOf: w.weekOf, partnerId: a.assistantId });
+        } else if (a.assistantId === personAId) {
+          aPairings.push({ weekOf: w.weekOf, partnerId: a.assigneeId });
+        }
+
+        if (a.assigneeId === personBId) {
+          bPairings.push({ weekOf: w.weekOf, partnerId: a.assistantId });
+        } else if (a.assistantId === personBId) {
+          bPairings.push({ weekOf: w.weekOf, partnerId: a.assigneeId });
+        }
+      }
+    }
+  }
+
+  // Find last 2 and next 2 for person A
+  const aPast = aPairings.filter((p) => p.weekOf < currentWeekOf);
+  const aFuture = aPairings.filter((p) => p.weekOf > currentWeekOf);
+  const aLast2 = aPast.slice(-2);
+  const aNext2 = aFuture.slice(0, 2);
+
+  // Find last 2 and next 2 for person B
+  const bPast = bPairings.filter((p) => p.weekOf < currentWeekOf);
+  const bFuture = bPairings.filter((p) => p.weekOf > currentWeekOf);
+  const bLast2 = bPast.slice(-2);
+  const bNext2 = bFuture.slice(0, 2);
+
+  // Check if B is in A's last 2 or next 2 partners
+  const inALast2 = aLast2.some((p) => p.partnerId === personBId);
+  const inANext2 = aNext2.some((p) => p.partnerId === personBId);
+
+  // Check if A is in B's last 2 or next 2 partners
+  const inBLast2 = bLast2.some((p) => p.partnerId === personAId);
+  const inBNext2 = bNext2.some((p) => p.partnerId === personAId);
+
+  return inALast2 || inANext2 || inBLast2 || inBNext2;
 }

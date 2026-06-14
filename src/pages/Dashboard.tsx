@@ -2,7 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo, useState } from "react";
 import { db } from "../db";
 import { buildStats, dueSoon, AssigneeStats } from "../scheduler";
-import { SEGMENTS, segmentOf, needsAssistant } from "../meeting";
+import { SEGMENTS, segmentOf, needsAssistant, checkPairingViolation } from "../meeting";
 import { todayIso, weekRangeLabel, toIso, mondayOf, getMeetingDate } from "../utils";
 import type { Week, Assignee, AppSettings, Household, Assignment } from "../types";
 import { DEFAULT_ASSIGNMENT_RULES } from "../types";
@@ -28,7 +28,8 @@ export function findWeekConflicts(
   assignees: Assignee[],
   households: Household[],
   settings: AppSettings | null,
-  stats?: Map<number, AssigneeStats>
+  stats?: Map<number, AssigneeStats>,
+  allWeeks?: Week[]
 ): Conflict[] {
   if (week.specialEvent) return [];
 
@@ -459,6 +460,26 @@ export function findWeekConflicts(
           });
         }
       }
+
+      // 12. Pairing Avoidance Check
+      const pairingAvoidance = settings?.pairingAvoidance || "strict";
+      if (pairingAvoidance !== "off" && allWeeks && main.id != null && assistant.id != null) {
+        if (checkPairingViolation(main.id, assistant.id, week.weekOf, allWeeks)) {
+          conflicts.push({
+            id: `${week.id}-${a.uid}-pairing-avoidance`,
+            weekId: week.id!,
+            weekOf: week.weekOf,
+            partUid: a.uid,
+            partType: a.partType,
+            partTitle: a.title,
+            ruleName: "Pairing Avoidance",
+            message: `${main.name} and assistant ${assistant.name} have already been paired together in their last two or next two parts.`,
+            severity: pairingAvoidance === "strict" ? "error" : "warning",
+            assigneeId: main.id,
+            assistantId: assistant.id,
+          });
+        }
+      }
     }
   }
 
@@ -688,12 +709,12 @@ export default function Dashboard({
 
     isBrandNew = assignees.length === 0 && weeks.length === 0;
 
-    const allUpcomingConflicts = upcoming.flatMap((w) => findWeekConflicts(w, assignees, households, settings, stats));
+    const allUpcomingConflicts = upcoming.flatMap((w) => findWeekConflicts(w, assignees, households, settings, stats, weeks));
     const ignoredList = settings?.ignoredConflicts ?? [];
     const ignoredUpcomingCount = allUpcomingConflicts.filter((c) => ignoredList.includes(c.id)).length;
 
     const conflictsByWeek = upcoming.reduce<{ weekId: number; weekOf: string; list: Conflict[] }[]>((acc, w) => {
-      const list = findWeekConflicts(w, assignees, households, settings, stats);
+      const list = findWeekConflicts(w, assignees, households, settings, stats, weeks);
       const activeList = list.filter((c) => !ignoredList.includes(c.id));
       if (activeList.length > 0) {
         acc.push({ weekId: w.id!, weekOf: w.weekOf, list: activeList });

@@ -2,6 +2,7 @@ import {
   isEligible,
   isPrivileged,
   needsAssistant,
+  checkPairingViolation,
 } from "./meeting";
 import {
   Assignee,
@@ -679,6 +680,8 @@ export interface AutoAssignOptions {
   availabilityMode?: "unavailable" | "available";
   /** Custom part types. */
   customPartTypes?: Record<SegmentId, string[]>;
+  /** Main/Assistant pairing repetition avoidance check: strict, relaxed, or off. */
+  pairingAvoidance?: "strict" | "relaxed" | "off";
 }
 
 /**
@@ -775,6 +778,7 @@ export function autoAssignWeek(
         bibleReadingSplit,
         opts,
         assignments,
+        historicalWeeks,
       });
       if (candidate) {
         assignment.assigneeId = candidate.id!;
@@ -842,6 +846,7 @@ export function autoAssignWeek(
           bibleReadingSplit,
           opts,
           assignments,
+          historicalWeeks,
         });
         if (candidate) {
           assignment.assistantId = candidate.id!;
@@ -871,6 +876,7 @@ interface PickArgs {
   isMinorMain?: boolean;
   opts: AutoAssignOptions;
   assignments?: Assignment[];
+  historicalWeeks: Week[];
 }
 
 function pickCandidate(args: PickArgs): Assignee | null {
@@ -890,6 +896,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
     bibleReadingSplit,
     opts,
     assignments,
+    historicalWeeks,
   } = args;
 
   const minGapDays = (opts.minGapWeeks ?? 2) * 7;
@@ -938,6 +945,13 @@ function pickCandidate(args: PickArgs): Assignee | null {
     // Hard eligibility check
     if (!isEligible(a, part.partType, role, "auto", opts.assignmentRules, isMinorMain, opts.preventMinorAssistantToAdult, opts.customPartTypes)) {
       return false;
+    }
+
+    // Main/Assistant pairing avoidance (Strict)
+    if (role === "assistant" && mainId != null && opts.pairingAvoidance === "strict") {
+      if (checkPairingViolation(mainId, a.id!, weekOf, historicalWeeks)) {
+        return false;
+      }
     }
     return true;
   });
@@ -1032,7 +1046,8 @@ function pickCandidate(args: PickArgs): Assignee | null {
     role,
     opts,
     isMinorMain,
-    assignments
+    assignments,
+    historicalWeeks
   );
 }
 
@@ -1049,7 +1064,8 @@ function rankAndPick(
   role: "main" | "assistant",
   opts: AutoAssignOptions,
   isMinorMain?: boolean,
-  assignments?: Assignment[]
+  assignments?: Assignment[],
+  historicalWeeks?: Week[]
 ): Assignee {
   const empty: AssigneeStats = {
     totalMain: 0,
@@ -1093,6 +1109,14 @@ function rankAndPick(
         if (hasClash) {
           score -= 40; // Discourage assigning another family member to a different part in the same week
         }
+      }
+    }
+
+    // Apply pairing avoidance penalty in relaxed mode
+    const mainId = part.assigneeId;
+    if (role === "assistant" && mainId != null && opts.pairingAvoidance === "relaxed" && candidate.id != null && historicalWeeks) {
+      if (checkPairingViolation(mainId, candidate.id, weekOf, historicalWeeks)) {
+        score -= 250;
       }
     }
     return score;
@@ -1232,6 +1256,7 @@ export function analyzeWeekOptimization(
           part: a, role: "main", assignees, stats, weekOf: week.weekOf, seed, used: usedForPick,
           ministryTotal, ministryCounts, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, opts,
           assignments: week.assignments,
+          historicalWeeks,
         });
  
         if (best && best.id !== currentPerson.id) {
@@ -1280,6 +1305,7 @@ export function analyzeWeekOptimization(
           part: a, role: "assistant", assignees, stats, weekOf: week.weekOf, seed: seed + 1, used: usedForAssistant,
           ministryTotal, ministryCounts, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, opts, isMinorMain,
           assignments: week.assignments,
+          historicalWeeks,
         });
  
         if (bestAss && bestAss.id !== currentAssistant.id) {

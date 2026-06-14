@@ -18,6 +18,7 @@ import {
   privilegeLabel,
   segmentOf,
   byOrder,
+  checkPairingViolation,
 } from "../meeting";
 import { weekRangeLabel, getMeetingDate } from "../utils";
 import {
@@ -1653,6 +1654,20 @@ function AssigneePicker({
       }
       if (role === "assistant" && mainPerson && a.id === mainPerson.id) {
         violations.push(`Assigned as the Main speaker for this part.`);
+      }
+
+      // Main/Assistant Pairing Repetition Avoidance Check
+      const pairingAvoidance = settings.pairingAvoidance || "strict";
+      if (pairingAvoidance !== "off" && a.id != null) {
+        if (role === "main" && assistantPerson && assistantPerson.id != null) {
+          if (checkPairingViolation(a.id, assistantPerson.id, weekOf, allWeeks)) {
+            violations.push(`Pairing violation: already paired in last/next two parts.`);
+          }
+        } else if (role === "assistant" && mainPerson && mainPerson.id != null) {
+          if (checkPairingViolation(mainPerson.id, a.id, weekOf, allWeeks)) {
+            violations.push(`Pairing violation: already paired in last/next two parts.`);
+          }
+        }
       }
 
       // Double Booking in Same Week Check

@@ -213,6 +213,8 @@ export interface AppSettings {
   ignoredConflicts?: string[];
   /** Custom part types added by user per segment. */
   customPartTypes?: Record<SegmentId, string[]>;
+  /** Main/Assistant pairing repetition avoidance check: strict, relaxed, or off. */
+  pairingAvoidance?: "strict" | "relaxed" | "off";
 }
 
 export interface AssignmentRule {
@@ -372,4 +374,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
     ministry: [],
     living: [],
   },
+  pairingAvoidance: "strict",
 };
