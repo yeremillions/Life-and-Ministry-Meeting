@@ -819,7 +819,7 @@ export function autoAssignWeek(
     }
 
     // Secondary participant (householder / reader).
-    if (needsAssistant(assignment.partType)) {
+    if (needsAssistant(assignment.partType, opts.assignmentRules)) {
       if (!(opts.preserveExisting && assignment.assistantId != null)) {
         const candidate = pickCandidate({
           part: assignment,
@@ -902,7 +902,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
   let isMinorMain = false;
   if (role === "assistant" && mainId != null) {
     const main = assignees.find((p) => p.id === mainId);
-    if (main && needsAssistant(part.partType)) {
+    if (main && needsAssistant(part.partType, opts.assignmentRules)) {
       if (part.partType === "Congregation Bible Study") {
         genderFilter = "M"; // reader must be a brother too
       } else {
@@ -1257,7 +1257,7 @@ export function analyzeWeekOptimization(
       }
     }
  
-    if (needsAssistant(a.partType) && a.assistantId != null) {
+    if (needsAssistant(a.partType, opts.assignmentRules) && a.assistantId != null) {
       const currentAssistant = assignees.find((x) => x.id === a.assistantId);
       if (currentAssistant) {
         const usedForAssistant = new Set([...usedMainsThisWeek]);

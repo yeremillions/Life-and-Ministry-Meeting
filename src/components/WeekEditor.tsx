@@ -181,7 +181,7 @@ export default function WeekEditor(props: WeekEditorProps) {
       for (const a of w.assignments) {
         totalParts++;
         if (a.assigneeId) filledParts++;
-        if (needsAssistant(a.partType) && a.assistantId) filledParts++;
+        if (needsAssistant(a.partType, props.settings.assignmentRules) && a.assistantId) filledParts++;
 
         const mainPerson = assignees.find(p => p.id === a.assigneeId);
         const assistantPerson = assignees.find(p => p.id === a.assistantId);
@@ -216,7 +216,7 @@ export default function WeekEditor(props: WeekEditorProps) {
           criticalViolations += assistantV.length;
         }
 
-        if (mainPerson && assistantPerson && a.segment === "ministry" && needsAssistant(a.partType)) {
+        if (mainPerson && assistantPerson && a.segment === "ministry" && needsAssistant(a.partType, props.settings.assignmentRules)) {
           if (mainPerson.gender !== assistantPerson.gender) {
             const inSameHousehold = households.some(
               (h) => h.memberIds.includes(mainPerson.id!) && h.memberIds.includes(assistantPerson.id!)
@@ -237,7 +237,7 @@ export default function WeekEditor(props: WeekEditorProps) {
         if (a.partType === "Video") continue;
         totalSlots++;
         if (a.assigneeId) filledSlots++;
-        if (needsAssistant(a.partType)) {
+        if (needsAssistant(a.partType, props.settings.assignmentRules)) {
           totalSlots++;
           if (a.assistantId) filledSlots++;
         }
@@ -1081,7 +1081,7 @@ function PartRow({
   }, [assistantPerson, assignment.partType, settings.assignmentRules, mainPerson, settings.preventMinorAssistantToAdult, stats, week.weekOf, settings]);
 
   const seg = segmentOf(assignment.segment);
-  const showAssistant = needsAssistant(assignment.partType);
+  const showAssistant = needsAssistant(assignment.partType, settings.assignmentRules);
 
   // Household of the currently-selected main person (if any).
   const mainHousehold = useMemo(
@@ -1104,7 +1104,7 @@ function PartRow({
   // Same-Sex Demo Match Check inside PartRow
   const demoHouseholdViolation = useMemo(() => {
     if (!mainPerson || !assistantPerson) return null;
-    const isMinistryDemo = assignment.segment === "ministry" && needsAssistant(assignment.partType);
+    const isMinistryDemo = assignment.segment === "ministry" && needsAssistant(assignment.partType, settings.assignmentRules);
     if (!isMinistryDemo) return null;
     if (mainPerson.gender === assistantPerson.gender) return null;
     const inSameHousehold = households.some(
@@ -1629,7 +1629,7 @@ function AssigneePicker({
       );
 
       // Same-Sex Demo Match Check inside options map
-      if (assignment.segment === "ministry" && needsAssistant(assignment.partType)) {
+      if (assignment.segment === "ministry" && needsAssistant(assignment.partType, settings.assignmentRules)) {
         if (role === "main" && assistantPerson && a.gender !== assistantPerson.gender) {
           const inSameHousehold = households?.some(
             (h) => h.memberIds.includes(a.id!) && h.memberIds.includes(assistantPerson.id!)

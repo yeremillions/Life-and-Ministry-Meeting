@@ -414,7 +414,7 @@ export function findWeekConflicts(
     // Main & Assistant combined rules
     if (main && assistant) {
       // 9. Same-Sex Demo Match
-      const isMinistryDemo = a.segment === "ministry" && needsAssistant(a.partType);
+      const isMinistryDemo = a.segment === "ministry" && needsAssistant(a.partType, settings?.assignmentRules);
       if (isMinistryDemo) {
         if (main.gender !== assistant.gender) {
           // Check household bypass
