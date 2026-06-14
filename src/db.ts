@@ -126,6 +126,32 @@ class MeetingDB extends Dexie {
 
 export const db = new MeetingDB();
 
+function getDefaultRuleForCustomPart(partType: string, customPartTypes: Record<string, string[]> | undefined): AssignmentRule {
+  let segment: SegmentId = "living";
+  if (customPartTypes) {
+    for (const seg of Object.keys(customPartTypes) as SegmentId[]) {
+      if (customPartTypes[seg]?.includes(partType)) {
+        segment = seg;
+        break;
+      }
+    }
+  }
+
+  if (segment === "ministry") {
+    return {
+      allowedGenders: ["M", "F"],
+      requiredPrivileges: [],
+      mustBeBaptized: false,
+    };
+  } else {
+    return {
+      allowedGenders: ["M"],
+      requiredPrivileges: [],
+      mustBeBaptized: true,
+    };
+  }
+}
+
 /** Ensure the singleton settings row exists. */
 export async function ensureSettings(): Promise<AppSettings> {
   try {
@@ -149,8 +175,20 @@ export async function ensureSettings(): Promise<AppSettings> {
       ? existing.assignmentRules
       : {};
 
-    for (const partType of Object.keys(DEFAULT_SETTINGS.assignmentRules)) {
-      const defaultRule = DEFAULT_SETTINGS.assignmentRules[partType];
+    const allPartTypes = new Set(Object.keys(DEFAULT_SETTINGS.assignmentRules));
+    if (existing.customPartTypes && typeof existing.customPartTypes === "object") {
+      const custom = existing.customPartTypes;
+      for (const seg of Object.keys(custom) as SegmentId[]) {
+        if (Array.isArray(custom[seg])) {
+          for (const pt of custom[seg]) {
+            allPartTypes.add(pt);
+          }
+        }
+      }
+    }
+
+    for (const partType of allPartTypes) {
+      const defaultRule = DEFAULT_SETTINGS.assignmentRules[partType] || getDefaultRuleForCustomPart(partType, existing.customPartTypes);
       const existingRule = existingRules[partType];
 
       if (existingRule && typeof existingRule === "object") {
@@ -166,8 +204,13 @@ export async function ensureSettings(): Promise<AppSettings> {
             : defaultRule.mustBeBaptized,
         };
 
-        if (defaultRule.assistant) {
-          const defaultAssistant = defaultRule.assistant;
+        const hasAssistant = existingRule.assistant !== undefined || defaultRule.assistant !== undefined;
+        if (hasAssistant) {
+          const defaultAssistant = defaultRule.assistant || {
+            allowedGenders: partType.toLowerCase().includes("ministry") ? ["M", "F"] : ["M"],
+            requiredPrivileges: [],
+            mustBeBaptized: false,
+          };
           const existingAssistant = existingRule.assistant;
 
           if (existingAssistant && typeof existingAssistant === "object") {
@@ -182,8 +225,8 @@ export async function ensureSettings(): Promise<AppSettings> {
                 ? existingAssistant.mustBeBaptized
                 : defaultAssistant.mustBeBaptized,
             };
-          } else {
-            mergedRule.assistant = { ...defaultAssistant };
+          } else if (defaultRule.assistant) {
+            mergedRule.assistant = { ...defaultRule.assistant };
           }
         }
 

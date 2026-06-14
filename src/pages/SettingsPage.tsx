@@ -11,8 +11,15 @@ import {
   type SegmentId,
 } from "../types";
 import { addLog } from "../db";
-import { isPrivileged } from "../meeting";
+import { isPrivileged, SEGMENT_PART_TYPES } from "../meeting";
 import ConfirmationModal from "../components/ConfirmationModal";
+
+const SEGMENT_LABELS: Record<SegmentId, string> = {
+  opening: "Opening Section",
+  treasures: "Treasures from God's Word",
+  ministry: "Apply Yourself to the Field Ministry",
+  living: "Living as Christians",
+};
 
 function getDefaultRuleForCustomPart(partType: string, customPartTypes: Record<string, string[]> | undefined): AssignmentRule {
   let segment: SegmentId = "living";
@@ -225,6 +232,19 @@ export default function SettingsPage({
   const excludeRef = useRef<HTMLDivElement>(null);
   const includeRef = useRef<HTMLDivElement>(null);
 
+  // Custom part types states
+  const [renamedParts, setRenamedParts] = useState<Record<string, string>>({});
+  const [editingPart, setEditingPart] = useState<{ segment: SegmentId; oldName: string; name: string } | null>(null);
+  const [addingSegment, setAddingSegment] = useState<SegmentId | null>(null);
+  const [newPartName, setNewPartName] = useState("");
+  const [newPartNeedsAssistant, setNewPartNeedsAssistant] = useState(false);
+  const [customPartsError, setCustomPartsError] = useState<Record<SegmentId, string>>({
+    opening: "",
+    treasures: "",
+    ministry: "",
+    living: ""
+  });
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (excludeRef.current && !excludeRef.current.contains(event.target as Node)) {
@@ -294,11 +314,241 @@ export default function SettingsPage({
       );
     }
 
+    // Rename any custom part types in weeks assignments
+    if (Object.keys(renamedParts).length > 0) {
+      await db.transaction("rw", db.weeks, async () => {
+        const allWeeks = await db.weeks.toArray();
+        for (const week of allWeeks) {
+          let weekDirty = false;
+          const updatedAssignments = week.assignments.map((a) => {
+            const newName = renamedParts[a.partType];
+            if (newName) {
+              weekDirty = true;
+              return { ...a, partType: newName };
+            }
+            return a;
+          });
+          if (weekDirty) {
+            await db.weeks.update(week.id as number, { assignments: updatedAssignments });
+          }
+        }
+      });
+      const renameDetails = Object.entries(renamedParts)
+        .map(([oldN, newN]) => `"${oldN}" -> "${newN}"`)
+        .join(", ");
+      await addLog("settings", `Renamed custom part types: ${renameDetails}`);
+      setRenamedParts({});
+    }
+
     await db.settings.put(draft);
     await addLog("settings", "Saved settings changes");
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   }
+
+  function validatePartTypeName(name: string, oldName?: string): string {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return "Name cannot be empty.";
+    }
+    
+    // Check built-in part types across all segments
+    for (const seg of Object.keys(SEGMENT_PART_TYPES) as SegmentId[]) {
+      if (SEGMENT_PART_TYPES[seg].some(pt => pt.toLowerCase() === trimmed.toLowerCase())) {
+        return `"${trimmed}" conflicts with a built-in part type.`;
+      }
+    }
+    
+    // Check existing custom part types across all segments (excluding itself if renaming)
+    const customTypes = draft?.customPartTypes || {
+      opening: [],
+      treasures: [],
+      ministry: [],
+      living: [],
+    };
+    for (const seg of Object.keys(customTypes) as SegmentId[]) {
+      const parts = customTypes[seg] || [];
+      for (const pt of parts) {
+        if (oldName && pt === oldName) continue;
+        if (pt.toLowerCase() === trimmed.toLowerCase()) {
+          return `A custom part type named "${trimmed}" already exists.`;
+        }
+      }
+    }
+    
+    return "";
+  }
+
+  const handleAddCustomPart = (segment: SegmentId) => {
+    if (!draft) return;
+    const error = validatePartTypeName(newPartName);
+    if (error) {
+      setCustomPartsError(prev => ({ ...prev, [segment]: error }));
+      return;
+    }
+    
+    const trimmedName = newPartName.trim();
+    const currentCustom = draft.customPartTypes?.[segment] || [];
+    const updatedCustom: Record<SegmentId, string[]> = {
+      opening: draft.customPartTypes?.opening || [],
+      treasures: draft.customPartTypes?.treasures || [],
+      ministry: draft.customPartTypes?.ministry || [],
+      living: draft.customPartTypes?.living || [],
+      [segment]: [...currentCustom, trimmedName]
+    };
+    
+    // Determine default rule
+    const defaultRule: AssignmentRule = segment === "ministry"
+      ? {
+          allowedGenders: ["M", "F"],
+          requiredPrivileges: [],
+          mustBeBaptized: false
+        }
+      : {
+          allowedGenders: ["M"],
+          requiredPrivileges: [],
+          mustBeBaptized: true
+        };
+        
+    if (newPartNeedsAssistant) {
+      defaultRule.assistant = {
+        allowedGenders: segment === "ministry" ? ["M", "F"] : ["M"],
+        requiredPrivileges: [],
+        mustBeBaptized: false
+      };
+    }
+    
+    const updatedRules = {
+      ...draft.assignmentRules,
+      [trimmedName]: defaultRule
+    };
+    
+    setDraft({
+      ...draft,
+      customPartTypes: updatedCustom,
+      assignmentRules: updatedRules
+    });
+    
+    // Reset add state
+    setAddingSegment(null);
+    setNewPartName("");
+    setNewPartNeedsAssistant(false);
+    setCustomPartsError(prev => ({ ...prev, [segment]: "" }));
+  };
+
+  const handleRenameCustomPart = (segment: SegmentId) => {
+    if (!draft || !editingPart) return;
+    const { oldName, name } = editingPart;
+    
+    const error = validatePartTypeName(name, oldName);
+    if (error) {
+      setCustomPartsError(prev => ({ ...prev, [segment]: error }));
+      return;
+    }
+    
+    const trimmedNewName = name.trim();
+    if (trimmedNewName === oldName) {
+      setEditingPart(null);
+      setCustomPartsError(prev => ({ ...prev, [segment]: "" }));
+      return;
+    }
+    
+    const currentCustom = draft.customPartTypes?.[segment] || [];
+    const updatedCustom: Record<SegmentId, string[]> = {
+      opening: draft.customPartTypes?.opening || [],
+      treasures: draft.customPartTypes?.treasures || [],
+      ministry: draft.customPartTypes?.ministry || [],
+      living: draft.customPartTypes?.living || [],
+      [segment]: currentCustom.map(p => p === oldName ? trimmedNewName : p)
+    };
+    
+    const updatedRules = { ...draft.assignmentRules };
+    if (updatedRules[oldName]) {
+      updatedRules[trimmedNewName] = updatedRules[oldName];
+      delete updatedRules[oldName];
+    } else {
+      updatedRules[trimmedNewName] = segment === "ministry"
+        ? { allowedGenders: ["M", "F"], requiredPrivileges: [], mustBeBaptized: false }
+        : { allowedGenders: ["M"], requiredPrivileges: [], mustBeBaptized: true };
+    }
+    
+    setDraft({
+      ...draft,
+      customPartTypes: updatedCustom,
+      assignmentRules: updatedRules
+    });
+    
+    setRenamedParts(prev => {
+      const next = { ...prev };
+      for (const [src, dest] of Object.entries(next)) {
+        if (dest === oldName) {
+          next[src] = trimmedNewName;
+          return next;
+        }
+      }
+      next[oldName] = trimmedNewName;
+      return next;
+    });
+    
+    setEditingPart(null);
+    setCustomPartsError(prev => ({ ...prev, [segment]: "" }));
+  };
+
+  const handleToggleAssistant = (partType: string, segment: SegmentId, checked: boolean) => {
+    if (!draft) return;
+    const updatedRules = { ...draft.assignmentRules };
+    const currentRule = updatedRules[partType];
+    
+    if (currentRule) {
+      if (checked) {
+        currentRule.assistant = {
+          allowedGenders: segment === "ministry" ? ["M", "F"] : ["M"],
+          requiredPrivileges: [],
+          mustBeBaptized: false
+        };
+      } else {
+        delete currentRule.assistant;
+      }
+      updatedRules[partType] = { ...currentRule };
+    }
+    
+    setDraft({
+      ...draft,
+      assignmentRules: updatedRules
+    });
+  };
+
+  const handleDeleteCustomPart = (partType: string, segment: SegmentId) => {
+    if (!draft) return;
+    const currentCustom = draft.customPartTypes?.[segment] || [];
+    const updatedCustom: Record<SegmentId, string[]> = {
+      opening: draft.customPartTypes?.opening || [],
+      treasures: draft.customPartTypes?.treasures || [],
+      ministry: draft.customPartTypes?.ministry || [],
+      living: draft.customPartTypes?.living || [],
+      [segment]: currentCustom.filter(p => p !== partType)
+    };
+    
+    const updatedRules = { ...draft.assignmentRules };
+    delete updatedRules[partType];
+    
+    setDraft({
+      ...draft,
+      customPartTypes: updatedCustom,
+      assignmentRules: updatedRules
+    });
+    
+    setRenamedParts(prev => {
+      const next = { ...prev };
+      delete next[partType];
+      for (const [src, dest] of Object.entries(next)) {
+        if (dest === partType) {
+          delete next[src];
+        }
+      }
+      return next;
+    });
+  };
 
   async function wipeAll() {
     setConfirmState({
@@ -1278,6 +1528,201 @@ export default function SettingsPage({
                 )}
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* ── Custom Part Types Section ── */}
+        <div className="card space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-slate-800">Custom Part Types Manager</h2>
+            <p className="text-xs text-slate-500">
+              Manage custom assignments for each midweek meeting segment.
+            </p>
+          </div>
+          <p className="text-sm text-slate-500">
+            Define custom meeting parts that will appear in the scheduling dropdowns under each segment. You can toggle whether they require an assistant, rename them (which automatically updates past schedules), or delete them.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+            {(["opening", "treasures", "ministry", "living"] as SegmentId[]).map((segment) => {
+              const label = SEGMENT_LABELS[segment];
+              const parts = draft.customPartTypes?.[segment] || [];
+              const isAdding = addingSegment === segment;
+              const error = customPartsError[segment];
+
+              return (
+                <div key={segment} className="space-y-3 p-4 bg-slate-50/50 rounded-xl border border-slate-100 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-semibold text-slate-800 flex items-center justify-between mb-2 pb-1 border-b border-slate-100">
+                      <span>{label}</span>
+                      <span className="pill bg-slate-100 text-slate-600 text-xs font-bold border border-slate-200">
+                        {parts.length} Custom
+                      </span>
+                    </h3>
+
+                    {/* List of custom parts for this segment */}
+                    <div className="space-y-2 mb-3 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+                      {parts.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic py-2">No custom part types defined for this segment.</p>
+                      ) : (
+                        parts.map((partType) => {
+                          const isEditing = editingPart?.segment === segment && editingPart?.oldName === partType;
+                          const rule = draft.assignmentRules?.[partType];
+                          const hasAssistant = rule?.assistant !== undefined;
+
+                          if (isEditing) {
+                            return (
+                              <div key={partType} className="flex flex-col gap-1.5 p-2 bg-white rounded-lg border border-indigo-200 shadow-sm animate-fade-in">
+                                <input
+                                  type="text"
+                                  className="input text-xs py-1"
+                                  value={editingPart.name}
+                                  onChange={(e) => setEditingPart({ ...editingPart, name: e.target.value })}
+                                  placeholder="Part name..."
+                                  autoFocus
+                                />
+                                <div className="flex justify-end gap-1">
+                                  <button
+                                    type="button"
+                                    className="btn-secondary text-[11px] py-0.5 px-2"
+                                    onClick={() => {
+                                      setEditingPart(null);
+                                      setCustomPartsError(prev => ({ ...prev, [segment]: "" }));
+                                    }}
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn text-[11px] py-0.5 px-2 bg-indigo-600 text-white hover:bg-indigo-700"
+                                    onClick={() => handleRenameCustomPart(segment)}
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div key={partType} className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-100 hover:border-slate-200 shadow-sm transition-all">
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-slate-700">{partType}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs text-slate-500 hover:text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    className="checkbox w-3.5 h-3.5"
+                                    checked={hasAssistant}
+                                    onChange={(e) => handleToggleAssistant(partType, segment, e.target.checked)}
+                                  />
+                                  <span>Needs Assistant</span>
+                                </label>
+                                <div className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    className="text-xs text-slate-500 hover:text-slate-800 font-medium px-1.5 py-0.5 rounded hover:bg-slate-100 transition-colors"
+                                    onClick={() => setEditingPart({ segment, oldName: partType, name: partType })}
+                                  >
+                                    Rename
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="text-xs text-rose-500 hover:text-rose-700 font-semibold px-1.5 py-0.5 rounded hover:bg-rose-50 transition-colors"
+                                    onClick={() => {
+                                      setConfirmState({
+                                        isOpen: true,
+                                        title: "Delete Custom Part Type",
+                                        message: `Are you sure you want to delete "${partType}"? Past schedule entries using this part type will not be affected, but you won't be able to assign it or configure eligibility rules for it anymore.`,
+                                        confirmText: "Delete",
+                                        cancelText: "Cancel",
+                                        type: "danger",
+                                        onConfirm: () => {
+                                          handleDeleteCustomPart(partType, segment);
+                                          setConfirmState(prev => ({ ...prev, isOpen: false }));
+                                        }
+                                      });
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Add Custom Part Form */}
+                  <div className="mt-auto pt-2 border-t border-slate-100">
+                    {isAdding ? (
+                      <div className="space-y-2 p-2 bg-white rounded-lg border border-slate-200 shadow-sm animate-fade-in">
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase font-bold text-slate-400">Part Type Name</label>
+                          <input
+                            type="text"
+                            className="input text-xs py-1"
+                            value={newPartName}
+                            onChange={(e) => setNewPartName(e.target.value)}
+                            placeholder="e.g. Memorial Invitation"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            id={`add-assistant-${segment}`}
+                            className="checkbox w-3.5 h-3.5"
+                            checked={newPartNeedsAssistant}
+                            onChange={(e) => setNewPartNeedsAssistant(e.target.checked)}
+                          />
+                          <label htmlFor={`add-assistant-${segment}`} className="text-xs text-slate-600 cursor-pointer">
+                            Needs Assistant
+                          </label>
+                        </div>
+                        <div className="flex justify-end gap-1.5 pt-1">
+                          <button
+                            type="button"
+                            className="btn-secondary text-[11px] py-0.5 px-2"
+                            onClick={() => {
+                              setAddingSegment(null);
+                              setNewPartName("");
+                              setNewPartNeedsAssistant(false);
+                              setCustomPartsError(prev => ({ ...prev, [segment]: "" }));
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="btn text-[11px] py-0.5 px-2 bg-indigo-600 text-white hover:bg-indigo-700 font-semibold"
+                            onClick={() => handleAddCustomPart(segment)}
+                          >
+                            Add Part Type
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1.5 py-1 px-2 rounded hover:bg-indigo-50 transition-all"
+                        onClick={() => {
+                          setAddingSegment(segment);
+                          setNewPartNeedsAssistant(segment === "ministry");
+                        }}
+                      >
+                        + Add Custom Part Type
+                      </button>
+                    )}
+                    {error && (
+                      <p className="text-[10px] text-rose-500 font-medium mt-1 animate-shake">{error}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
