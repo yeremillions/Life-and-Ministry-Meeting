@@ -9,6 +9,7 @@ import {
   Week,
   AssignmentRule,
   Household,
+  SegmentId,
 } from "./types";
 import { getMeetingDate, workbookPeriod } from "./utils";
 
@@ -676,6 +677,8 @@ export interface AutoAssignOptions {
   midweekMeetingDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
   /** How availability ranges are tracked. "unavailable" means away dates, "available" means in-town dates. */
   availabilityMode?: "unavailable" | "available";
+  /** Custom part types. */
+  customPartTypes?: Record<SegmentId, string[]>;
 }
 
 /**
@@ -933,7 +936,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
     }
 
     // Hard eligibility check
-    if (!isEligible(a, part.partType, role, "auto", opts.assignmentRules, isMinorMain, opts.preventMinorAssistantToAdult)) {
+    if (!isEligible(a, part.partType, role, "auto", opts.assignmentRules, isMinorMain, opts.preventMinorAssistantToAdult, opts.customPartTypes)) {
       return false;
     }
     return true;

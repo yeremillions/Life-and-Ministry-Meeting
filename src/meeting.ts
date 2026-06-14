@@ -167,7 +167,8 @@ export function isEligible(
   purpose: "auto" | "manual" = "manual",
   rules: Record<string, AssignmentRule> = DEFAULT_ASSIGNMENT_RULES,
   mainIsMinor?: boolean,
-  preventMinorAssistantToAdult?: boolean
+  preventMinorAssistantToAdult?: boolean,
+  customPartTypes?: Record<SegmentId, string[]>
 ): boolean {
   if (a.archived || !a.active) return false;
 
@@ -203,7 +204,9 @@ export function isEligible(
   }
 
   // Hard constraint: minor cannot assist adult if setting is on (Auto-only, manual allowed but warned)
-  const isMinistryPart = SEGMENT_PART_TYPES.ministry.includes(partType);
+  const isMinistryPart =
+    SEGMENT_PART_TYPES.ministry.includes(partType) ||
+    (customPartTypes?.ministry || []).includes(partType);
   if (purpose === "auto" && preventMinorAssistantToAdult && isMinistryPart && role === "assistant" && mainIsMinor === false && a.isMinor) {
     return false;
   }
@@ -290,7 +293,9 @@ export function getRuleViolations(
   }
 
   // Minor assistant to adult
-  const isMinistryPart = SEGMENT_PART_TYPES.ministry.includes(partType);
+  const isMinistryPart =
+    SEGMENT_PART_TYPES.ministry.includes(partType) ||
+    (settings?.customPartTypes?.ministry || []).includes(partType);
   if (preventMinorAssistantToAdult && isMinistryPart && role === "assistant" && mainIsMinor === false && a.isMinor) {
     violations.push(`Minor assistant cannot normally assist adult`);
   }

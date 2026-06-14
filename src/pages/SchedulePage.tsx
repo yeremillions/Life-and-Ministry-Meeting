@@ -172,6 +172,7 @@ export default function SchedulePage({
       privilegedBibleReadingRatio: settings.privilegedBibleReadingRatio,
       midweekMeetingDay: settings.midweekMeetingDay ?? "Thursday",
       availabilityMode: settings.availabilityMode,
+      customPartTypes: settings.customPartTypes,
     });
     await saveWeek(updated);
     await addLog(

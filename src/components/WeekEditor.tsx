@@ -1181,7 +1181,10 @@ function PartRow({
               })
             }
           >
-            {SEGMENT_PART_TYPES[assignment.segment].map((t) => (
+            {[
+              ...SEGMENT_PART_TYPES[assignment.segment],
+              ...(settings.customPartTypes?.[assignment.segment] || [])
+            ].map((t) => (
               <option key={t} value={t}>
                 {t}
               </option>
