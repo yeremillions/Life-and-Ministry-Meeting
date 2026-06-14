@@ -110,8 +110,13 @@ function sanitizeSettings(raw: any): AppSettings {
         : defaultRule.mustBeBaptized,
     };
     
-    if (defaultRule.assistant) {
-      const defaultAsst = defaultRule.assistant;
+    const hasAssistant = defaultRule.assistant !== undefined || rawRule?.assistant !== undefined;
+    if (hasAssistant) {
+      const defaultAsst = defaultRule.assistant || {
+        allowedGenders: [...defaultRule.allowedGenders],
+        requiredPrivileges: [],
+        mustBeBaptized: false,
+      };
       const rawAsst = rawRule?.assistant;
       rule.assistant = {
         allowedGenders: Array.isArray(rawAsst?.allowedGenders)
@@ -1724,6 +1729,20 @@ export default function SettingsPage({
               );
             })}
           </div>
+
+          <div className="pt-4 border-t border-slate-100 flex items-center">
+            <button className="btn" onClick={save}>
+              Save settings
+            </button>
+            {saved && (
+              <span
+                className="inline-flex items-center gap-1 text-sm font-medium ml-3 animate-fade-in"
+                style={{ color: 'var(--treasures)' }}
+              >
+                ✓ Settings saved
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="card space-y-4">
@@ -1759,6 +1778,20 @@ export default function SettingsPage({
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 flex items-center">
+            <button className="btn" onClick={save}>
+              Save settings
+            </button>
+            {saved && (
+              <span
+                className="inline-flex items-center gap-1 text-sm font-medium ml-3 animate-fade-in"
+                style={{ color: 'var(--treasures)' }}
+              >
+                ✓ Settings saved
+              </span>
+            )}
           </div>
         </div>
 
