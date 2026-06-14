@@ -38,7 +38,7 @@ import {
   type BibleReadingSplit,
   type OptimizationSuggestion,
 } from "../scheduler";
-import type { AppSettings } from "../types";
+import type { AppSettings, AssignmentRule } from "../types";
 export interface WeekEditorProps {
   week: Week;
   assignees: Assignee[];
@@ -777,6 +777,13 @@ function SegmentCard({
   const [isOver, setIsOver] = useState(false);
   const [isAddingCustom, setIsAddingCustom] = useState(false);
   const [newTypeName, setNewTypeName] = useState("");
+  const [newTypeNeedsAssistant, setNewTypeNeedsAssistant] = useState(false);
+
+  useEffect(() => {
+    if (isAddingCustom) {
+      setNewTypeNeedsAssistant(segment === "ministry");
+    }
+  }, [isAddingCustom, segment]);
 
   const availablePartTypes = useMemo(() => {
     return [
@@ -908,7 +915,19 @@ function SegmentCard({
                 autoFocus
               />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex items-center gap-2 pt-2 select-none">
+              <input
+                type="checkbox"
+                id="newTypeNeedsAssistant"
+                className="checkbox w-4 h-4 text-slate-800"
+                checked={newTypeNeedsAssistant}
+                onChange={(e) => setNewTypeNeedsAssistant(e.target.checked)}
+              />
+              <label htmlFor="newTypeNeedsAssistant" className="font-semibold text-slate-700 text-sm cursor-pointer select-none">
+                This part needs an assistant / reader
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
               <button
                 className="btn-secondary"
                 onClick={() => {
@@ -942,22 +961,25 @@ function SegmentCard({
                     customPartTypes: updatedCustom
                   };
                   
-                  const defaultRule = segment === "ministry"
+                  const defaultRule: AssignmentRule = segment === "ministry"
                     ? {
                         allowedGenders: ["M" as const, "F" as const],
                         requiredPrivileges: [],
-                        mustBeBaptized: false,
-                        assistant: {
-                          allowedGenders: ["M" as const, "F" as const],
-                          requiredPrivileges: [],
-                          mustBeBaptized: false
-                        }
+                        mustBeBaptized: false
                       }
                     : {
                         allowedGenders: ["M" as const],
                         requiredPrivileges: [],
                         mustBeBaptized: true
                       };
+
+                  if (newTypeNeedsAssistant) {
+                    defaultRule.assistant = {
+                      allowedGenders: segment === "ministry" ? ["M" as const, "F" as const] : ["M" as const],
+                      requiredPrivileges: [],
+                      mustBeBaptized: false
+                    };
+                  }
                       
                   updatedSettings.assignmentRules = {
                     ...settings.assignmentRules,
