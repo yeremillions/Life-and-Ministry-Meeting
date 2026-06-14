@@ -169,6 +169,7 @@ export default function SchedulePage({
       qeLivingRatio: settings.qeLivingRatio,
       eLivingRatio: settings.eLivingRatio,
       qmsLivingRatio: settings.qmsLivingRatio,
+      privilegedBibleReadingRatio: settings.privilegedBibleReadingRatio,
       midweekMeetingDay: settings.midweekMeetingDay ?? "Thursday",
       availabilityMode: settings.availabilityMode,
     });

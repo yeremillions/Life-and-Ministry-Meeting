@@ -8,21 +8,86 @@ import {
   type AssignmentRule,
   type Gender,
   type Privilege,
+  type SegmentId,
 } from "../types";
 import { addLog } from "../db";
 import { isPrivileged } from "../meeting";
 import ConfirmationModal from "../components/ConfirmationModal";
 
+function getDefaultRuleForCustomPart(partType: string, customPartTypes: Record<string, string[]> | undefined): AssignmentRule {
+  let segment: SegmentId = "living";
+  if (customPartTypes) {
+    for (const seg of Object.keys(customPartTypes) as SegmentId[]) {
+      if (customPartTypes[seg]?.includes(partType)) {
+        segment = seg;
+        break;
+      }
+    }
+  }
+
+  if (segment === "ministry") {
+    return {
+      allowedGenders: ["M", "F"],
+      requiredPrivileges: [],
+      mustBeBaptized: false,
+      assistant: {
+        allowedGenders: ["M", "F"],
+        requiredPrivileges: [],
+        mustBeBaptized: false,
+      }
+    };
+  } else {
+    return {
+      allowedGenders: ["M"],
+      requiredPrivileges: [],
+      mustBeBaptized: true
+    };
+  }
+}
+
 function sanitizeSettings(raw: any): AppSettings {
   const base = { ...DEFAULT_SETTINGS, ...raw };
   base.assignmentRules = { ...DEFAULT_SETTINGS.assignmentRules };
   
+  base.msTreasuresRatio = typeof raw?.msTreasuresRatio === "number" ? raw.msTreasuresRatio : DEFAULT_SETTINGS.msTreasuresRatio;
+  base.qmsTreasuresRatio = typeof raw?.qmsTreasuresRatio === "number" ? raw.qmsTreasuresRatio : DEFAULT_SETTINGS.qmsTreasuresRatio;
+  base.qeLivingRatio = typeof raw?.qeLivingRatio === "number" ? raw.qeLivingRatio : DEFAULT_SETTINGS.qeLivingRatio;
+  base.eLivingRatio = typeof raw?.eLivingRatio === "number" ? raw.eLivingRatio : DEFAULT_SETTINGS.eLivingRatio;
+  base.qmsLivingRatio = typeof raw?.qmsLivingRatio === "number" ? raw.qmsLivingRatio : DEFAULT_SETTINGS.qmsLivingRatio;
+  base.privilegedBibleReadingRatio = typeof raw?.privilegedBibleReadingRatio === "number" ? raw.privilegedBibleReadingRatio : DEFAULT_SETTINGS.privilegedBibleReadingRatio;
+  
+  base.customPartTypes = raw?.customPartTypes && typeof raw.customPartTypes === "object"
+    ? {
+        opening: Array.isArray(raw.customPartTypes.opening) ? raw.customPartTypes.opening : [],
+        treasures: Array.isArray(raw.customPartTypes.treasures) ? raw.customPartTypes.treasures : [],
+        ministry: Array.isArray(raw.customPartTypes.ministry) ? raw.customPartTypes.ministry : [],
+        living: Array.isArray(raw.customPartTypes.living) ? raw.customPartTypes.living : [],
+      }
+    : {
+        opening: [],
+        treasures: [],
+        ministry: [],
+        living: [],
+      };
+
   const rawRules = raw?.assignmentRules && typeof raw.assignmentRules === "object"
     ? raw.assignmentRules
     : {};
     
-  for (const partType of Object.keys(DEFAULT_SETTINGS.assignmentRules)) {
-    const defaultRule = DEFAULT_SETTINGS.assignmentRules[partType];
+  const allPartTypes = new Set<string>();
+  for (const pt of Object.keys(DEFAULT_SETTINGS.assignmentRules)) {
+    allPartTypes.add(pt);
+  }
+  if (base.customPartTypes) {
+    for (const seg of Object.keys(base.customPartTypes) as SegmentId[]) {
+      for (const pt of base.customPartTypes[seg] || []) {
+        allPartTypes.add(pt);
+      }
+    }
+  }
+
+  for (const partType of allPartTypes) {
+    const defaultRule = DEFAULT_SETTINGS.assignmentRules[partType] || getDefaultRuleForCustomPart(partType, base.customPartTypes);
     const rawRule = rawRules[partType];
     
     const rule: AssignmentRule = {
@@ -613,6 +678,10 @@ export default function SettingsPage({
           <h3 className="font-semibold text-slate-700">Scheduler Fairness</h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 text-xs text-indigo-900 leading-relaxed sm:col-span-2 animate-fade-in">
+              <strong className="font-semibold text-indigo-950 block mb-1">ℹ️ Date-Based Rotation Mark System Active</strong>
+              The scheduler enforces category-based rotation: when a publisher is assigned a part type, they are marked with that assignment date. They will not be reassigned that same part type until all other eligible candidates have had a turn.
+            </div>
             <div>
               <label className="label">Minimum gap between assignments (weeks)</label>
               <input
@@ -859,6 +928,48 @@ export default function SettingsPage({
                   <span>Calculated Ministerial Servants (MS) Share</span>
                   <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 min-w-[3rem] text-center font-mono">
                     {Math.max(0, 100 - (draft.qeLivingRatio ?? 0) - (draft.eLivingRatio ?? 0) - (draft.qmsLivingRatio ?? 0))}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 border-t border-slate-100 pt-4">
+              <h4 className="text-sm font-semibold text-slate-700">Bible Reading Assignments Balance</h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Control the maximum percentage of weekly Bible Reading assignments that should be allocated to privileged brothers (Elders, Qualified Elders, Ministerial Servants, Qualified Ministerial Servants). The remaining portion is automatically allocated to non-privileged brothers. Default is 10%.
+              </p>
+
+              <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                {/* Privileged slider */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-slate-600">Privileged Brothers (E/QE/MS/QMS) Share</span>
+                    <span className="text-xs font-semibold text-slate-700 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-200 min-w-[3rem] text-center font-mono">
+                      {draft.privilegedBibleReadingRatio ?? 10}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    value={draft.privilegedBibleReadingRatio ?? 10}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      setDraft({
+                        ...draft,
+                        privilegedBibleReadingRatio: val,
+                      });
+                    }}
+                  />
+                </div>
+
+                {/* Non-privileged Read-only Share */}
+                <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-xs font-medium text-slate-600">
+                  <span>Calculated Non-Privileged Brothers Share</span>
+                  <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 min-w-[3rem] text-center font-mono">
+                    {Math.max(0, 100 - (draft.privilegedBibleReadingRatio ?? 10))}%
                   </span>
                 </div>
               </div>
@@ -1166,7 +1277,7 @@ export default function SettingsPage({
                 </tr>
               </thead>
               <tbody className="text-sm divide-y divide-slate-50">
-                {Object.keys(DEFAULT_ASSIGNMENT_RULES).map((partType) => (
+                {Object.keys(draft.assignmentRules || DEFAULT_ASSIGNMENT_RULES).map((partType) => (
                   <RuleRows
                     key={partType}
                     partType={partType}

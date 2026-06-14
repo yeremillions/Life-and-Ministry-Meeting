@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
 import type { Assignment, Week } from "../types";
 import { uid } from "../utils";
@@ -32,6 +33,7 @@ export default function WorkbookImportModal({
   existingWeekOfs: string[];
   onImported: (count: number) => void;
 }) {
+  const settings = useLiveQuery(() => db.settings.get("app"), []) ?? null;
   const [file, setFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +41,13 @@ export default function WorkbookImportModal({
   const [forcedYear, setForcedYear] = useState<string>("");
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [importing, setImporting] = useState(false);
+
+  const getSegmentPartTypes = (segId: SegmentId) => {
+    return [
+      ...SEGMENT_PART_TYPES[segId],
+      ...(settings?.customPartTypes?.[segId] || [])
+    ];
+  };
   
   // Review state
   const [reviewing, setReviewing] = useState(false);
@@ -416,14 +425,14 @@ export default function WorkbookImportModal({
                                       value={p.partType}
                                       onChange={(e) => handleUpdatePart(p.originalIdx, { partType: e.target.value })}
                                     >
-                                      {SEGMENT_PART_TYPES[segId as SegmentId].map(type => (
+                                      {getSegmentPartTypes(segId as SegmentId).map(type => (
                                         <option key={type} value={type}>{type}</option>
                                       ))}
                                       {/* Allow choosing any part type even if it belongs to another segment */}
                                       <optgroup label="Other Segments">
-                                        {Object.entries(SEGMENT_PART_TYPES)
-                                          .filter(([id]) => id !== segId)
-                                          .map(([_, types]) => types.map(type => (
+                                        {Object.keys(SEGMENT_PART_TYPES)
+                                          .filter((id) => id !== segId)
+                                          .map((id) => getSegmentPartTypes(id as SegmentId).map(type => (
                                             <option key={type} value={type}>{type}</option>
                                           )))}
                                       </optgroup>

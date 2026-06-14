@@ -58,29 +58,7 @@ export type SegmentId = "opening" | "treasures" | "ministry" | "living";
  * actual schedule can differ week to week (e.g. the Treasures opening
  * talk title), but the part *type* is fixed.
  */
-export type PartType =
-  // Opening
-  | "Chairman"
-  | "Opening Prayer"
-  // Closing
-  | "Closing Prayer"
-  // Treasures
-  | "Talk" // 10-min opening talk
-  | "Spiritual Gems"
-  | "Bible Reading"
-  // Apply Yourself to the Field Ministry
-  | "Starting a Conversation"
-  | "Following Up"
-  | "Making Disciples"
-  | "Explaining Your Beliefs"
-  | "Initial Call"
-  | "Talk (Ministry)"
-  // Living as Christians
-  | "Living Part"
-  | "Local Needs"
-  | "Governing Body Update"
-  | "Congregation Bible Study"
-  | "Video";
+export type PartType = string;
 
 export interface Assignment {
   /** Stable id within a week so UI can reorder without re-keying. */
@@ -207,6 +185,12 @@ export interface AppSettings {
    */
   qmsTreasuresRatio: number;
   /**
+   * Percentage (0-100) of Bible Reading parts that should go to privileged brothers
+   * (Elders, Qualified Elders, Ministerial Servants, Qualified Ministerial Servants).
+   * The default is 10%.
+   */
+  privilegedBibleReadingRatio: number;
+  /**
    * Percentage (0-100) of Living Parts that should go to Qualified Elders (QE).
    * Default is 25%.
    */
@@ -227,6 +211,8 @@ export interface AppSettings {
   availabilityMode?: "unavailable" | "available";
   /** List of ignored conflict IDs on the dashboard. */
   ignoredConflicts?: string[];
+  /** Custom part types added by user per segment. */
+  customPartTypes?: Record<SegmentId, string[]>;
 }
 
 export interface AssignmentRule {
@@ -373,10 +359,17 @@ export const DEFAULT_SETTINGS: AppSettings = {
   preventMinorAssistantToAdult: true,
   msTreasuresRatio: 0,
   qmsTreasuresRatio: 0,
+  privilegedBibleReadingRatio: 10,
   qeLivingRatio: 25,
   eLivingRatio: 25,
   qmsLivingRatio: 25,
   midweekMeetingDay: "Thursday",
   availabilityMode: "unavailable",
   ignoredConflicts: [],
+  customPartTypes: {
+    opening: [],
+    treasures: [],
+    ministry: [],
+    living: [],
+  },
 };

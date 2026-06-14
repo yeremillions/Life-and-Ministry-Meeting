@@ -117,7 +117,10 @@ export function normalizePrivileges(privs: Privilege[]): Privilege[] {
 }
 
 /** Does this part type involve a second participant? */
-export function needsAssistant(partType: PartType): boolean {
+export function needsAssistant(partType: PartType, rules?: Record<string, AssignmentRule>): boolean {
+  if (rules && rules[partType]) {
+    return !!rules[partType].assistant;
+  }
   return (
     partType === "Starting a Conversation" ||
     partType === "Following Up" ||

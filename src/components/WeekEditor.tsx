@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { db } from "../db";
 import type {
   Assignee,
   Assignment,
@@ -24,6 +25,7 @@ import {
   buildTalkSplit,
   buildTreasuresSplit,
   buildLivingSplit,
+  buildBibleReadingSplit,
   scoreCandidate,
   getWeeksInCalendarMonth,
   getWeeksInWorkbookPeriod,
@@ -32,6 +34,7 @@ import {
   type TalkSplit,
   type TreasuresSplit,
   type LivingSplit,
+  type BibleReadingSplit,
   type OptimizationSuggestion,
 } from "../scheduler";
 import type { AppSettings } from "../types";
@@ -72,13 +75,14 @@ export default function WeekEditor(props: WeekEditorProps) {
   }, [week.assignments]);
 
   // Compute stats, splits based on weeks BEFORE this one.
-  const { stats, talkSplit, treasuresSplit, livingSplit } = useMemo(() => {
+  const { stats, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit } = useMemo(() => {
     const before = props.allWeeks.filter((w) => w.weekOf < week.weekOf);
     return {
       stats: buildStats(assignees, before),
       talkSplit: buildTalkSplit(assignees, before),
       treasuresSplit: buildTreasuresSplit(assignees, before),
       livingSplit: buildLivingSplit(assignees, before),
+      bibleReadingSplit: buildBibleReadingSplit(assignees, before),
     };
   }, [props.allWeeks, week.weekOf, assignees]);
 
@@ -406,6 +410,7 @@ export default function WeekEditor(props: WeekEditorProps) {
             talkSplit={talkSplit}
             treasuresSplit={treasuresSplit}
             livingSplit={livingSplit}
+            bibleReadingSplit={bibleReadingSplit}
             settings={props.settings}
             allWeeks={props.allWeeks}
             partNumbers={partNumbers}
@@ -445,6 +450,7 @@ export default function WeekEditor(props: WeekEditorProps) {
               talkSplit={talkSplit}
               treasuresSplit={treasuresSplit}
               livingSplit={livingSplit}
+              bibleReadingSplit={bibleReadingSplit}
               settings={props.settings}
               allWeeks={props.allWeeks}
               partNumbers={partNumbers}
@@ -741,6 +747,7 @@ function SegmentCard({
   talkSplit,
   treasuresSplit,
   livingSplit,
+  bibleReadingSplit,
   settings,
   allWeeks,
   partNumbers,
@@ -761,14 +768,31 @@ function SegmentCard({
   talkSplit: TalkSplit;
   treasuresSplit: TreasuresSplit;
   livingSplit: LivingSplit;
+  bibleReadingSplit: BibleReadingSplit;
   settings: AppSettings;
   allWeeks: Week[];
   partNumbers: Map<string, number>;
 }) {
   const [isOver, setIsOver] = useState(false);
+  const [isAddingCustom, setIsAddingCustom] = useState(false);
+  const [newTypeName, setNewTypeName] = useState("");
+
+  const availablePartTypes = useMemo(() => {
+    return [
+      ...SEGMENT_PART_TYPES[segment],
+      ...(settings.customPartTypes?.[segment] || [])
+    ];
+  }, [segment, settings.customPartTypes]);
+
   const [pickerType, setPickerType] = useState<PartType>(
     SEGMENT_PART_TYPES[segment][0]
   );
+
+  useEffect(() => {
+    if (!availablePartTypes.includes(pickerType)) {
+      setPickerType(availablePartTypes[0]);
+    }
+  }, [availablePartTypes, pickerType]);
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -805,15 +829,22 @@ function SegmentCard({
         </h3>
         <div className="flex gap-2 items-center">
           <select
-            className="input w-auto"
+            className="input w-auto text-sm"
             value={pickerType}
-            onChange={(e) => setPickerType(e.target.value as PartType)}
+            onChange={(e) => {
+              if (e.target.value === "__ADD_NEW_PART_TYPE__") {
+                setIsAddingCustom(true);
+              } else {
+                setPickerType(e.target.value as PartType);
+              }
+            }}
           >
-            {SEGMENT_PART_TYPES[segment].map((t) => (
+            {availablePartTypes.map((t) => (
               <option key={t} value={t}>
                 {t}
               </option>
             ))}
+            <option value="__ADD_NEW_PART_TYPE__">+ Add new part type...</option>
           </select>
           <button
             className="btn-secondary"
@@ -849,12 +880,107 @@ function SegmentCard({
               talkSplit={talkSplit}
               treasuresSplit={treasuresSplit}
               livingSplit={livingSplit}
+              bibleReadingSplit={bibleReadingSplit}
               settings={settings}
               allWeeks={allWeeks}
               partNumber={partNumbers.get(a.uid)}
             />
           ))}
         </ul>
+      )}
+
+      {isAddingCustom && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-100 max-w-md w-full p-6 space-y-4 animate-scale-in">
+            <h3 className="text-lg font-bold text-slate-800">Add New Part Type</h3>
+            <p className="text-xs text-slate-500">
+              Create a custom assignment type for the <strong>{title}</strong> segment. It will be available to add to schedules and customize rules.
+            </p>
+            <div>
+              <label className="label">Part Type Name</label>
+              <input
+                type="text"
+                className="input w-full text-slate-800 font-medium"
+                placeholder="e.g. Auxiliary Pioneer Talk"
+                value={newTypeName}
+                onChange={(e) => setNewTypeName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  setIsAddingCustom(false);
+                  setNewTypeName("");
+                  setPickerType(availablePartTypes[0]);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-primary"
+                onClick={async () => {
+                  const trimmed = newTypeName.trim();
+                  if (!trimmed) return;
+                  if (availablePartTypes.includes(trimmed)) {
+                    alert("A part type with this name already exists.");
+                    return;
+                  }
+                  
+                  const currentCustom = settings.customPartTypes?.[segment] || [];
+                  const updatedCustom: Record<SegmentId, string[]> = {
+                    opening: settings.customPartTypes?.opening || [],
+                    treasures: settings.customPartTypes?.treasures || [],
+                    ministry: settings.customPartTypes?.ministry || [],
+                    living: settings.customPartTypes?.living || [],
+                    [segment]: [...currentCustom, trimmed]
+                  };
+                  const updatedSettings: AppSettings = {
+                    ...settings,
+                    customPartTypes: updatedCustom
+                  };
+                  
+                  const defaultRule = segment === "ministry"
+                    ? {
+                        allowedGenders: ["M" as const, "F" as const],
+                        requiredPrivileges: [],
+                        mustBeBaptized: false,
+                        assistant: {
+                          allowedGenders: ["M" as const, "F" as const],
+                          requiredPrivileges: [],
+                          mustBeBaptized: false
+                        }
+                      }
+                    : {
+                        allowedGenders: ["M" as const],
+                        requiredPrivileges: [],
+                        mustBeBaptized: true
+                      };
+                      
+                  updatedSettings.assignmentRules = {
+                    ...settings.assignmentRules,
+                    [trimmed]: defaultRule
+                  };
+
+                  await db.settings.put(updatedSettings);
+                  
+                  await db.logs.add({
+                    timestamp: Date.now(),
+                    category: "settings",
+                    action: `Added custom part type "${trimmed}" to segment "${segment}"`
+                  });
+
+                  setPickerType(trimmed);
+                  setIsAddingCustom(false);
+                  setNewTypeName("");
+                }}
+              >
+                Add Part Type
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );
@@ -873,6 +999,7 @@ function PartRow({
   talkSplit,
   treasuresSplit,
   livingSplit,
+  bibleReadingSplit,
   settings,
   allWeeks,
   partNumber,
@@ -889,6 +1016,7 @@ function PartRow({
   talkSplit: TalkSplit;
   treasuresSplit: TreasuresSplit;
   livingSplit: LivingSplit;
+  bibleReadingSplit: BibleReadingSplit;
   settings: AppSettings;
   allWeeks: Week[];
   partNumber?: number;
@@ -1102,6 +1230,7 @@ function PartRow({
               talkSplit={talkSplit}
               treasuresSplit={treasuresSplit}
               livingSplit={livingSplit}
+              bibleReadingSplit={bibleReadingSplit}
               settings={settings}
               assignment={assignment}
               role="main"
@@ -1161,6 +1290,7 @@ function PartRow({
                 talkSplit={talkSplit}
                 treasuresSplit={treasuresSplit}
                 livingSplit={livingSplit}
+                bibleReadingSplit={bibleReadingSplit}
                 settings={settings}
                 assignment={assignment}
                 role="assistant"
@@ -1301,6 +1431,7 @@ function AssigneePicker({
   talkSplit,
   treasuresSplit,
   livingSplit,
+  bibleReadingSplit,
   settings,
   assignment,
   role,
@@ -1323,6 +1454,7 @@ function AssigneePicker({
   talkSplit: TalkSplit;
   treasuresSplit: TreasuresSplit;
   livingSplit: LivingSplit;
+  bibleReadingSplit: BibleReadingSplit;
   settings: AppSettings;
   assignment: Assignment;
   role: "main" | "assistant";
@@ -1381,6 +1513,7 @@ function AssigneePicker({
         talkSplit,
         treasuresSplit,
         livingSplit,
+        bibleReadingSplit,
         role,
         {
           minGapWeeks: settings.minGapWeeks ?? 2,
@@ -1390,6 +1523,7 @@ function AssigneePicker({
           qeLivingRatio: settings.qeLivingRatio ?? 25,
           eLivingRatio: settings.eLivingRatio ?? 25,
           qmsLivingRatio: settings.qmsLivingRatio ?? 25,
+          privilegedBibleReadingRatio: settings.privilegedBibleReadingRatio ?? 10,
           shareMinistryQE: settings.shareMinistryQE ?? 2,
           shareMinistryE: settings.shareMinistryE ?? 2,
           shareMinistryMS: settings.shareMinistryMS ?? 2,
@@ -1607,7 +1741,7 @@ function AssigneePicker({
       item.a.name.toLowerCase().includes(q) ||
       (privilegeLabel(item.a) ?? "").toLowerCase().includes(q)
     );
-  }, [options, query, stats, talkSplit, treasuresSplit, livingSplit, settings, assignment, weekOf, role, allWeeks, mainIsMinor, mainPerson, assistantPerson, households]);
+  }, [options, query, stats, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, settings, assignment, weekOf, role, allWeeks, mainIsMinor, mainPerson, assistantPerson, households]);
 
   function selectOption(id: number | undefined) {
     onChange(id);
