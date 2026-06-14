@@ -1231,7 +1231,9 @@ export default function Dashboard({
                     };
 
                     const daysSinceLast = s.lastWeekMain ? getDaysBetween(today, s.lastWeekMain) : null;
-                    const weeksSinceLast = daysSinceLast != null ? Math.floor(daysSinceLast / 7) : null;
+                    const weeksSinceLast = daysSinceLast != null 
+                      ? (daysSinceLast >= 0 ? Math.floor(daysSinceLast / 7) : Math.ceil(daysSinceLast / 7)) 
+                      : null;
 
                     return (
                       <li key={assignee.id} className="flex items-center gap-2 py-1 border-b border-gray-100 last:border-0">
@@ -1247,7 +1249,11 @@ export default function Dashboard({
                         </button>
                         <span className="text-[10px] text-gray-400 tabular-nums flex-shrink-0">
                           {weeksSinceLast != null
-                            ? (weeksSinceLast === 0 ? "this wk" : `${weeksSinceLast} wk${weeksSinceLast === 1 ? "" : "s"}`)
+                            ? (weeksSinceLast === 0 
+                                ? "this wk" 
+                                : weeksSinceLast > 0 
+                                  ? `${weeksSinceLast} wk${weeksSinceLast === 1 ? "" : "s"} ago`
+                                  : `${Math.abs(weeksSinceLast)} wk${Math.abs(weeksSinceLast) === 1 ? "" : "s"} coming`)
                             : "never"}
                         </span>
                       </li>
