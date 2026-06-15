@@ -747,6 +747,15 @@ function SnapshotView({
       if (privilegeFilter === "none") {
         return row.assignee.privileges.length === 0;
       }
+      if (privilegeFilter === "sisters") {
+        return row.assignee.gender === "F";
+      }
+      if (privilegeFilter === "brothers_no_privilege") {
+        return row.assignee.gender === "M" && row.assignee.privileges.length === 0;
+      }
+      if (privilegeFilter === "no_assignments") {
+        return row.totalCount === 0;
+      }
       return row.assignee.privileges.includes(privilegeFilter);
     });
   }, [snapshotData, privilegeFilter]);
@@ -755,6 +764,9 @@ function SnapshotView({
     if (privilegeFilter === "all") return "All Enrollees Assignment Mix";
     if (privilegeFilter === "appointed") return "Appointed Brothers Assignment Mix";
     if (privilegeFilter === "none") return "Publishers (No Privilege) Assignment Mix";
+    if (privilegeFilter === "sisters") return "Sisters Assignment Mix";
+    if (privilegeFilter === "brothers_no_privilege") return "Brothers (No Privilege) Assignment Mix";
+    if (privilegeFilter === "no_assignments") return "Enrollees with No Assignments in Period";
     return `${privilegeFilter} Enrollees Assignment Mix`;
   }, [privilegeFilter]);
 
@@ -782,7 +794,7 @@ function SnapshotView({
             </select>
           </div>
           <div className="flex gap-2 items-center">
-            <label className="text-sm font-medium text-slate-600">Privilege:</label>
+            <label className="text-sm font-medium text-slate-600">Filter:</label>
             <select
               className="input w-48 text-xs"
               value={privilegeFilter}
@@ -797,6 +809,9 @@ function SnapshotView({
               <option value="RP">RP (Regular Pioneers)</option>
               <option value="CBSR">CBSR (CBS Readers)</option>
               <option value="none">No Privilege (Publisher)</option>
+              <option value="sisters">Sisters Only</option>
+              <option value="brothers_no_privilege">Brothers (No Privilege)</option>
+              <option value="no_assignments">No Assignments in Period</option>
             </select>
           </div>
         </div>
