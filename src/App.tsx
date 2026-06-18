@@ -24,35 +24,81 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function App() {
   const [tab, setTab] = useState<Tab>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlTab = params.get("tab") as Tab | null;
+    if (urlTab) return urlTab;
     const saved = localStorage.getItem("current_tab");
     return (saved as Tab) || "dashboard";
   });
   const [scheduleWeekId, setScheduleWeekId] = useState<number | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlTab = params.get("tab");
+    if (urlTab === "schedule") {
+      const wId = params.get("weekId");
+      if (wId) return parseInt(wId, 10);
+    }
     const saved = localStorage.getItem("schedule_week_id");
     return saved ? parseInt(saved, 10) : null;
   });
   const [profileEnrolleeId, setProfileEnrolleeId] = useState<number | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlTab = params.get("tab");
+    if (urlTab === "profile") {
+      const pId = params.get("profileId");
+      if (pId) return parseInt(pId, 10);
+    }
     const saved = localStorage.getItem("profile_enrollee_id");
     return saved ? parseInt(saved, 10) : null;
   });
 
   useEffect(() => {
     localStorage.setItem("current_tab", tab);
-  }, [tab]);
-
-  useEffect(() => {
     if (scheduleWeekId !== null) {
       localStorage.setItem("schedule_week_id", String(scheduleWeekId));
     }
-  }, [scheduleWeekId]);
-
-  useEffect(() => {
     if (profileEnrolleeId !== null) {
       localStorage.setItem("profile_enrollee_id", String(profileEnrolleeId));
     } else {
       localStorage.removeItem("profile_enrollee_id");
     }
-  }, [profileEnrolleeId]);
+  }, [tab, scheduleWeekId, profileEnrolleeId]);
+
+  // Sync state changes to URL query params
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set("tab", tab);
+    if (tab === "schedule" && scheduleWeekId !== null) {
+      params.set("weekId", String(scheduleWeekId));
+    }
+    if (tab === "profile" && profileEnrolleeId !== null) {
+      params.set("profileId", String(profileEnrolleeId));
+    }
+    const newSearch = params.toString();
+    const currentSearch = window.location.search.substring(1);
+    if (newSearch !== currentSearch) {
+      window.history.pushState(null, "", "?" + newSearch);
+    }
+  }, [tab, scheduleWeekId, profileEnrolleeId]);
+
+  // Handle browser Back / Forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get("tab") as Tab | null;
+      if (urlTab) {
+        setTab(urlTab);
+        if (urlTab === "schedule") {
+          const wId = params.get("weekId");
+          setScheduleWeekId(wId ? parseInt(wId, 10) : null);
+        } else if (urlTab === "profile") {
+          const pId = params.get("profileId");
+          setProfileEnrolleeId(pId ? parseInt(pId, 10) : null);
+        }
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     ensureSettings().catch((e) => console.error("settings init", e));
@@ -77,8 +123,14 @@ export default function App() {
       {/* ── Header ───────────────────────────────────────────────────── */}
       <header style={{ backgroundColor: '#222' }} className="text-white">
         <div className="max-w-6xl mx-auto px-4 flex items-center justify-between">
-          <button
-            onClick={() => setTab("dashboard")}
+          <a
+            href="?tab=dashboard"
+            onClick={(e) => {
+              if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                e.preventDefault();
+                setTab("dashboard");
+              }
+            }}
             className="py-3 text-left hover:opacity-80 transition-opacity focus:outline-none"
           >
             <h1 className="font-semibold text-base leading-tight text-white">
@@ -87,12 +139,18 @@ export default function App() {
             <p className="text-[11px] text-gray-400 mt-0.5">
               Midweek Meeting Assignment Scheduler
             </p>
-          </button>
+          </a>
           <nav className="hidden md:flex items-center">
             {TABS.map((t) => (
-              <button
+              <a
                 key={t.id}
-                onClick={() => setTab(t.id)}
+                href={`?tab=${t.id}`}
+                onClick={(e) => {
+                  if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                    e.preventDefault();
+                    setTab(t.id);
+                  }
+                }}
                 className={
                   "px-3 py-2 text-sm font-medium transition-colors duration-150 " +
                   (tab === t.id
@@ -101,7 +159,7 @@ export default function App() {
                 }
               >
                 {t.label}
-              </button>
+              </a>
             ))}
           </nav>
           {/* Mobile nav */}
@@ -135,7 +193,12 @@ export default function App() {
             onNavigateToProfile={navigateToProfile}
           />
         )}
-        {tab === "reports" && <ReportsPage onNavigateToProfile={navigateToProfile} />}
+        {tab === "reports" && (
+          <ReportsPage
+            onNavigateToProfile={navigateToProfile}
+            onNavigateToSchedule={(weekId) => navigate("schedule", weekId)}
+          />
+        )}
         {tab === "settings" && <SettingsPage onNavigateToAdmin={() => setTab("admin")} />}
         {tab === "help" && <HelpPage />}
         {tab === "admin" && <AdminPage />}

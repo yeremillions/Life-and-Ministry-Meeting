@@ -182,6 +182,63 @@ export default function SchedulePage({
     );
   }
 
+  async function bulkAssignPeriod(group: { key: string; label: string; weeks: Week[] }, preserveExisting: boolean) {
+    const settings = await ensureSettings();
+    // Sort weeks in the period chronologically
+    const sortedPeriodWeeks = [...group.weeks].sort((a, b) => a.weekOf.localeCompare(b.weekOf));
+
+    for (const w of sortedPeriodWeeks) {
+      if (w.specialEvent) continue;
+      
+      const allWeeks = await db.weeks.toArray();
+      const latestWeek = allWeeks.find((x) => x.id === w.id) || w;
+      
+      let targetWeek = latestWeek;
+      if (!preserveExisting) {
+        targetWeek = {
+          ...latestWeek,
+          assignments: latestWeek.assignments.map((a) => ({
+            ...a,
+            assigneeId: undefined,
+            assistantId: undefined,
+          })),
+        };
+      }
+
+      const updated = autoAssignWeek(targetWeek, assignees, allWeeks, {
+        households,
+        shareMinistryQE: settings.shareMinistryQE ?? 2,
+        shareMinistryE: settings.shareMinistryE ?? 2,
+        shareMinistryMS: settings.shareMinistryMS ?? 2,
+        shareMinistryQMS: settings.shareMinistryQMS ?? 2,
+        shareMinistryBrothers: settings.shareMinistryBrothers ?? 2,
+        preserveExisting,
+        minGapWeeks: settings.minGapWeeks ?? 2,
+        chairmanGapWeeks: settings.chairmanGapWeeks ?? 3,
+        catchUpIntensity: settings.catchUpIntensity ?? 1,
+        maxAssignmentsPerMonth: settings.maxAssignmentsPerMonth ?? 2,
+        assignmentRules: settings.assignmentRules,
+        preventMinorAssistantToAdult: settings.preventMinorAssistantToAdult,
+        msTreasuresRatio: settings.msTreasuresRatio,
+        qmsTreasuresRatio: settings.qmsTreasuresRatio,
+        qeLivingRatio: settings.qeLivingRatio,
+        eLivingRatio: settings.eLivingRatio,
+        qmsLivingRatio: settings.qmsLivingRatio,
+        privilegedBibleReadingRatio: settings.privilegedBibleReadingRatio,
+        midweekMeetingDay: settings.midweekMeetingDay ?? "Thursday",
+        availabilityMode: settings.availabilityMode,
+        customPartTypes: settings.customPartTypes,
+      });
+
+      await saveWeek(updated);
+      await addLog(
+        "schedule",
+        preserveExisting ? "Bulk auto-fill empty slots" : "Bulk auto-assign all parts",
+        `Week of ${w.weekOf} (Period: ${group.label})`
+      );
+    }
+  }
+
   async function clearAssignments(week: Week) {
     const cleared = {
       ...week,
@@ -296,9 +353,10 @@ export default function SchedulePage({
             <WeekListGrouped
               weeks={weeks}
               selectedId={selectedId}
-              onSelect={(id) => setSelectedId(id)}
+              onSelect={setSelectedId}
               assignees={assignees}
-              congregationName={congregationName}
+              congregationName={settings?.congregationName ?? "Congregation"}
+              onBulkAssign={bulkAssignPeriod}
             />
           )}
         </div>
@@ -435,12 +493,14 @@ function WeekListGrouped({
   onSelect,
   assignees,
   congregationName,
+  onBulkAssign,
 }: {
   weeks: Week[];
   selectedId: number | null;
   onSelect: (id: number | null) => void;
   assignees: Assignee[];
   congregationName: string;
+  onBulkAssign: (group: { key: string; label: string; weeks: Week[] }, preserveExisting: boolean) => Promise<void>;
 }) {
   const [completionPeriod, setCompletionPeriod] = useState<{key: string, label: string, weeks: Week[]} | null>(null);
   const [notifiedPeriods, setNotifiedPeriods] = useState<Set<string>>(new Set());
@@ -745,6 +805,45 @@ function WeekListGrouped({
     showMoveModal(currentYear);
   }
 
+  function triggerBulkAssign(group: { key: string; label: string; weeks: Week[] }) {
+    setConfirmState({
+      isOpen: true,
+      title: "Bulk Assign Period",
+      message: (
+        <div className="space-y-4 text-left">
+          <p className="text-slate-600 text-sm">
+            Bulk assign will run the auto-scheduler for all weeks in <strong>"{group.label}"</strong> ({group.weeks.length} weeks) sequentially.
+          </p>
+          <p className="text-xs text-slate-500">
+            This ensures sequential rules like gap constraints and assignment balancing build chronologically and cleanly.
+          </p>
+          <div className="flex flex-col gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="radio" name="bulkMode" id="bulk-preserve" defaultChecked />
+              <span>Auto-fill empty slots (preserve existing)</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="radio" name="bulkMode" id="bulk-overwrite" />
+              <span>Reassign all slots (overwrite existing)</span>
+            </label>
+          </div>
+        </div>
+      ),
+      confirmText: "Run Bulk Assign",
+      cancelText: "Cancel",
+      type: "info",
+      onConfirm: async () => {
+        const preserveExisting = (document.getElementById("bulk-preserve") as HTMLInputElement)?.checked ?? true;
+        setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+        try {
+          await onBulkAssign(group, preserveExisting);
+        } catch (err) {
+          console.error("Bulk assign failed", err);
+        }
+      }
+    });
+  }
+
   function toggleGroup(key: string) {
     setOpenGroup((prev) => (prev === key ? null : key));
   }
@@ -827,18 +926,30 @@ function WeekListGrouped({
                   {group.label.replace(/ \d{4}$/, "")}
                 </span>
 
-                {/* Fix Year action (only shown if group is open) */}
+                {/* Actions (only shown if group is open) */}
                 {isOpen && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      moveGroupToYear(group);
-                    }}
-                    className="px-1.5 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 border border-indigo-200 rounded uppercase tracking-tighter"
-                    title="Change year for this period"
-                  >
-                    Move
-                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        triggerBulkAssign(group);
+                      }}
+                      className="px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded uppercase tracking-tighter font-semibold"
+                      title="Auto-fill or reassign all weeks in this period"
+                    >
+                      Bulk Assign
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveGroupToYear(group);
+                      }}
+                      className="px-1.5 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 border border-indigo-200 rounded uppercase tracking-tighter"
+                      title="Change year for this period"
+                    >
+                      Move
+                    </button>
+                  </div>
                 )}
 
                 {/* Fill fraction badge */}

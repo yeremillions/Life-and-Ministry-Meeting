@@ -691,12 +691,18 @@ export default function EnrolleesPage({
                         />
                       </td>
                       <td className="py-2 pr-3 font-medium">
-                        <button
-                          onClick={() => onNavigateToProfile(a.id!)}
+                        <a
+                          href={`?tab=profile&profileId=${a.id}`}
+                          onClick={(e) => {
+                            if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                              e.preventDefault();
+                              onNavigateToProfile(a.id!);
+                            }
+                          }}
                           className="hover:text-indigo-600 hover:underline transition-colors text-left"
                         >
                           {a.name}
-                        </button>
+                        </a>
                       </td>
                       <td className="py-2 pr-3">
                         {a.gender === "M" ? "Brother" : "Sister"}
@@ -806,9 +812,15 @@ export default function EnrolleesPage({
                             <span className="text-xs text-slate-400">No members</span>
                           ) : (
                             members.map((a) => (
-                              <button
+                              <a
                                 key={a.id}
-                                onClick={() => onNavigateToProfile(a.id!)}
+                                href={`?tab=profile&profileId=${a.id}`}
+                                onClick={(e) => {
+                                  if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                                    e.preventDefault();
+                                    onNavigateToProfile(a.id!);
+                                  }
+                                }}
                                 className={
                                   "pill hover:brightness-110 transition-all " +
                                   (a.gender === "M"
@@ -817,7 +829,7 @@ export default function EnrolleesPage({
                                 }
                               >
                                 {a.name}
-                              </button>
+                              </a>
                             ))
                           )}
                         </div>

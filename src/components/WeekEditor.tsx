@@ -1829,17 +1829,22 @@ function AssigneePicker({
           }}
         >
           {value && !open && (
-            <button
+            <a
+              href={`?tab=profile&profileId=${value}`}
               onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onNavigateToProfile(value);
+                if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onNavigateToProfile(value);
+                } else {
+                  e.stopPropagation();
+                }
               }}
               className="p-1 hover:bg-slate-100 rounded text-indigo-500 transition-colors"
               title="View Profile"
             >
               👤
-            </button>
+            </a>
           )}
           <span
             style={{

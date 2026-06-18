@@ -10,8 +10,10 @@ type SortBy = "name" | "total" | "last";
 
 export default function ReportsPage({
   onNavigateToProfile,
+  onNavigateToSchedule,
 }: {
   onNavigateToProfile: (id: number) => void;
+  onNavigateToSchedule: (weekId: number) => void;
 }) {
   const assignees =
     useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
@@ -278,7 +280,7 @@ export default function ReportsPage({
     const activeAssignees = assignees.filter((a) => !a.archived && a.active);
 
     return activeAssignees.map((a) => {
-      const details: { dateLabel: string; partType: string; role: "main" | "assistant"; title: string }[] = [];
+      const details: { weekId: number; dateLabel: string; partType: string; role: "main" | "assistant"; title: string }[] = [];
       let mainCount = 0;
       let assistantCount = 0;
 
@@ -291,6 +293,7 @@ export default function ReportsPage({
           if (ass.assigneeId === a.id) {
             mainCount++;
             details.push({
+              weekId: w.id!,
               dateLabel,
               partType: ass.partType,
               role: "main",
@@ -300,6 +303,7 @@ export default function ReportsPage({
           if (ass.assistantId === a.id) {
             assistantCount++;
             details.push({
+              weekId: w.id!,
               dateLabel,
               partType: ass.partType,
               role: "assistant",
@@ -515,12 +519,18 @@ export default function ReportsPage({
                   <div className="divide-y divide-slate-100 bg-slate-50/50 rounded border border-slate-200/50 p-2 space-y-1">
                     {insights.overburdened.map((r, idx) => (
                       <div key={r.assignee.id} className="flex justify-between items-center py-1 first:pt-0 last:pb-0">
-                        <button 
-                          onClick={() => onNavigateToProfile(r.assignee.id!)}
+                        <a 
+                          href={`?tab=profile&profileId=${r.assignee.id}`}
+                          onClick={(e) => {
+                            if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                              e.preventDefault();
+                              onNavigateToProfile(r.assignee.id!);
+                            }
+                          }}
                           className="font-semibold text-slate-700 hover:text-indigo-600 hover:underline text-left truncate max-w-[130px]"
                         >
                           {idx + 1}. {r.assignee.name}
-                        </button>
+                        </a>
                         <span className="font-bold text-slate-800 tabular-nums">{r.stats.totalMain} parts</span>
                       </div>
                     ))}
@@ -538,12 +548,18 @@ export default function ReportsPage({
                   <div className="divide-y divide-slate-100 bg-slate-50/50 rounded border border-slate-200/50 p-2 space-y-1">
                     {insights.underutilized.map((r, idx) => (
                       <div key={r.assignee.id} className="flex justify-between items-center py-1 first:pt-0 last:pb-0">
-                        <button 
-                          onClick={() => onNavigateToProfile(r.assignee.id!)}
+                        <a 
+                          href={`?tab=profile&profileId=${r.assignee.id}`}
+                          onClick={(e) => {
+                            if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                              e.preventDefault();
+                              onNavigateToProfile(r.assignee.id!);
+                            }
+                          }}
                           className="font-semibold text-slate-700 hover:text-indigo-600 hover:underline text-left truncate max-w-[130px]"
                         >
                           {idx + 1}. {r.assignee.name}
-                        </button>
+                        </a>
                         <span className="text-slate-400 font-mono text-[10px]">
                           {r.stats.lastWeekMain ? r.stats.lastWeekMain : "never"}
                         </span>
@@ -604,12 +620,18 @@ export default function ReportsPage({
                         }
                       >
                         <td className="py-3 px-4 font-semibold text-slate-800">
-                            <button
-                              onClick={() => onNavigateToProfile(r.assignee.id!)}
+                            <a
+                              href={`?tab=profile&profileId=${r.assignee.id}`}
+                              onClick={(e) => {
+                                if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                                  e.preventDefault();
+                                  onNavigateToProfile(r.assignee.id!);
+                                }
+                              }}
                               className="hover:text-indigo-600 hover:underline transition-colors text-left"
                             >
                               {r.assignee.name}
-                            </button>
+                            </a>
                         </td>
                         <td className="py-3 px-4">
                           {privilegeLabel(r.assignee) ?? (
@@ -672,6 +694,7 @@ export default function ReportsPage({
           snapshotData={snapshotData}
           periodStats={periodStats}
           onNavigateToProfile={onNavigateToProfile}
+          onNavigateToSchedule={onNavigateToSchedule}
         />
       )}
     </div>
@@ -711,6 +734,7 @@ function SnapshotView({
   snapshotData,
   periodStats,
   onNavigateToProfile,
+  onNavigateToSchedule,
 }: {
   periods: { key: string; label: string }[];
   selectedPeriodKey: string;
@@ -720,7 +744,7 @@ function SnapshotView({
     mainCount: number;
     assistantCount: number;
     totalCount: number;
-    details: { dateLabel: string; partType: string; role: "main" | "assistant"; title: string }[];
+    details: { weekId: number; dateLabel: string; partType: string; role: "main" | "assistant"; title: string }[];
   }[];
   periodStats: {
     totalParts: number;
@@ -730,6 +754,7 @@ function SnapshotView({
     totalMS: number;
   };
   onNavigateToProfile: (id: number) => void;
+  onNavigateToSchedule: (weekId: number) => void;
 }) {
   const [privilegeFilter, setPrivilegeFilter] = useState<string>("all");
 
@@ -884,12 +909,18 @@ function SnapshotView({
                         className={`border-t border-slate-100 ${isZero ? "bg-amber-50/30 font-medium" : ""}`}
                       >
                         <td className="py-3 px-4 font-semibold text-slate-800">
-                          <button
-                            onClick={() => onNavigateToProfile(row.assignee.id!)}
+                          <a
+                            href={`?tab=profile&profileId=${row.assignee.id}`}
+                            onClick={(e) => {
+                              if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                                e.preventDefault();
+                                onNavigateToProfile(row.assignee.id!);
+                              }
+                            }}
                             className="hover:text-indigo-600 hover:underline transition-colors text-left"
                           >
                             {row.assignee.name}
-                          </button>
+                          </a>
                         </td>
                         <td className="py-3 px-4">
                           <span className="font-semibold text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded shadow-sm border border-slate-200">
@@ -912,19 +943,26 @@ function SnapshotView({
                         <td className="py-3 px-4">
                           <div className="flex flex-wrap gap-1.5 max-w-xl">
                             {row.details.map((d, i) => (
-                              <span
+                              <a
                                 key={i}
-                                className={`text-[10px] px-2 py-0.5 rounded border flex items-center gap-1 ${
+                                href={`?tab=schedule&weekId=${d.weekId}`}
+                                onClick={(e) => {
+                                  if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                                    e.preventDefault();
+                                    onNavigateToSchedule(d.weekId);
+                                  }
+                                }}
+                                className={`text-[10px] px-2 py-0.5 rounded border flex items-center gap-1 hover:shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer ${
                                   d.role === "main"
-                                    ? "bg-slate-50 text-slate-700 border-slate-200"
-                                    : "bg-teal-50/50 text-teal-700 border-teal-200/50"
+                                    ? "bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300"
+                                    : "bg-teal-50/50 text-teal-700 border-teal-200/50 hover:border-teal-300"
                                 }`}
                                 title={`${d.partType}${d.title ? `: ${d.title}` : ""} (${d.role})`}
                               >
                                 <strong className="font-semibold">{d.dateLabel}:</strong>
                                 <span>{d.partType}</span>
                                 {d.role === "assistant" && <span className="text-[9px] text-teal-500 font-bold">(R)</span>}
-                              </span>
+                              </a>
                             ))}
                             {row.details.length === 0 && (
                               <span className="text-xs text-rose-600 font-semibold bg-rose-50/30 px-2 py-0.5 rounded border border-rose-100/30 uppercase tracking-wide text-[10px]">

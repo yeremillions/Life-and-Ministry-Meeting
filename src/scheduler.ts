@@ -42,6 +42,7 @@ export interface AssigneeStats {
   recentPrayerDates?: string[];
   lastWeekByPartTypeMain?: Record<string, string>;
   lastWeekByPartTypeAssistant?: Record<string, string>;
+  lastMinistryRole?: "main" | "assistant";
 }
 
 /** Compute per-assignee assignment history from weeks. */
@@ -64,6 +65,7 @@ export function buildStats(
       recentPrayerDates: [],
       lastWeekByPartTypeMain: {},
       lastWeekByPartTypeAssistant: {},
+      lastMinistryRole: undefined,
     });
   }
 
@@ -121,6 +123,16 @@ export function buildStats(
           if (s.recentAssistantDates) s.recentAssistantDates.push(w.weekOf);
           if (!s.lastWeekByPartTypeAssistant) s.lastWeekByPartTypeAssistant = {};
           s.lastWeekByPartTypeAssistant[ass.partType] = w.weekOf;
+        }
+      }
+      if (ass.segment === "ministry") {
+        if (ass.assigneeId != null) {
+          const s = stats.get(ass.assigneeId);
+          if (s) s.lastMinistryRole = "main";
+        }
+        if (ass.assistantId != null) {
+          const s = stats.get(ass.assistantId);
+          if (s) s.lastMinistryRole = "assistant";
         }
       }
     }
@@ -326,6 +338,17 @@ export function scoreCandidate(
 ): number {
   void talkSplit;
   let score = 0;
+
+  // Ministry segment role alternation:
+  if (part.segment === "ministry") {
+    if (stats.lastMinistryRole !== undefined) {
+      if (role === "main" && stats.lastMinistryRole === "main") {
+        score -= 20000;
+      } else if (role === "assistant" && stats.lastMinistryRole === "assistant") {
+        score -= 20000;
+      }
+    }
+  }
 
   // ── Rotation Fairness Rules (Date-Based Rotation Mark System) ──────
   const lastWeekForPart = role === "main"
@@ -1075,6 +1098,7 @@ function rankAndPick(
     recentAssistantDates: [],
     recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
     recentPrayerDates: [],
+    lastMinistryRole: undefined,
   };
 
   const getScore = (candidate: Assignee, s: AssigneeStats) => {
