@@ -54,6 +54,8 @@ export interface WeekEditorProps {
   allWeeks: Week[];
   settings: AppSettings;
   onSelectWeek?: (id: number) => void;
+  onBackToOverview?: () => void;
+  periodLabel?: string;
 }
 
 export default function WeekEditor(props: WeekEditorProps) {
@@ -271,6 +273,16 @@ export default function WeekEditor(props: WeekEditorProps) {
 
   return (
     <div className="space-y-5">
+      {props.onBackToOverview && (
+        <div className="flex">
+          <button
+            onClick={props.onBackToOverview}
+            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            ← Back to {props.periodLabel ? `"${props.periodLabel}"` : "Workbook"} Overview
+          </button>
+        </div>
+      )}
       <header className="card">
         <div className="flex flex-wrap items-center gap-3">
           <div>

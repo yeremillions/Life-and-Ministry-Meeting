@@ -40,6 +40,15 @@ export default function App() {
     const saved = localStorage.getItem("schedule_week_id");
     return saved ? parseInt(saved, 10) : null;
   });
+  const [schedulePeriodKey, setSchedulePeriodKey] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlTab = params.get("tab");
+    if (urlTab === "schedule") {
+      return params.get("periodKey");
+    }
+    const saved = localStorage.getItem("schedule_period_key");
+    return saved || null;
+  });
   const [profileEnrolleeId, setProfileEnrolleeId] = useState<number | null>(() => {
     const params = new URLSearchParams(window.location.search);
     const urlTab = params.get("tab");
@@ -56,19 +65,29 @@ export default function App() {
     if (scheduleWeekId !== null) {
       localStorage.setItem("schedule_week_id", String(scheduleWeekId));
     }
+    if (schedulePeriodKey !== null) {
+      localStorage.setItem("schedule_period_key", schedulePeriodKey);
+    } else {
+      localStorage.removeItem("schedule_period_key");
+    }
     if (profileEnrolleeId !== null) {
       localStorage.setItem("profile_enrollee_id", String(profileEnrolleeId));
     } else {
       localStorage.removeItem("profile_enrollee_id");
     }
-  }, [tab, scheduleWeekId, profileEnrolleeId]);
+  }, [tab, scheduleWeekId, schedulePeriodKey, profileEnrolleeId]);
 
   // Sync state changes to URL query params
   useEffect(() => {
     const params = new URLSearchParams();
     params.set("tab", tab);
-    if (tab === "schedule" && scheduleWeekId !== null) {
-      params.set("weekId", String(scheduleWeekId));
+    if (tab === "schedule") {
+      if (scheduleWeekId !== null) {
+        params.set("weekId", String(scheduleWeekId));
+      }
+      if (schedulePeriodKey !== null) {
+        params.set("periodKey", schedulePeriodKey);
+      }
     }
     if (tab === "profile" && profileEnrolleeId !== null) {
       params.set("profileId", String(profileEnrolleeId));
@@ -78,7 +97,7 @@ export default function App() {
     if (newSearch !== currentSearch) {
       window.history.pushState(null, "", "?" + newSearch);
     }
-  }, [tab, scheduleWeekId, profileEnrolleeId]);
+  }, [tab, scheduleWeekId, schedulePeriodKey, profileEnrolleeId]);
 
   // Handle browser Back / Forward buttons
   useEffect(() => {
@@ -90,6 +109,8 @@ export default function App() {
         if (urlTab === "schedule") {
           const wId = params.get("weekId");
           setScheduleWeekId(wId ? parseInt(wId, 10) : null);
+          const pKey = params.get("periodKey");
+          setSchedulePeriodKey(pKey || null);
         } else if (urlTab === "profile") {
           const pId = params.get("profileId");
           setProfileEnrolleeId(pId ? parseInt(pId, 10) : null);
@@ -106,10 +127,16 @@ export default function App() {
     sendHeartbeat();
   }, []);
 
-  function navigate(t: Tab, weekId?: number) {
+  function navigate(t: Tab, weekId?: number, periodKey?: string) {
     setTab(t);
-    if (t === "schedule" && weekId != null) {
-      setScheduleWeekId(weekId);
+    if (t === "schedule") {
+      if (weekId != null) {
+        setScheduleWeekId(weekId);
+        setSchedulePeriodKey(null);
+      } else if (periodKey != null) {
+        setSchedulePeriodKey(periodKey);
+        setScheduleWeekId(null);
+      }
     }
   }
 
@@ -190,6 +217,8 @@ export default function App() {
           <SchedulePage
             initialWeekId={scheduleWeekId}
             onConsumeInitialWeek={() => setScheduleWeekId(null)}
+            initialPeriodKey={schedulePeriodKey}
+            onPeriodKeyChange={setSchedulePeriodKey}
             onNavigateToProfile={navigateToProfile}
           />
         )}

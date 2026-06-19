@@ -39,10 +39,14 @@ function buildEmptyWeek(weekOf: string): Week {
 export default function SchedulePage({
   initialWeekId,
   onConsumeInitialWeek,
+  initialPeriodKey,
+  onPeriodKeyChange,
   onNavigateToProfile,
 }: {
   initialWeekId?: number | null;
   onConsumeInitialWeek?: () => void;
+  initialPeriodKey?: string | null;
+  onPeriodKeyChange?: (key: string | null) => void;
   onNavigateToProfile: (id: number) => void;
 } = {} as any) {
   const weeks =
@@ -58,6 +62,46 @@ export default function SchedulePage({
     const saved = localStorage.getItem("schedule_week_id");
     return saved ? parseInt(saved, 10) : null;
   });
+  const [selectedPeriodKey, setSelectedPeriodKey] = useState<string | null>(() => {
+    if (initialPeriodKey !== undefined) return initialPeriodKey;
+    const saved = localStorage.getItem("schedule_period_key");
+    return saved || null;
+  });
+
+  useEffect(() => {
+    if (initialWeekId !== undefined) {
+      setSelectedId(initialWeekId);
+    }
+  }, [initialWeekId]);
+
+  useEffect(() => {
+    if (initialPeriodKey !== undefined) {
+      setSelectedPeriodKey(initialPeriodKey);
+    }
+  }, [initialPeriodKey]);
+
+  useEffect(() => {
+    if (selectedId != null) {
+      localStorage.setItem("schedule_week_id", String(selectedId));
+      const w = weeks.find((x) => x.id === selectedId);
+      if (w) {
+        const pKey = workbookPeriod(w.weekOf).key;
+        setSelectedPeriodKey(pKey);
+      }
+    } else {
+      localStorage.removeItem("schedule_week_id");
+    }
+  }, [selectedId, weeks]);
+
+  useEffect(() => {
+    if (selectedPeriodKey !== null) {
+      localStorage.setItem("schedule_period_key", selectedPeriodKey);
+      onPeriodKeyChange?.(selectedPeriodKey);
+    } else {
+      localStorage.removeItem("schedule_period_key");
+      onPeriodKeyChange?.(null);
+    }
+  }, [selectedPeriodKey, onPeriodKeyChange]);
   const [creatingOpen, setCreatingOpen] = useState(false);
   const [importingWorkbook, setImportingWorkbook] = useState(false);
   const [importingS140, setImportingS140] = useState(false);
@@ -239,6 +283,72 @@ export default function SchedulePage({
     }
   }
 
+  async function clearPeriodAssignments(groupWeeks: Week[]) {
+    setConfirmState({
+      isOpen: true,
+      title: "Clear Period Assignments",
+      message: `Are you sure you want to clear all assignments for all ${groupWeeks.length} weeks in this period? This action cannot be undone.`,
+      confirmText: "Clear All",
+      cancelText: "Cancel",
+      type: "danger",
+      onConfirm: async () => {
+        setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+        for (const w of groupWeeks) {
+          if (w.specialEvent) continue;
+          const cleared = {
+            ...w,
+            assignments: w.assignments.map((a) => ({
+              ...a,
+              assigneeId: undefined,
+              assistantId: undefined,
+            })),
+          };
+          await db.weeks.put(cleared);
+        }
+        await addLog("schedule", "Cleared bulk assignments for period", `${groupWeeks.length} weeks`);
+      }
+    });
+  }
+
+  async function runBulkAssign(group: { key: string; label: string; weeks: Week[] }) {
+    setConfirmState({
+      isOpen: true,
+      title: "Bulk Assign Period",
+      message: (
+        <div className="space-y-4 text-left">
+          <p className="text-slate-600 text-sm">
+            Bulk assign will run the auto-scheduler for all weeks in <strong>"{group.label}"</strong> ({group.weeks.length} weeks) sequentially.
+          </p>
+          <p className="text-xs text-slate-500">
+            This ensures sequential rules like gap constraints and assignment balancing build chronologically and cleanly.
+          </p>
+          <div className="flex flex-col gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="radio" name="bulkMode" id="bulk-preserve" defaultChecked />
+              <span>Auto-fill empty slots (preserve existing)</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="radio" name="bulkMode" id="bulk-overwrite" />
+              <span>Reassign all slots (overwrite existing)</span>
+            </label>
+          </div>
+        </div>
+      ),
+      confirmText: "Run Bulk Assign",
+      cancelText: "Cancel",
+      type: "info",
+      onConfirm: async () => {
+        const preserve = (document.getElementById("bulk-preserve") as HTMLInputElement)?.checked ?? true;
+        setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
+        try {
+          await bulkAssignPeriod(group, preserve);
+        } catch (err) {
+          console.error("Bulk assign failed", err);
+        }
+      }
+    });
+  }
+
   async function clearAssignments(week: Week) {
     const cleared = {
       ...week,
@@ -356,7 +466,7 @@ export default function SchedulePage({
               onSelect={setSelectedId}
               assignees={assignees}
               congregationName={settings?.congregationName ?? "Congregation"}
-              onBulkAssign={bulkAssignPeriod}
+              onSelectPeriod={setSelectedPeriodKey}
             />
           )}
         </div>
@@ -383,11 +493,22 @@ export default function SchedulePage({
                 : DEFAULT_SETTINGS
             }
             onSelectWeek={(id) => setSelectedId(id)}
+            onBackToOverview={() => setSelectedId(null)}
+            periodLabel={workbookPeriod(selected.weekOf).label}
+          />
+        ) : selectedPeriodKey ? (
+          <PeriodOverview
+            periodKey={selectedPeriodKey}
+            weeks={weeks}
+            assignees={assignees}
+            onSelectWeek={(id) => setSelectedId(id)}
+            onBulkAssign={runBulkAssign}
+            onClearAssignments={clearPeriodAssignments}
           />
         ) : (
           <div className="card">
             <p className="text-sm text-slate-500">
-              Select a week on the left, or create a new one.
+              Select a workbook period or a week on the left, or create a new week.
             </p>
           </div>
         )}
@@ -493,14 +614,14 @@ function WeekListGrouped({
   onSelect,
   assignees,
   congregationName,
-  onBulkAssign,
+  onSelectPeriod,
 }: {
   weeks: Week[];
   selectedId: number | null;
   onSelect: (id: number | null) => void;
   assignees: Assignee[];
   congregationName: string;
-  onBulkAssign: (group: { key: string; label: string; weeks: Week[] }, preserveExisting: boolean) => Promise<void>;
+  onSelectPeriod: (key: string | null) => void;
 }) {
   const [completionPeriod, setCompletionPeriod] = useState<{key: string, label: string, weeks: Week[]} | null>(null);
   const [notifiedPeriods, setNotifiedPeriods] = useState<Set<string>>(new Set());
@@ -805,45 +926,6 @@ function WeekListGrouped({
     showMoveModal(currentYear);
   }
 
-  function triggerBulkAssign(group: { key: string; label: string; weeks: Week[] }) {
-    setConfirmState({
-      isOpen: true,
-      title: "Bulk Assign Period",
-      message: (
-        <div className="space-y-4 text-left">
-          <p className="text-slate-600 text-sm">
-            Bulk assign will run the auto-scheduler for all weeks in <strong>"{group.label}"</strong> ({group.weeks.length} weeks) sequentially.
-          </p>
-          <p className="text-xs text-slate-500">
-            This ensures sequential rules like gap constraints and assignment balancing build chronologically and cleanly.
-          </p>
-          <div className="flex flex-col gap-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
-              <input type="radio" name="bulkMode" id="bulk-preserve" defaultChecked />
-              <span>Auto-fill empty slots (preserve existing)</span>
-            </label>
-            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
-              <input type="radio" name="bulkMode" id="bulk-overwrite" />
-              <span>Reassign all slots (overwrite existing)</span>
-            </label>
-          </div>
-        </div>
-      ),
-      confirmText: "Run Bulk Assign",
-      cancelText: "Cancel",
-      type: "info",
-      onConfirm: async () => {
-        const preserveExisting = (document.getElementById("bulk-preserve") as HTMLInputElement)?.checked ?? true;
-        setConfirmState((prev: any) => ({ ...prev, isOpen: false }));
-        try {
-          await onBulkAssign(group, preserveExisting);
-        } catch (err) {
-          console.error("Bulk assign failed", err);
-        }
-      }
-    });
-  }
-
   function toggleGroup(key: string) {
     setOpenGroup((prev) => (prev === key ? null : key));
   }
@@ -904,7 +986,11 @@ function WeekListGrouped({
           <div key={group.key}>
             {/* ── Period heading (collapsible) ── */}
             <button
-              onClick={() => toggleGroup(group.key)}
+              onClick={() => {
+                toggleGroup(group.key);
+                onSelectPeriod(group.key);
+                onSelect(null);
+              }}
               className="w-full text-left px-3 py-2 bg-slate-50 border-b border-slate-100 hover:bg-slate-100 transition-colors"
               aria-expanded={isOpen}
             >
@@ -928,28 +1014,16 @@ function WeekListGrouped({
 
                 {/* Actions (only shown if group is open) */}
                 {isOpen && (
-                  <div className="flex gap-1">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        triggerBulkAssign(group);
-                      }}
-                      className="px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded uppercase tracking-tighter font-semibold"
-                      title="Auto-fill or reassign all weeks in this period"
-                    >
-                      Bulk Assign
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        moveGroupToYear(group);
-                      }}
-                      className="px-1.5 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 border border-indigo-200 rounded uppercase tracking-tighter"
-                      title="Change year for this period"
-                    >
-                      Move
-                    </button>
-                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveGroupToYear(group);
+                    }}
+                    className="px-1.5 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 border border-indigo-200 rounded uppercase tracking-tighter"
+                    title="Change year for this period"
+                  >
+                    Move
+                  </button>
                 )}
 
                 {/* Fill fraction badge */}
@@ -1044,6 +1118,173 @@ function WeekListGrouped({
         onConfirm={confirmState.onConfirm}
         onCancel={() => setConfirmState((prev: any) => ({ ...prev, isOpen: false }))}
       />
+    </div>
+  );
+}
+
+// ── PeriodOverview dashboard component ───────────────────────────────
+function PeriodOverview({
+  periodKey,
+  weeks,
+  assignees,
+  onSelectWeek,
+  onBulkAssign,
+  onClearAssignments,
+}: {
+  periodKey: string;
+  weeks: Week[];
+  assignees: Assignee[];
+  onSelectWeek: (id: number) => void;
+  onBulkAssign: (group: { key: string; label: string; weeks: Week[] }) => Promise<void>;
+  onClearAssignments: (groupWeeks: Week[]) => Promise<void>;
+}) {
+  const label = useMemo(() => {
+    const matchingWeek = weeks.find((w) => workbookPeriod(w.weekOf).key === periodKey);
+    if (matchingWeek) {
+      return workbookPeriod(matchingWeek.weekOf).label;
+    }
+    const [yearStr, monthStr] = periodKey.split("-");
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+    if (isNaN(year) || isNaN(month)) return periodKey;
+    const monthNames = ["", "January–February", "", "March–April", "", "May–June", "", "July–August", "", "September–October", "", "November–December"];
+    return `${monthNames[month] || ""} ${year}`;
+  }, [periodKey, weeks]);
+
+  const periodWeeks = useMemo(() => {
+    return weeks
+      .filter((w) => workbookPeriod(w.weekOf).key === periodKey)
+      .sort((a, b) => a.weekOf.localeCompare(b.weekOf));
+  }, [weeks, periodKey]);
+
+  const regularWeeks = periodWeeks.filter((w) => !w.specialEvent);
+  const totalSlots = regularWeeks.reduce((acc, w) => acc + w.assignments.length, 0);
+  const filledSlots = regularWeeks.reduce((acc, w) => acc + w.assignments.filter((a) => a.assigneeId).length, 0);
+  const progress = totalSlots > 0 ? Math.round((filledSlots / totalSlots) * 100) : 0;
+  const fullyScheduledCount = regularWeeks.filter((w) => w.assignments.length > 0 && w.assignments.every((a) => a.assigneeId)).length;
+
+  return (
+    <div className="card p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 gap-4">
+        <div>
+          <span className="text-xs font-bold text-indigo-500 uppercase tracking-widest">Workbook Period</span>
+          <h2 className="text-2xl font-extrabold text-slate-800">{label}</h2>
+          <p className="text-xs text-slate-500 mt-1">Manage schedules and run bulk assignments for this bi-monthly block.</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onBulkAssign({ key: periodKey, label, weeks: periodWeeks })}
+            className="btn bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-100 hover:shadow-lg transition-all cursor-pointer"
+          >
+            ⚡ Bulk Auto-Assign
+          </button>
+          <button
+            onClick={() => onClearAssignments(periodWeeks)}
+            className="btn bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 hover:border-rose-200 text-xs font-semibold px-4 py-2 rounded-xl border border-slate-200 transition-all cursor-pointer"
+            disabled={filledSlots === 0}
+          >
+            🗑️ Clear Assignments
+          </button>
+        </div>
+      </div>
+
+      {/* Progress Card */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="bg-slate-50 border rounded-2xl p-4 flex flex-col justify-between">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assignment Fill Rate</span>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-3xl font-black text-slate-800">{progress}%</span>
+            <span className="text-xs text-slate-500">({filledSlots} / {totalSlots} filled)</span>
+          </div>
+          <div className="mt-3 h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+            <div 
+              className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+              style={{ width: `${progress}%` }} 
+            />
+          </div>
+        </div>
+
+        <div className="bg-slate-50 border rounded-2xl p-4 flex flex-col justify-between">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Weeks Status</span>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-3xl font-black text-slate-800">{fullyScheduledCount} <span className="text-lg font-normal text-slate-400">/ {regularWeeks.length}</span></span>
+            <span className="text-xs text-slate-500">fully scheduled</span>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-3">Special weeks like Assemblies are ignored in statistics.</p>
+        </div>
+
+        <div className="bg-slate-50 border rounded-2xl p-4 flex flex-col justify-between">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Congregation Size</span>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-3xl font-black text-slate-800">{assignees.filter(a => a.active && !a.archived).length}</span>
+            <span className="text-xs text-slate-500">active publishers</span>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-3">Ensure rules/availability are set up under Settings.</p>
+        </div>
+      </div>
+
+      {/* Weeks list inside period */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Schedules in this Period</h3>
+        {periodWeeks.length === 0 ? (
+          <p className="text-sm text-slate-400 italic">No weeks found in this period. Import a workbook or add weeks manually.</p>
+        ) : (
+          <div className="divide-y border rounded-2xl overflow-hidden bg-white shadow-sm">
+            {periodWeeks.map((w) => {
+              const filled = w.assignments.filter((a) => a.assigneeId).length;
+              const total = w.assignments.length;
+              const isComplete = total > 0 && filled === total;
+              
+              const chairman = w.assignments.find(a => a.partType === "Chairman")?.assigneeId;
+              const gems = w.assignments.find(a => a.partType === "Spiritual Gems")?.assigneeId;
+              const cbsConductor = w.assignments.find(a => a.partType === "Bible Study")?.assigneeId;
+              
+              const pNames = (id?: number) => {
+                if (id == null) return null;
+                return assignees.find(a => a.id === id)?.name;
+              };
+
+              return (
+                <div key={w.id} className="p-4 hover:bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-800 text-sm">{weekRangeLabel(w.weekOf)}</span>
+                      {w.specialEvent ? (
+                        <span className="text-[9px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border uppercase tracking-wider shrink-0">
+                          {w.specialEvent}
+                        </span>
+                      ) : isComplete ? (
+                        <span className="text-[9px] font-bold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-wider shrink-0">
+                          ✓ Fully Scheduled
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 uppercase tracking-wider shrink-0">
+                          Incomplete ({filled}/{total})
+                        </span>
+                      )}
+                    </div>
+                    {!w.specialEvent && total > 0 && (
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
+                        {chairman && <span><strong>Chairman:</strong> <span className="text-slate-600 font-medium">{pNames(chairman)}</span></span>}
+                        {gems && <span><strong>Gems:</strong> <span className="text-slate-600 font-medium">{pNames(gems)}</span></span>}
+                        {cbsConductor && <span><strong>CBS:</strong> <span className="text-slate-600 font-medium">{pNames(cbsConductor)}</span></span>}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={() => onSelectWeek(w.id!)}
+                    className="btn bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 text-xs font-semibold px-3 py-1.5 rounded-lg border border-indigo-100 transition-all self-start sm:self-center cursor-pointer"
+                  >
+                    Edit Week
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
