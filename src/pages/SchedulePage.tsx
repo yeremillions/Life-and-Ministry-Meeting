@@ -195,27 +195,13 @@ export default function SchedulePage({
     const settings = await ensureSettings();
     const allWeeks = await db.weeks.toArray();
     const updated = autoAssignWeek(week, assignees, allWeeks, {
+      ...settings,
       households,
-      shareMinistryQE: settings.shareMinistryQE ?? 2,
-      shareMinistryE: settings.shareMinistryE ?? 2,
-      shareMinistryMS: settings.shareMinistryMS ?? 2,
-      shareMinistryQMS: settings.shareMinistryQMS ?? 2,
-      shareMinistryBrothers: settings.shareMinistryBrothers ?? 2,
       preserveExisting,
       minGapWeeks: settings.minGapWeeks ?? 2,
       chairmanGapWeeks: settings.chairmanGapWeeks ?? 3,
       catchUpIntensity: settings.catchUpIntensity ?? 1,
       maxAssignmentsPerMonth: settings.maxAssignmentsPerMonth ?? 2,
-      assignmentRules: settings.assignmentRules,
-      msTreasuresRatio: settings.msTreasuresRatio,
-      qmsTreasuresRatio: settings.qmsTreasuresRatio,
-      qeLivingRatio: settings.qeLivingRatio,
-      eLivingRatio: settings.eLivingRatio,
-      qmsLivingRatio: settings.qmsLivingRatio,
-      privilegedBibleReadingRatio: settings.privilegedBibleReadingRatio,
-      midweekMeetingDay: settings.midweekMeetingDay ?? "Thursday",
-      availabilityMode: settings.availabilityMode,
-      customPartTypes: settings.customPartTypes,
     });
     await saveWeek(updated);
     await addLog(
@@ -249,27 +235,13 @@ export default function SchedulePage({
       }
 
       const updated = autoAssignWeek(targetWeek, assignees, allWeeks, {
+        ...settings,
         households,
-        shareMinistryQE: settings.shareMinistryQE ?? 2,
-        shareMinistryE: settings.shareMinistryE ?? 2,
-        shareMinistryMS: settings.shareMinistryMS ?? 2,
-        shareMinistryQMS: settings.shareMinistryQMS ?? 2,
-        shareMinistryBrothers: settings.shareMinistryBrothers ?? 2,
         preserveExisting,
         minGapWeeks: settings.minGapWeeks ?? 2,
         chairmanGapWeeks: settings.chairmanGapWeeks ?? 3,
         catchUpIntensity: settings.catchUpIntensity ?? 1,
         maxAssignmentsPerMonth: settings.maxAssignmentsPerMonth ?? 2,
-        assignmentRules: settings.assignmentRules,
-        msTreasuresRatio: settings.msTreasuresRatio,
-        qmsTreasuresRatio: settings.qmsTreasuresRatio,
-        qeLivingRatio: settings.qeLivingRatio,
-        eLivingRatio: settings.eLivingRatio,
-        qmsLivingRatio: settings.qmsLivingRatio,
-        privilegedBibleReadingRatio: settings.privilegedBibleReadingRatio,
-        midweekMeetingDay: settings.midweekMeetingDay ?? "Thursday",
-        availabilityMode: settings.availabilityMode,
-        customPartTypes: settings.customPartTypes,
       });
 
       await saveWeek(updated);

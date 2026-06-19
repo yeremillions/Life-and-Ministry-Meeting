@@ -386,9 +386,9 @@ export function findWeekConflicts(
         }
       }
 
-      // 9. Assistant Twice in a Row Safeguard
-      const asstTwiceLevel = settings?.rulePreventAssistantTwice ?? "strict";
-      if (asstTwiceLevel !== "off" && stats && assistant.id != null) {
+      // 9. Assistant Twice in a Row Safeguard (part of Role Alternation)
+      const roleAlternationLevel = settings?.ruleRoleAlternation ?? "strong";
+      if (roleAlternationLevel !== "off" && stats && assistant.id != null) {
         const s = stats.get(assistant.id);
         if (s && s.lastWeekAssistant) {
           const lastMain = s.lastWeekMain;
@@ -404,7 +404,7 @@ export function findWeekConflicts(
               partTitle: a.title,
               ruleName: "Assistant Policy Check",
               message: `${assistant.name} (assistant) is assigned as an assistant but their last assignment was also as an assistant. They should be considered for a main role instead.`,
-              severity: asstTwiceLevel === "strict" ? "error" : "warning",
+              severity: roleAlternationLevel === "strict" ? "error" : "warning",
               assistantId: assistant.id,
             });
           }

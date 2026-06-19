@@ -67,13 +67,11 @@ function sanitizeSettings(raw: any): AppSettings {
   const ruleLevels = ["off", "weak", "medium", "strong", "strict"];
   base.ruleMinGap = ruleLevels.includes(raw?.ruleMinGap) ? raw.ruleMinGap : DEFAULT_SETTINGS.ruleMinGap;
   base.ruleChairmanGap = ruleLevels.includes(raw?.ruleChairmanGap) ? raw.ruleChairmanGap : DEFAULT_SETTINGS.ruleChairmanGap;
-  base.ruleMinistryAlternation = ruleLevels.includes(raw?.ruleMinistryAlternation) ? raw.ruleMinistryAlternation : DEFAULT_SETTINGS.ruleMinistryAlternation;
+  base.ruleRoleAlternation = ruleLevels.includes(raw?.ruleRoleAlternation) ? raw.ruleRoleAlternation : DEFAULT_SETTINGS.ruleRoleAlternation;
   base.ruleMinorAssistantToAdult = ruleLevels.includes(raw?.ruleMinorAssistantToAdult) ? raw.ruleMinorAssistantToAdult : DEFAULT_SETTINGS.ruleMinorAssistantToAdult;
   base.ruleAdultAssistantForMinor = ruleLevels.includes(raw?.ruleAdultAssistantForMinor) ? raw.ruleAdultAssistantForMinor : DEFAULT_SETTINGS.ruleAdultAssistantForMinor;
-  base.ruleMainWorkload = ruleLevels.includes(raw?.ruleMainWorkload) ? raw.ruleMainWorkload : DEFAULT_SETTINGS.ruleMainWorkload;
-  base.ruleAssistantWorkload = ruleLevels.includes(raw?.ruleAssistantWorkload) ? raw.ruleAssistantWorkload : DEFAULT_SETTINGS.ruleAssistantWorkload;
+  base.ruleWorkloadBalancing = ruleLevels.includes(raw?.ruleWorkloadBalancing) ? raw.ruleWorkloadBalancing : DEFAULT_SETTINGS.ruleWorkloadBalancing;
   base.ruleSegmentBalancing = ruleLevels.includes(raw?.ruleSegmentBalancing) ? raw.ruleSegmentBalancing : DEFAULT_SETTINGS.ruleSegmentBalancing;
-  base.rulePreventAssistantTwice = ruleLevels.includes(raw?.rulePreventAssistantTwice) ? raw.rulePreventAssistantTwice : DEFAULT_SETTINGS.rulePreventAssistantTwice;
   base.ruleInfirmedThrottling = ruleLevels.includes(raw?.ruleInfirmedThrottling) ? raw.ruleInfirmedThrottling : DEFAULT_SETTINGS.ruleInfirmedThrottling;
   base.ruleSameSexDemogenders = ruleLevels.includes(raw?.ruleSameSexDemogenders) ? raw.ruleSameSexDemogenders : DEFAULT_SETTINGS.ruleSameSexDemogenders;
   
@@ -1028,9 +1026,9 @@ export default function SettingsPage({
               )}
 
               {renderRuleCustomizerRow(
-                "Field Ministry Segment Alternation",
-                "Promotes fairness by ensuring a student who did a main assignment in the Apply Yourself segment gets an assistant role in their next part, and vice versa.",
-                "ruleMinistryAlternation"
+                "Role Alternation",
+                "Promotes fairness by ensuring publishers switch between Main and Assistant roles in student ministry parts, and do not serve as assistants in consecutive assignments.",
+                "ruleRoleAlternation"
               )}
 
               {renderRuleCustomizerRow(
@@ -1047,16 +1045,9 @@ export default function SettingsPage({
               )}
 
               {renderRuleCustomizerRow(
-                "Main Assignment Workload Balancing",
-                "Distributes midweek assignments evenly by penalizing recent main assignments in the scoring system.",
-                "ruleMainWorkload",
-                false
-              )}
-
-              {renderRuleCustomizerRow(
-                "Assistant Assignment Workload Balancing",
-                "Distributes assistant assignments evenly by penalizing recent assistant assignments in the scoring system.",
-                "ruleAssistantWorkload",
+                "Workload & Frequency Balancing",
+                "Distributes assignments evenly across the congregation by penalizing publishers who recently served in main or assistant roles.",
+                "ruleWorkloadBalancing",
                 false
               )}
 
@@ -1065,12 +1056,6 @@ export default function SettingsPage({
                 "Reduces repetition by penalizing scheduling a publisher in the same meeting segment too close together.",
                 "ruleSegmentBalancing",
                 false
-              )}
-
-              {renderRuleCustomizerRow(
-                "Prevent Assistant Twice in a Row",
-                "Prevents the same publisher from being scheduled as an assistant in consecutive assignments.",
-                "rulePreventAssistantTwice"
               )}
 
               {renderRuleCustomizerRow(

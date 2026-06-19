@@ -141,13 +141,11 @@ export interface AppSettings {
   // ── Customizable rule enforcement levels ─────────────────────────────
   ruleMinGap?: RuleEnforcementLevel;
   ruleChairmanGap?: RuleEnforcementLevel;
-  ruleMinistryAlternation?: RuleEnforcementLevel;
+  ruleRoleAlternation?: RuleEnforcementLevel;
   ruleMinorAssistantToAdult?: RuleEnforcementLevel;
   ruleAdultAssistantForMinor?: RuleEnforcementLevel;
-  ruleMainWorkload?: RuleEnforcementLevel;
-  ruleAssistantWorkload?: RuleEnforcementLevel;
+  ruleWorkloadBalancing?: RuleEnforcementLevel;
   ruleSegmentBalancing?: RuleEnforcementLevel;
-  rulePreventAssistantTwice?: RuleEnforcementLevel;
   ruleInfirmedThrottling?: RuleEnforcementLevel;
   ruleSameSexDemogenders?: RuleEnforcementLevel;
 
@@ -373,13 +371,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   assignmentRules: DEFAULT_ASSIGNMENT_RULES,
   ruleMinGap: "strict",
   ruleChairmanGap: "strict",
-  ruleMinistryAlternation: "strong",
+  ruleRoleAlternation: "strong",
   ruleMinorAssistantToAdult: "strict",
   ruleAdultAssistantForMinor: "strong",
-  ruleMainWorkload: "medium",
-  ruleAssistantWorkload: "medium",
+  ruleWorkloadBalancing: "medium",
   ruleSegmentBalancing: "medium",
-  rulePreventAssistantTwice: "strict",
   ruleInfirmedThrottling: "medium",
   ruleSameSexDemogenders: "strict",
   msTreasuresRatio: 0,

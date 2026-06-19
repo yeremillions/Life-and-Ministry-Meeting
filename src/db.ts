@@ -170,6 +170,22 @@ export async function ensureSettings(): Promise<AppSettings> {
       },
     };
 
+    // Migration from old settings fields
+    const oldExisting = existing as any;
+    if (existing.ruleRoleAlternation === undefined) {
+      updated.ruleRoleAlternation = oldExisting.ruleMinistryAlternation ?? oldExisting.rulePreventAssistantTwice ?? DEFAULT_SETTINGS.ruleRoleAlternation;
+    }
+    if (existing.ruleWorkloadBalancing === undefined) {
+      updated.ruleWorkloadBalancing = oldExisting.ruleMainWorkload ?? oldExisting.ruleAssistantWorkload ?? DEFAULT_SETTINGS.ruleWorkloadBalancing;
+    }
+
+    // Clean up old fields
+    delete (updated as any).ruleMinistryAlternation;
+    delete (updated as any).rulePreventAssistantTwice;
+    delete (updated as any).ruleMainWorkload;
+    delete (updated as any).ruleAssistantWorkload;
+    delete (updated as any).preventMinorAssistantToAdult;
+
     // Safely merge assignmentRules
     const existingRules = existing.assignmentRules && typeof existing.assignmentRules === "object"
       ? existing.assignmentRules

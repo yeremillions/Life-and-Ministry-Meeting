@@ -305,10 +305,10 @@ export function getRuleViolations(
     }
   }
 
-  // Assistant twice in a row check
-  const asstTwiceLevel = settings?.rulePreventAssistantTwice ?? "strict";
-  if (asstTwiceLevel !== "off" && role === "assistant" && lastAssignmentRole === "assistant") {
-    if (asstTwiceLevel === "strict") {
+  // Assistant twice in a row check (part of Role Alternation)
+  const roleAlternationLevel = settings?.ruleRoleAlternation ?? "strong";
+  if (roleAlternationLevel !== "off" && role === "assistant" && lastAssignmentRole === "assistant") {
+    if (roleAlternationLevel === "strict") {
       violations.push(`Last assignment was as an assistant (should be considered for a main role instead)`);
     } else {
       violations.push(`Warning: Last assignment was as an assistant`);

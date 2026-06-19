@@ -336,13 +336,11 @@ export function scoreCandidate(
     | "shareMinistryBrothers"
     | "ruleMinGap"
     | "ruleChairmanGap"
-    | "ruleMinistryAlternation"
+    | "ruleRoleAlternation"
     | "ruleMinorAssistantToAdult"
     | "ruleAdultAssistantForMinor"
-    | "ruleMainWorkload"
-    | "ruleAssistantWorkload"
+    | "ruleWorkloadBalancing"
     | "ruleSegmentBalancing"
-    | "rulePreventAssistantTwice"
     | "ruleInfirmedThrottling"
     | "ruleSameSexDemogenders"
   >,
@@ -352,14 +350,14 @@ export function scoreCandidate(
   let score = 0;
 
   // Ministry segment role alternation:
-  const ministryAlternationLevel = opts.ruleMinistryAlternation ?? "strong";
-  if (ministryAlternationLevel !== "off" && part.segment === "ministry" && stats.lastMinistryRole !== undefined) {
+  const roleAlternationLevel = opts.ruleRoleAlternation ?? "strong";
+  if (roleAlternationLevel !== "off" && part.segment === "ministry" && stats.lastMinistryRole !== undefined) {
     const isRepeatedRole = (role === "main" && stats.lastMinistryRole === "main") ||
                            (role === "assistant" && stats.lastMinistryRole === "assistant");
     if (isRepeatedRole) {
-      const penalty = ministryAlternationLevel === "weak" ? 500 :
-                      ministryAlternationLevel === "medium" ? 5000 :
-                      ministryAlternationLevel === "strong" ? 20000 : 1000000;
+      const penalty = roleAlternationLevel === "weak" ? 500 :
+                      roleAlternationLevel === "medium" ? 5000 :
+                      roleAlternationLevel === "strong" ? 20000 : 1000000;
       score -= penalty;
     }
   }
@@ -450,13 +448,13 @@ export function scoreCandidate(
       }
 
       // Workload penalty: penalise based on recent main workload in the last 12 weeks (84 days).
-      const mainWorkloadLevel = opts.ruleMainWorkload ?? "medium";
-      if (mainWorkloadLevel !== "off") {
+      const workloadBalancingLevel = opts.ruleWorkloadBalancing ?? "medium";
+      if (workloadBalancingLevel !== "off") {
         const recentMainCount = stats.recentMainDates.filter(
           (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
         ).length;
-        const mainWMultiplier = mainWorkloadLevel === "weak" ? 2 :
-                                mainWorkloadLevel === "medium" ? 8 : 20;
+        const mainWMultiplier = workloadBalancingLevel === "weak" ? 2 :
+                                workloadBalancingLevel === "medium" ? 8 : 20;
         score -= recentMainCount * mainWMultiplier;
       }
 
@@ -482,12 +480,12 @@ export function scoreCandidate(
     }
   } else {
     // Assistant role — use assistant-only history.
-    const assistantWorkloadLevel = opts.ruleAssistantWorkload ?? "medium";
+    const workloadBalancingLevel = opts.ruleWorkloadBalancing ?? "medium";
     if (stats.lastWeekAssistant) {
       const gap = daysBetween(stats.lastWeekAssistant, weekOf);
-      if (assistantWorkloadLevel !== "off" && gap < 21) {
-        const gapMultiplier = assistantWorkloadLevel === "weak" ? 5 :
-                              assistantWorkloadLevel === "medium" ? 15 : 30;
+      if (workloadBalancingLevel !== "off" && gap < 21) {
+        const gapMultiplier = workloadBalancingLevel === "weak" ? 5 :
+                              workloadBalancingLevel === "medium" ? 15 : 30;
         score -= (21 - gap) * gapMultiplier;
       }
       const DECAY_DAYS = 120;
@@ -497,13 +495,13 @@ export function scoreCandidate(
     }
 
     // Workload penalty: penalise based on recent assistant workload in the last 12 weeks (84 days).
-    if (assistantWorkloadLevel !== "off") {
+    if (workloadBalancingLevel !== "off") {
       const recentAssistantDates = stats.recentAssistantDates ?? [];
       const recentAssistantCount = recentAssistantDates.filter(
         (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
       ).length;
-      const assistantWMultiplier = assistantWorkloadLevel === "weak" ? 2 :
-                                   assistantWorkloadLevel === "medium" ? 6 : 15;
+      const assistantWMultiplier = workloadBalancingLevel === "weak" ? 2 :
+                                   workloadBalancingLevel === "medium" ? 6 : 15;
       score -= recentAssistantCount * assistantWMultiplier;
     }
   }
@@ -755,13 +753,11 @@ export interface AutoAssignOptions {
   pairingAvoidance?: "strict" | "relaxed" | "off";
   ruleMinGap?: RuleEnforcementLevel;
   ruleChairmanGap?: RuleEnforcementLevel;
-  ruleMinistryAlternation?: RuleEnforcementLevel;
+  ruleRoleAlternation?: RuleEnforcementLevel;
   ruleMinorAssistantToAdult?: RuleEnforcementLevel;
   ruleAdultAssistantForMinor?: RuleEnforcementLevel;
-  ruleMainWorkload?: RuleEnforcementLevel;
-  ruleAssistantWorkload?: RuleEnforcementLevel;
+  ruleWorkloadBalancing?: RuleEnforcementLevel;
   ruleSegmentBalancing?: RuleEnforcementLevel;
-  rulePreventAssistantTwice?: RuleEnforcementLevel;
   ruleInfirmedThrottling?: RuleEnforcementLevel;
   ruleSameSexDemogenders?: RuleEnforcementLevel;
 }
@@ -1116,8 +1112,8 @@ function pickCandidate(args: PickArgs): Assignee | null {
     }
   }
 
-  // ── Hard constraint: prevent assistant twice in a row ──────────
-  if (role === "assistant" && (opts.rulePreventAssistantTwice ?? "strict") === "strict") {
+  // ── Hard constraint: prevent assistant twice in a row (part of Role Alternation) ──
+  if (role === "assistant" && (opts.ruleRoleAlternation ?? "strong") === "strict") {
     const filtered = eligiblePool.filter((a) => {
       const s = stats.get(a.id!);
       if (!s || !s.lastWeekAssistant) return true;
@@ -1130,7 +1126,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
   }
 
   // ── Hard constraint: ministry segment role alternation ─────────────
-  if ((role === "main" || role === "assistant") && (opts.ruleMinistryAlternation ?? "strong") === "strict") {
+  if ((role === "main" || role === "assistant") && (opts.ruleRoleAlternation ?? "strong") === "strict") {
     if (part.segment === "ministry") {
       const filtered = eligiblePool.filter((a) => {
         const s = stats.get(a.id!);
