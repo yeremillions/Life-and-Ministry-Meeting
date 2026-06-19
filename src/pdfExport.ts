@@ -338,7 +338,7 @@ function formatPartTitle(part: Assignment, num: number): string {
     case "Talk":
       return title ? `${num}. ${title}${m("10 min.")}` : `${num}. [Title]${m("10 min.")}`;
     case "Spiritual Gems":
-      return `${num}. Spiritual Gems${m("10 min.")}`;
+      return title ? `${num}. Spiritual Gems — ${title}${m("10 min.")}` : `${num}. Spiritual Gems${m("10 min.")}`;
     case "Bible Reading":
       return title
         ? `${num}. Bible Reading — ${title}${m("4 min.")}`
@@ -348,25 +348,27 @@ function formatPartTitle(part: Assignment, num: number): string {
         ? `${num}. Congregation Bible Study — ${title}${m("30 min.")}`
         : `${num}. Congregation Bible Study${m("30 min.")}`;
     case "Local Needs":
-      return `${num}. Local Needs${m("15 min.")}`;
+      return title ? `${num}. Local Needs — ${title}${m("15 min.")}` : `${num}. Local Needs${m("15 min.")}`;
     case "Governing Body Update":
-      return `${num}. Governing Body Update`;
+      return title ? `${num}. Governing Body Update — ${title}` : `${num}. Governing Body Update`;
     case "Video":
       return title ? `${num}. ${title}  (Video)` : `${num}. (Video)`;
     case "Living Part":
       return title ? `${num}. ${title}${m("15 min.")}` : `${num}. [Title]${m("15 min.")}`;
     case "Starting a Conversation":
-      return title ? `${num}. ${title}${m("3 min.")}` : `${num}. Starting a Conversation${m("3 min.")}`;
+      return title ? `${num}. Starting a Conversation — ${title}${m("3 min.")}` : `${num}. Starting a Conversation${m("3 min.")}`;
     case "Following Up":
-      return title ? `${num}. ${title}${m("4 min.")}` : `${num}. Following Up${m("4 min.")}`;
+      return title ? `${num}. Following Up — ${title}${m("4 min.")}` : `${num}. Following Up${m("4 min.")}`;
     case "Making Disciples":
-      return title ? `${num}. ${title}${m("5 min.")}` : `${num}. Making Disciples${m("5 min.")}`;
+      return title ? `${num}. Making Disciples — ${title}${m("5 min.")}` : `${num}. Making Disciples${m("5 min.")}`;
     case "Explaining Your Beliefs":
-      return title ? `${num}. ${title}${m("5 min.")}` : `${num}. Explaining Your Beliefs${m("5 min.")}`;
+      return title ? `${num}. Explaining Your Beliefs — ${title}${m("5 min.")}` : `${num}. Explaining Your Beliefs${m("5 min.")}`;
     case "Initial Call":
-      return title ? `${num}. ${title}${m("3 min.")}` : `${num}. Initial Call${m("3 min.")}`;
+      return title ? `${num}. Initial Call — ${title}${m("3 min.")}` : `${num}. Initial Call${m("3 min.")}`;
+    case "What Would You Say?":
+      return title ? `${num}. What Would You Say? — ${title}${m("3 min.")}` : `${num}. What Would You Say?${m("3 min.")}`;
     case "Talk (Ministry)":
-      return title ? `${num}. ${title}${m("5 min.")}` : `${num}. Talk${m("5 min.")}`;
+      return title ? `${num}. ${title}${m("5 min.")}` : `${num}. [Title]${m("5 min.")}`;
     default:
       return title ? `${num}. ${title}${part.minutes ? `  (${part.minutes} min.)` : ""}` : `${num}. [Title]${part.minutes ? `  (${part.minutes} min.)` : ""}`;
   }

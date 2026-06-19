@@ -681,7 +681,7 @@ export default function WeekEditor(props: WeekEditorProps) {
                                     style={{ backgroundColor: partColor }}
                                   />
                                   <span className="font-bold text-xs text-slate-800">
-                                    {part?.title || part?.partType}
+                                    {part?.title}
                                   </span>
                                   <span className="text-[10px] font-semibold text-slate-400 ml-1.5 uppercase tracking-wider">
                                     &middot; {opt.role}
@@ -1154,7 +1154,7 @@ function PartRow({
           a.uid !== assignment.uid &&
           (a.assigneeId === mainPerson.id || a.assistantId === mainPerson.id)
       )
-      .map((a) => a.title || a.partType);
+      .map((a) => a.title || "");
   }, [mainPerson, week.assignments, assignment.uid]);
 
   const assistantOtherParts = useMemo(() => {
@@ -1165,7 +1165,7 @@ function PartRow({
           a.uid !== assignment.uid &&
           (a.assigneeId === assistantPerson.id || a.assistantId === assistantPerson.id)
       )
-      .map((a) => a.title || a.partType);
+      .map((a) => a.title || "");
   }, [assistantPerson, week.assignments, assignment.uid]);
 
   return (
@@ -1717,7 +1717,7 @@ function AssigneePicker({
               ass.uid !== assignment.uid &&
               (ass.assigneeId === a.id || ass.assistantId === a.id)
           )
-          .map((ass) => ass.title || ass.partType);
+          .map((ass) => ass.title || "");
 
         if (otherParts.length > 0) {
           violations.push(`Already scheduled in this meeting for: ${otherParts.join(", ")}`);
