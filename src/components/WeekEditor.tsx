@@ -27,6 +27,7 @@ import {
   buildTreasuresSplit,
   buildLivingSplit,
   buildBibleReadingSplit,
+  buildPrayerSplit,
   scoreCandidate,
   getWeeksInCalendarMonth,
   getWeeksInWorkbookPeriod,
@@ -36,6 +37,7 @@ import {
   type TreasuresSplit,
   type LivingSplit,
   type BibleReadingSplit,
+  type PrayerSplit,
   type OptimizationSuggestion,
 } from "../scheduler";
 import type { AppSettings, AssignmentRule } from "../types";
@@ -78,7 +80,7 @@ export default function WeekEditor(props: WeekEditorProps) {
   }, [week.assignments]);
 
   // Compute stats, splits based on weeks BEFORE this one.
-  const { stats, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit } = useMemo(() => {
+  const { stats, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, prayerSplit } = useMemo(() => {
     const before = props.allWeeks.filter((w) => w.weekOf < week.weekOf);
     return {
       stats: buildStats(assignees, before),
@@ -86,6 +88,7 @@ export default function WeekEditor(props: WeekEditorProps) {
       treasuresSplit: buildTreasuresSplit(assignees, before),
       livingSplit: buildLivingSplit(assignees, before),
       bibleReadingSplit: buildBibleReadingSplit(assignees, before),
+      prayerSplit: buildPrayerSplit(assignees, before),
     };
   }, [props.allWeeks, week.weekOf, assignees]);
 
@@ -422,6 +425,7 @@ export default function WeekEditor(props: WeekEditorProps) {
             treasuresSplit={treasuresSplit}
             livingSplit={livingSplit}
             bibleReadingSplit={bibleReadingSplit}
+            prayerSplit={prayerSplit}
             settings={props.settings}
             allWeeks={props.allWeeks}
             partNumbers={partNumbers}
@@ -462,6 +466,7 @@ export default function WeekEditor(props: WeekEditorProps) {
               treasuresSplit={treasuresSplit}
               livingSplit={livingSplit}
               bibleReadingSplit={bibleReadingSplit}
+              prayerSplit={prayerSplit}
               settings={props.settings}
               allWeeks={props.allWeeks}
               partNumbers={partNumbers}
@@ -759,6 +764,7 @@ function SegmentCard({
   treasuresSplit,
   livingSplit,
   bibleReadingSplit,
+  prayerSplit,
   settings,
   allWeeks,
   partNumbers,
@@ -780,6 +786,7 @@ function SegmentCard({
   treasuresSplit: TreasuresSplit;
   livingSplit: LivingSplit;
   bibleReadingSplit: BibleReadingSplit;
+  prayerSplit: PrayerSplit;
   settings: AppSettings;
   allWeeks: Week[];
   partNumbers: Map<string, number>;
@@ -899,6 +906,7 @@ function SegmentCard({
               treasuresSplit={treasuresSplit}
               livingSplit={livingSplit}
               bibleReadingSplit={bibleReadingSplit}
+              prayerSplit={prayerSplit}
               settings={settings}
               allWeeks={allWeeks}
               partNumber={partNumbers.get(a.uid)}
@@ -1033,6 +1041,7 @@ function PartRow({
   treasuresSplit,
   livingSplit,
   bibleReadingSplit,
+  prayerSplit,
   settings,
   allWeeks,
   partNumber,
@@ -1050,6 +1059,7 @@ function PartRow({
   treasuresSplit: TreasuresSplit;
   livingSplit: LivingSplit;
   bibleReadingSplit: BibleReadingSplit;
+  prayerSplit: PrayerSplit;
   settings: AppSettings;
   allWeeks: Week[];
   partNumber?: number;
@@ -1274,6 +1284,7 @@ function PartRow({
               treasuresSplit={treasuresSplit}
               livingSplit={livingSplit}
               bibleReadingSplit={bibleReadingSplit}
+              prayerSplit={prayerSplit}
               settings={settings}
               assignment={assignment}
               role="main"
@@ -1348,6 +1359,7 @@ function PartRow({
                 treasuresSplit={treasuresSplit}
                 livingSplit={livingSplit}
                 bibleReadingSplit={bibleReadingSplit}
+                prayerSplit={prayerSplit}
                 settings={settings}
                 assignment={assignment}
                 role="assistant"
@@ -1489,6 +1501,7 @@ function AssigneePicker({
   treasuresSplit,
   livingSplit,
   bibleReadingSplit,
+  prayerSplit,
   settings,
   assignment,
   role,
@@ -1512,6 +1525,7 @@ function AssigneePicker({
   treasuresSplit: TreasuresSplit;
   livingSplit: LivingSplit;
   bibleReadingSplit: BibleReadingSplit;
+  prayerSplit: PrayerSplit;
   settings: AppSettings;
   assignment: Assignment;
   role: "main" | "assistant";
@@ -1602,10 +1616,16 @@ function AssigneePicker({
           ruleInfirmedThrottling: settings.ruleInfirmedThrottling,
           ruleSameSexDemogenders: settings.ruleSameSexDemogenders,
           ruleMainToAssistantConsecutive: settings.ruleMainToAssistantConsecutive,
+          qePrayerRatio: settings.qePrayerRatio ?? 20,
+          ePrayerRatio: settings.ePrayerRatio ?? 20,
+          qmsPrayerRatio: settings.qmsPrayerRatio ?? 20,
+          msPrayerRatio: settings.msPrayerRatio ?? 20,
+          rulePrayerRotation: settings.rulePrayerRotation,
         },
         mainIsMinor,
         partnerIsMinor,
-        partnerLastPartWasWithMinor
+        partnerLastPartWasWithMinor,
+        prayerSplit
       );
 
       const isCurrentPrayer = assignment.partType === "Opening Prayer" || assignment.partType === "Closing Prayer";
@@ -1830,7 +1850,7 @@ function AssigneePicker({
       item.a.name.toLowerCase().includes(q) ||
       (privilegeLabel(item.a) ?? "").toLowerCase().includes(q)
     );
-  }, [options, query, stats, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, settings, assignment, weekOf, role, allWeeks, mainIsMinor, mainPerson, assistantPerson, households]);
+  }, [options, query, stats, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, settings, assignment, weekOf, role, allWeeks, mainIsMinor, mainPerson, assistantPerson, households, prayerSplit]);
 
   function selectOption(id: number | undefined) {
     onChange(id);

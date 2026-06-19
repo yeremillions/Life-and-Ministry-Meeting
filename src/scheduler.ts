@@ -302,6 +302,54 @@ export function tallyLiving(person: Assignee, split: LivingSplit): void {
   else if (isMS) split.msCount += 1;
 }
 
+export interface PrayerSplit {
+  qeCount: number;
+  elderCount: number;
+  qmsCount: number;
+  msCount: number;
+  nonPrivilegedCount: number;
+}
+
+export function buildPrayerSplit(
+  assignees: Assignee[],
+  weeks: Week[]
+): PrayerSplit {
+  const split: PrayerSplit = { qeCount: 0, elderCount: 0, qmsCount: 0, msCount: 0, nonPrivilegedCount: 0 };
+  for (const w of weeks) {
+    if (!w || !Array.isArray(w.assignments)) continue;
+    for (const a of w.assignments) {
+      if (a.partType === "Opening Prayer" || a.partType === "Closing Prayer") {
+        if (a.assigneeId == null) continue;
+        const person = assignees.find((p) => p.id === a.assigneeId);
+        if (person) tallyPrayer(person, split);
+      }
+    }
+  }
+  return split;
+}
+
+export function tallyPrayer(person: Assignee, split: PrayerSplit): void {
+  const cat = getPrayerCategory(person);
+  if (cat === "QE") split.qeCount += 1;
+  else if (cat === "E") split.elderCount += 1;
+  else if (cat === "QMS") split.qmsCount += 1;
+  else if (cat === "MS") split.msCount += 1;
+  else split.nonPrivilegedCount += 1;
+}
+
+export function getPrayerCategory(person: Assignee): "QE" | "E" | "QMS" | "MS" | "Non-Privileged" {
+  const isQE = person.privileges?.includes("QE") ?? false;
+  const isE = !isQE && (person.privileges?.includes("E") ?? false);
+  const isQMS = !isQE && !isE && (person.privileges?.includes("QMS") ?? false);
+  const isMS = !isQE && !isE && !isQMS && (person.privileges?.includes("MS") ?? false);
+
+  if (isQE) return "QE";
+  if (isE) return "E";
+  if (isQMS) return "QMS";
+  if (isMS) return "MS";
+  return "Non-Privileged";
+}
+
 export interface BibleReadingSplit {
   privilegedCount: number;
   nonPrivilegedCount: number;
@@ -395,12 +443,19 @@ export function scoreCandidate(
     | "ruleInfirmedThrottling"
     | "ruleSameSexDemogenders"
     | "ruleMainToAssistantConsecutive"
+    | "qePrayerRatio"
+    | "ePrayerRatio"
+    | "qmsPrayerRatio"
+    | "msPrayerRatio"
+    | "rulePrayerRotation"
   >,
   isMinorMain?: boolean,
   partnerIsMinor?: boolean,
-  partnerLastPartWasWithMinor?: boolean
+  partnerLastPartWasWithMinor?: boolean,
+  prayerSplit?: PrayerSplit
 ): number {
   void talkSplit;
+  void prayerSplit;
   let score = 0;
 
   // Ministry segment role alternation:
@@ -471,6 +526,60 @@ export function scoreCandidate(
         (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
       ).length;
       score -= recentPrayerCount * 8;
+
+      // Quota-based scoring for prayers
+      if (prayerSplit) {
+        const candIsQE = a.privileges?.includes("QE") ?? false;
+        const candIsE = !candIsQE && (a.privileges?.includes("E") ?? false);
+        const candIsQMS = a.privileges?.includes("QMS") ?? false;
+        const candIsMS = !candIsQE && !candIsE && !candIsQMS && (a.privileges?.includes("MS") ?? false);
+
+        const targetQeShare = (opts.qePrayerRatio ?? 20) / 100;
+        const targetElderShare = (opts.ePrayerRatio ?? 20) / 100;
+        const targetQmsShare = (opts.qmsPrayerRatio ?? 20) / 100;
+        const targetMsShare = (opts.msPrayerRatio ?? 20) / 100;
+        const targetNonPrivilegedShare = Math.max(0, 1 - targetQeShare - targetElderShare - targetQmsShare - targetMsShare);
+
+        const total = prayerSplit.qeCount + prayerSplit.elderCount + prayerSplit.qmsCount + prayerSplit.msCount + prayerSplit.nonPrivilegedCount;
+        if (total === 0) {
+          if (candIsQE) {
+            score += (targetQeShare - 0.20) * 40;
+          } else if (candIsE) {
+            score += (targetElderShare - 0.20) * 40;
+          } else if (candIsQMS) {
+            score += (targetQmsShare - 0.20) * 40;
+          } else if (candIsMS) {
+            score += (targetMsShare - 0.20) * 40;
+          } else {
+            score += (targetNonPrivilegedShare - 0.20) * 40;
+          }
+        } else {
+          const currentQeShare = prayerSplit.qeCount / total;
+          const currentElderShare = prayerSplit.elderCount / total;
+          const currentQmsShare = prayerSplit.qmsCount / total;
+          const currentMsShare = prayerSplit.msCount / total;
+          const currentNonPrivilegedShare = prayerSplit.nonPrivilegedCount / total;
+
+          if (candIsQE) {
+            score += (targetQeShare - currentQeShare) * 50;
+          } else if (candIsE) {
+            score += (targetElderShare - currentElderShare) * 50;
+          } else if (candIsQMS) {
+            score += (targetQmsShare - currentQmsShare) * 50;
+          } else if (candIsMS) {
+            score += (targetMsShare - currentMsShare) * 50;
+          } else {
+            score += (targetNonPrivilegedShare - currentNonPrivilegedShare) * 50;
+          }
+        }
+
+        // Hard boundary constraints:
+        if (candIsQE && targetQeShare === 0) score -= 1000000;
+        if (candIsE && targetElderShare === 0) score -= 1000000;
+        if (candIsQMS && targetQmsShare === 0) score -= 1000000;
+        if (candIsMS && targetMsShare === 0) score -= 1000000;
+        if (!candIsQE && !candIsE && !candIsQMS && !candIsMS && targetNonPrivilegedShare === 0) score -= 1000000;
+      }
     } else {
       if (stats.lastWeekMain) {
         const gap = daysBetween(stats.lastWeekMain, weekOf);
@@ -839,6 +948,11 @@ export interface AutoAssignOptions {
   ruleInfirmedThrottling?: RuleEnforcementLevel;
   ruleSameSexDemogenders?: RuleEnforcementLevel;
   ruleMainToAssistantConsecutive?: RuleEnforcementLevel;
+  qePrayerRatio?: number;
+  ePrayerRatio?: number;
+  qmsPrayerRatio?: number;
+  msPrayerRatio?: number;
+  rulePrayerRotation?: RuleEnforcementLevel;
 }
 
 /**
@@ -896,6 +1010,7 @@ export function autoAssignWeek(
   const treasuresSplit: TreasuresSplit = buildTreasuresSplit(assignees, workingWeeks);
   const livingSplit: LivingSplit = buildLivingSplit(assignees, workingWeeks);
   const bibleReadingSplit: BibleReadingSplit = buildBibleReadingSplit(assignees, workingWeeks);
+  const prayerSplit: PrayerSplit = buildPrayerSplit(assignees, workingWeeks);
 
   // Order parts so Treasures is filled before Ministry (which depends on
   // the privileged-share counter) — the array is already in this order.
@@ -936,6 +1051,7 @@ export function autoAssignWeek(
         opts,
         assignments,
         historicalWeeks,
+        prayerSplit,
       });
       if (candidate) {
         assignment.assigneeId = candidate.id!;
@@ -959,6 +1075,9 @@ export function autoAssignWeek(
         if (assignment.partType === "Bible Reading") {
           tallyBibleReading(candidate, bibleReadingSplit);
         }
+        if (assignment.partType === "Opening Prayer" || assignment.partType === "Closing Prayer") {
+          tallyPrayer(candidate, prayerSplit);
+        }
       }
     } else {
       if (assignment.partType === "Talk") {
@@ -976,6 +1095,10 @@ export function autoAssignWeek(
       if (assignment.partType === "Bible Reading") {
         const person = assignees.find((p) => p.id === assignment.assigneeId);
         if (person) tallyBibleReading(person, bibleReadingSplit);
+      }
+      if (assignment.partType === "Opening Prayer" || assignment.partType === "Closing Prayer") {
+        const person = assignees.find((p) => p.id === assignment.assigneeId);
+        if (person) tallyPrayer(person, prayerSplit);
       }
     }
 
@@ -1034,6 +1157,7 @@ interface PickArgs {
   opts: AutoAssignOptions;
   assignments?: Assignment[];
   historicalWeeks: Week[];
+  prayerSplit?: PrayerSplit;
 }
 
 function pickCandidate(args: PickArgs): Assignee | null {
@@ -1054,6 +1178,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
     opts,
     assignments,
     historicalWeeks,
+    prayerSplit,
   } = args;
 
   const minGapDays = (opts.minGapWeeks ?? 2) * 7;
@@ -1227,6 +1352,33 @@ function pickCandidate(args: PickArgs): Assignee | null {
     }
   }
 
+  // ── Hard constraint: strict category rotation for prayers ───────────
+  if ((part.partType === "Opening Prayer" || part.partType === "Closing Prayer") && (opts.rulePrayerRotation ?? "medium") === "strict") {
+    const finalFilteredPool: Assignee[] = [];
+    const categories: ("QE" | "E" | "QMS" | "MS" | "Non-Privileged")[] = ["QE", "E", "QMS", "MS", "Non-Privileged"];
+    
+    for (const cat of categories) {
+      const catPool = eligiblePool.filter((a) => getPrayerCategory(a) === cat);
+      if (catPool.length === 0) continue;
+      
+      const oldestDateStr = catPool.reduce((min, a) => {
+        const s = stats.get(a.id!);
+        const date = s?.lastWeekPrayer || "1970-01-01";
+        return date < min ? date : min;
+      }, "9999-99-99");
+      
+      const catFiltered = catPool.filter((a) => {
+        const s = stats.get(a.id!);
+        const date = s?.lastWeekPrayer || "1970-01-01";
+        return date === oldestDateStr;
+      });
+      finalFilteredPool.push(...catFiltered);
+    }
+    if (finalFilteredPool.length > 0) {
+      eligiblePool = finalFilteredPool;
+    }
+  }
+
   if (eligiblePool.length === 0) return null;
 
   return rankAndPick(
@@ -1244,7 +1396,8 @@ function pickCandidate(args: PickArgs): Assignee | null {
     isMinorMain,
     assignments,
     historicalWeeks,
-    assignees
+    assignees,
+    prayerSplit
   );
 }
 
@@ -1263,7 +1416,8 @@ function rankAndPick(
   isMinorMain?: boolean,
   assignments?: Assignment[],
   historicalWeeks?: Week[],
-  allAssignees?: Assignee[]
+  allAssignees?: Assignee[],
+  prayerSplit?: PrayerSplit
 ): Assignee {
   const empty: AssigneeStats = {
     totalMain: 0,
@@ -1296,8 +1450,39 @@ function rankAndPick(
       opts,
       isMinorMain,
       partnerIsMinor,
-      partnerLastPartWasWithMinor
+      partnerLastPartWasWithMinor,
+      prayerSplit
     );
+
+    // Apply prayer category rotation penalty
+    const prayerRotationLevel = opts.rulePrayerRotation ?? "medium";
+    if ((part.partType === "Opening Prayer" || part.partType === "Closing Prayer") && prayerRotationLevel !== "off") {
+      const cat = getPrayerCategory(candidate);
+      const candidateDate = s.lastWeekPrayer || "1970-01-01";
+      const compareList = allAssignees || pool;
+      const activeInCat = compareList.filter((other) =>
+        other.active &&
+        !other.archived &&
+        getPrayerCategory(other) === cat &&
+        other.id !== candidate.id
+      );
+
+      let olderCount = 0;
+      for (const other of activeInCat) {
+        const otherStats = stats.get(other.id!);
+        const otherDate = otherStats?.lastWeekPrayer || "1970-01-01";
+        if (otherDate < candidateDate) {
+          olderCount++;
+        }
+      }
+
+      if (olderCount > 0) {
+        const penalty = prayerRotationLevel === "weak" ? 100 :
+                        prayerRotationLevel === "medium" ? 1000 :
+                        prayerRotationLevel === "strong" ? 10000 : 0;
+        score -= olderCount * penalty;
+      }
+    }
 
     // Apply household different assignments penalty
     if (assignments && opts.households && candidate.id != null) {
@@ -1411,6 +1596,7 @@ export function analyzeWeekOptimization(
   const treasuresSplit = buildTreasuresSplit(assignees, workingWeeks);
   const livingSplit = buildLivingSplit(assignees, workingWeeks);
   const bibleReadingSplit = buildBibleReadingSplit(assignees, workingWeeks);
+  const prayerSplit = buildPrayerSplit(assignees, workingWeeks);
   const stats = buildStats(assignees, workingWeeks);
 
   const skipped = week.skippedOptimizations ?? [];
@@ -1457,7 +1643,8 @@ export function analyzeWeekOptimization(
         const { partnerIsMinor, partnerLastPartWasWithMinor } = getPartnerInfo(a, "main", assignees, stats);
         const currentScore = scoreCandidate(
           currentPerson, a, week.weekOf, s, seed, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "main", opts,
-          undefined, partnerIsMinor, partnerLastPartWasWithMinor
+          undefined, partnerIsMinor, partnerLastPartWasWithMinor,
+          prayerSplit
         );
  
         const best = pickCandidate({
@@ -1465,6 +1652,7 @@ export function analyzeWeekOptimization(
           ministryTotal, ministryCounts, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, opts,
           assignments: week.assignments,
           historicalWeeks,
+          prayerSplit,
         });
  
         if (best && best.id !== currentPerson.id) {
@@ -1476,7 +1664,8 @@ export function analyzeWeekOptimization(
           };
           const bestScore = scoreCandidate(
             best, a, week.weekOf, bestStats, seed, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "main", opts,
-            undefined, partnerIsMinor, partnerLastPartWasWithMinor
+            undefined, partnerIsMinor, partnerLastPartWasWithMinor,
+            prayerSplit
           );
  
           const threshold = opts.optimizationThresholdMain ?? 50;
@@ -1509,7 +1698,8 @@ export function analyzeWeekOptimization(
         const { partnerIsMinor, partnerLastPartWasWithMinor } = getPartnerInfo(a, "assistant", assignees, stats);
         const currentScore = scoreCandidate(
           currentAssistant, a, week.weekOf, s, seed + 1, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "assistant", opts, isMinorMain,
-          partnerIsMinor, partnerLastPartWasWithMinor
+          partnerIsMinor, partnerLastPartWasWithMinor,
+          prayerSplit
         );
  
         const bestAss = pickCandidate({
@@ -1517,6 +1707,7 @@ export function analyzeWeekOptimization(
           ministryTotal, ministryCounts, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, opts, isMinorMain,
           assignments: week.assignments,
           historicalWeeks,
+          prayerSplit,
         });
  
         if (bestAss && bestAss.id !== currentAssistant.id) {
@@ -1528,7 +1719,8 @@ export function analyzeWeekOptimization(
           };
           const bestScore = scoreCandidate(
             bestAss, a, week.weekOf, bestAssStats, seed + 1, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "assistant", opts, isMinorMain,
-            partnerIsMinor, partnerLastPartWasWithMinor
+            partnerIsMinor, partnerLastPartWasWithMinor,
+            prayerSplit
           );
  
           const threshold = opts.optimizationThresholdAssistant ?? 40;

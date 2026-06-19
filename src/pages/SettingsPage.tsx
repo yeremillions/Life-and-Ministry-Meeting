@@ -61,6 +61,10 @@ function sanitizeSettings(raw: any): AppSettings {
   base.qeLivingRatio = typeof raw?.qeLivingRatio === "number" ? raw.qeLivingRatio : DEFAULT_SETTINGS.qeLivingRatio;
   base.eLivingRatio = typeof raw?.eLivingRatio === "number" ? raw.eLivingRatio : DEFAULT_SETTINGS.eLivingRatio;
   base.qmsLivingRatio = typeof raw?.qmsLivingRatio === "number" ? raw.qmsLivingRatio : DEFAULT_SETTINGS.qmsLivingRatio;
+  base.qePrayerRatio = typeof raw?.qePrayerRatio === "number" ? raw.qePrayerRatio : DEFAULT_SETTINGS.qePrayerRatio;
+  base.ePrayerRatio = typeof raw?.ePrayerRatio === "number" ? raw.ePrayerRatio : DEFAULT_SETTINGS.ePrayerRatio;
+  base.qmsPrayerRatio = typeof raw?.qmsPrayerRatio === "number" ? raw.qmsPrayerRatio : DEFAULT_SETTINGS.qmsPrayerRatio;
+  base.msPrayerRatio = typeof raw?.msPrayerRatio === "number" ? raw.msPrayerRatio : DEFAULT_SETTINGS.msPrayerRatio;
   base.privilegedBibleReadingRatio = typeof raw?.privilegedBibleReadingRatio === "number" ? raw.privilegedBibleReadingRatio : DEFAULT_SETTINGS.privilegedBibleReadingRatio;
   base.pairingAvoidance = ["strict", "relaxed", "off"].includes(raw?.pairingAvoidance) ? raw.pairingAvoidance : "strict";
   
@@ -75,6 +79,7 @@ function sanitizeSettings(raw: any): AppSettings {
   base.ruleInfirmedThrottling = ruleLevels.includes(raw?.ruleInfirmedThrottling) ? raw.ruleInfirmedThrottling : DEFAULT_SETTINGS.ruleInfirmedThrottling;
   base.ruleSameSexDemogenders = ruleLevels.includes(raw?.ruleSameSexDemogenders) ? raw.ruleSameSexDemogenders : DEFAULT_SETTINGS.ruleSameSexDemogenders;
   base.ruleMainToAssistantConsecutive = ruleLevels.includes(raw?.ruleMainToAssistantConsecutive) ? raw.ruleMainToAssistantConsecutive : DEFAULT_SETTINGS.ruleMainToAssistantConsecutive;
+  base.rulePrayerRotation = ruleLevels.includes(raw?.rulePrayerRotation) ? raw.rulePrayerRotation : DEFAULT_SETTINGS.rulePrayerRotation;
   
   base.customPartTypes = raw?.customPartTypes && typeof raw.customPartTypes === "object"
     ? {
@@ -1060,6 +1065,13 @@ export default function SettingsPage({
               )}
 
               {renderRuleCustomizerRow(
+                "Prayer Category Rotation",
+                "Enforces a strict round-robin rotation for Opening/Closing Prayers within each privilege category, shifting turns to next week if a conflict arises.",
+                "rulePrayerRotation",
+                false
+              )}
+
+              {renderRuleCustomizerRow(
                 "Meeting Segment Diversity",
                 "Reduces repetition by penalizing scheduling a publisher in the same meeting segment too close together.",
                 "ruleSegmentBalancing",
@@ -1432,6 +1444,151 @@ export default function SettingsPage({
                   <span>Calculated Ministerial Servants (MS) Share</span>
                   <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 min-w-[3rem] text-center font-mono">
                     {Math.max(0, 100 - (draft.qeLivingRatio ?? 0) - (draft.eLivingRatio ?? 0) - (draft.qmsLivingRatio ?? 0))}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 border-t border-slate-100 pt-4">
+              <h4 className="text-sm font-semibold text-slate-700">Prayers Assignments Balance</h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Control the percentage split of Opening and Closing Prayers among Qualified Elders, Elders, Qualified Ministerial Servants, and Ministerial Servants. The remaining portion is automatically allocated to Non-Privileged Baptised Brothers. Default is 20% each.
+              </p>
+
+              <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                {/* QE Slider */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-slate-600">Qualified Elders (QE) Share</span>
+                    <span className="text-xs font-semibold text-slate-700 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-200 min-w-[3rem] text-center font-mono">
+                      {draft.qePrayerRatio ?? 0}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    value={draft.qePrayerRatio ?? 0}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const remaining = 100 - val;
+                      const clampedE = Math.min(draft.ePrayerRatio ?? 20, remaining);
+                      const clampedQms = Math.min(draft.qmsPrayerRatio ?? 20, remaining - clampedE);
+                      const clampedMs = Math.min(draft.msPrayerRatio ?? 20, remaining - clampedE - clampedQms);
+                      setDraft({
+                        ...draft,
+                        qePrayerRatio: val,
+                        ePrayerRatio: clampedE,
+                        qmsPrayerRatio: clampedQms,
+                        msPrayerRatio: clampedMs,
+                      });
+                    }}
+                  />
+                </div>
+
+                {/* E Slider */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-slate-600">Elders (E) Share</span>
+                    <span className="text-xs font-semibold text-slate-700 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-200 min-w-[3rem] text-center font-mono">
+                      {draft.ePrayerRatio ?? 0}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    value={draft.ePrayerRatio ?? 0}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const remaining = 100 - val;
+                      const clampedQe = Math.min(draft.qePrayerRatio ?? 20, remaining);
+                      const clampedQms = Math.min(draft.qmsPrayerRatio ?? 20, remaining - clampedQe);
+                      const clampedMs = Math.min(draft.msPrayerRatio ?? 20, remaining - clampedQe - clampedQms);
+                      setDraft({
+                        ...draft,
+                        ePrayerRatio: val,
+                        qePrayerRatio: clampedQe,
+                        qmsPrayerRatio: clampedQms,
+                        msPrayerRatio: clampedMs,
+                      });
+                    }}
+                  />
+                </div>
+
+                {/* QMS Slider */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-slate-600">Qualified MS (QMS) Share</span>
+                    <span className="text-xs font-semibold text-slate-700 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-200 min-w-[3rem] text-center font-mono">
+                      {draft.qmsPrayerRatio ?? 0}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    value={draft.qmsPrayerRatio ?? 0}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const remaining = 100 - val;
+                      const clampedQe = Math.min(draft.qePrayerRatio ?? 20, remaining);
+                      const clampedE = Math.min(draft.ePrayerRatio ?? 20, remaining - clampedQe);
+                      const clampedMs = Math.min(draft.msPrayerRatio ?? 20, remaining - clampedQe - clampedE);
+                      setDraft({
+                        ...draft,
+                        qmsPrayerRatio: val,
+                        qePrayerRatio: clampedQe,
+                        ePrayerRatio: clampedE,
+                        msPrayerRatio: clampedMs,
+                      });
+                    }}
+                  />
+                </div>
+
+                {/* MS Slider */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs font-medium text-slate-600">Ministerial Servants (MS) Share</span>
+                    <span className="text-xs font-semibold text-slate-700 bg-white px-2 py-0.5 rounded shadow-sm border border-slate-200 min-w-[3rem] text-center font-mono">
+                      {draft.msPrayerRatio ?? 0}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    value={draft.msPrayerRatio ?? 0}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      const remaining = 100 - val;
+                      const clampedQe = Math.min(draft.qePrayerRatio ?? 20, remaining);
+                      const clampedE = Math.min(draft.ePrayerRatio ?? 20, remaining - clampedQe);
+                      const clampedQms = Math.min(draft.qmsPrayerRatio ?? 20, remaining - clampedQe - clampedE);
+                      setDraft({
+                        ...draft,
+                        msPrayerRatio: val,
+                        qePrayerRatio: clampedQe,
+                        ePrayerRatio: clampedE,
+                        qmsPrayerRatio: clampedQms,
+                      });
+                    }}
+                  />
+                </div>
+
+                {/* Non-Privileged Read-only Share */}
+                <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-xs font-medium text-slate-600">
+                  <span>Calculated Non-Privileged Baptised Brothers Share</span>
+                  <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 min-w-[3rem] text-center font-mono">
+                    {Math.max(0, 100 - (draft.qePrayerRatio ?? 0) - (draft.ePrayerRatio ?? 0) - (draft.qmsPrayerRatio ?? 0) - (draft.msPrayerRatio ?? 0))}%
                   </span>
                 </div>
               </div>

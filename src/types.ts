@@ -149,6 +149,7 @@ export interface AppSettings {
   ruleInfirmedThrottling?: RuleEnforcementLevel;
   ruleSameSexDemogenders?: RuleEnforcementLevel;
   ruleMainToAssistantConsecutive?: RuleEnforcementLevel;
+  rulePrayerRotation?: RuleEnforcementLevel;
 
   // ── Scheduler fairness knobs ──────────────────────────────────────────
 
@@ -217,6 +218,10 @@ export interface AppSettings {
    * Default is 25%.
    */
   qmsLivingRatio: number;
+  qePrayerRatio: number;
+  ePrayerRatio: number;
+  qmsPrayerRatio: number;
+  msPrayerRatio: number;
   /** The weekday that the midweek meeting is held. Defaults to "Thursday". */
   midweekMeetingDay?: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
   /** How availability ranges are tracked. "unavailable" means away dates, "available" means in-town dates. */
@@ -380,12 +385,17 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ruleInfirmedThrottling: "medium",
   ruleSameSexDemogenders: "strict",
   ruleMainToAssistantConsecutive: "medium",
+  rulePrayerRotation: "medium",
   msTreasuresRatio: 0,
   qmsTreasuresRatio: 0,
   privilegedBibleReadingRatio: 10,
   qeLivingRatio: 25,
   eLivingRatio: 25,
   qmsLivingRatio: 25,
+  qePrayerRatio: 20,
+  ePrayerRatio: 20,
+  qmsPrayerRatio: 20,
+  msPrayerRatio: 20,
   midweekMeetingDay: "Thursday",
   availabilityMode: "unavailable",
   ignoredConflicts: [],
