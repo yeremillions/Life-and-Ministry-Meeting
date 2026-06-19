@@ -74,6 +74,7 @@ function sanitizeSettings(raw: any): AppSettings {
   base.ruleSegmentBalancing = ruleLevels.includes(raw?.ruleSegmentBalancing) ? raw.ruleSegmentBalancing : DEFAULT_SETTINGS.ruleSegmentBalancing;
   base.ruleInfirmedThrottling = ruleLevels.includes(raw?.ruleInfirmedThrottling) ? raw.ruleInfirmedThrottling : DEFAULT_SETTINGS.ruleInfirmedThrottling;
   base.ruleSameSexDemogenders = ruleLevels.includes(raw?.ruleSameSexDemogenders) ? raw.ruleSameSexDemogenders : DEFAULT_SETTINGS.ruleSameSexDemogenders;
+  base.ruleMainToAssistantConsecutive = ruleLevels.includes(raw?.ruleMainToAssistantConsecutive) ? raw.ruleMainToAssistantConsecutive : DEFAULT_SETTINGS.ruleMainToAssistantConsecutive;
   
   base.customPartTypes = raw?.customPartTypes && typeof raw.customPartTypes === "object"
     ? {
@@ -1048,6 +1049,13 @@ export default function SettingsPage({
                 "Workload & Frequency Balancing",
                 "Distributes assignments evenly across the congregation by penalizing publishers who recently served in main or assistant roles.",
                 "ruleWorkloadBalancing",
+                false
+              )}
+
+              {renderRuleCustomizerRow(
+                "Consecutive Main to Assistant Restriction",
+                "Prevents assigning a publisher as an assistant if they gave a main part the previous week (unless as a fallback when no one else is available).",
+                "ruleMainToAssistantConsecutive",
                 false
               )}
 

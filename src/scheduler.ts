@@ -394,6 +394,7 @@ export function scoreCandidate(
     | "ruleSegmentBalancing"
     | "ruleInfirmedThrottling"
     | "ruleSameSexDemogenders"
+    | "ruleMainToAssistantConsecutive"
   >,
   isMinorMain?: boolean,
   partnerIsMinor?: boolean,
@@ -754,6 +755,18 @@ export function scoreCandidate(
     score -= penalty;
   }
 
+  // Penalty for main part last week followed by assistant part this week
+  const consecutiveMainAsstLevel = opts.ruleMainToAssistantConsecutive ?? "medium";
+  if (role === "assistant" && consecutiveMainAsstLevel !== "off" && stats.lastWeekMain) {
+    const gap = daysBetween(stats.lastWeekMain, weekOf);
+    if (gap < 14) {
+      const penalty = consecutiveMainAsstLevel === "weak" ? 100 :
+                      consecutiveMainAsstLevel === "medium" ? 1000 :
+                      consecutiveMainAsstLevel === "strong" ? 10000 : 200000;
+      score -= penalty;
+    }
+  }
+
   // Prefer adult partner if candidate's last part was with a minor
   // Prefer adult candidate if partner's last part was with a minor
   if (partnerIsMinor !== undefined) {
@@ -825,6 +838,7 @@ export interface AutoAssignOptions {
   ruleSegmentBalancing?: RuleEnforcementLevel;
   ruleInfirmedThrottling?: RuleEnforcementLevel;
   ruleSameSexDemogenders?: RuleEnforcementLevel;
+  ruleMainToAssistantConsecutive?: RuleEnforcementLevel;
 }
 
 /**
@@ -1175,6 +1189,17 @@ function pickCandidate(args: PickArgs): Assignee | null {
     if (freshCandidates.length > 0) {
       eligiblePool = freshCandidates;
     }
+  }
+
+  // ── Hard constraint: prevent assistant role if they had a recent main part last week ──
+  if (role === "assistant" && (opts.ruleMainToAssistantConsecutive ?? "medium") === "strict") {
+    const filtered = eligiblePool.filter((a) => {
+      const s = stats.get(a.id!);
+      if (!s || !s.lastWeekMain) return true;
+      const gap = daysBetween(s.lastWeekMain, weekOf);
+      return gap >= 14;
+    });
+    if (filtered.length > 0) eligiblePool = filtered;
   }
 
   // ── Hard constraint: prevent assistant twice in a row (part of Role Alternation) ──

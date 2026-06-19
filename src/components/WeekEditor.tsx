@@ -1601,6 +1601,7 @@ function AssigneePicker({
           ruleSegmentBalancing: settings.ruleSegmentBalancing,
           ruleInfirmedThrottling: settings.ruleInfirmedThrottling,
           ruleSameSexDemogenders: settings.ruleSameSexDemogenders,
+          ruleMainToAssistantConsecutive: settings.ruleMainToAssistantConsecutive,
         },
         mainIsMinor,
         partnerIsMinor,
