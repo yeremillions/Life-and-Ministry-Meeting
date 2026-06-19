@@ -1168,6 +1168,14 @@ function PartRow({
       .map((a) => a.title || "");
   }, [assistantPerson, week.assignments, assignment.uid]);
 
+  function handleSwap() {
+    onUpdate({
+      ...assignment,
+      assigneeId: assignment.assistantId,
+      assistantId: assignment.assigneeId,
+    });
+  }
+
   return (
     <li
       draggable
@@ -1245,7 +1253,7 @@ function PartRow({
         </div>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-3 mt-3">
+      <div className={`grid ${showAssistant ? "sm:grid-cols-[1fr_auto_1fr]" : "sm:grid-cols-2"} items-end gap-3 mt-3`}>
         {assignment.partType === "Video" ? (
           <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded px-3 py-2 col-span-2 flex items-center gap-1.5">
             <span>📹</span>
@@ -1275,6 +1283,20 @@ function PartRow({
               households={households}
             />
             {showAssistant && (
+              <div className="flex items-center justify-center pb-2.5">
+                <button
+                  type="button"
+                  onClick={handleSwap}
+                  className="w-9 h-9 rounded-full border border-slate-200 bg-slate-50 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center transition-colors shadow-xs active:scale-95 cursor-pointer"
+                  title="Swap main and assistant roles"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  </svg>
+                </button>
+              </div>
+            )}
+            {showAssistant && (
               <AssigneePicker
                 label={
                   assignment.partType === "Congregation Bible Study"
@@ -1291,7 +1313,7 @@ function PartRow({
                     // household members (family pairing).
                     const sameGender = eligibleAssistant.filter(
                       (a) =>
-                        !mainPerson ||
+                         !mainPerson ||
                         a.gender === mainPerson.gender ||
                         mainPerson.gender == null
                     );
@@ -1537,7 +1559,13 @@ function AssigneePicker({
         recentMainDates: [],
         recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
         recentPrayerDates: [],
+        lastPartWasWithMinor: false,
       };
+      const partner = role === "main" ? assistantPerson : mainPerson;
+      const partnerIsMinor = partner ? !!partner.isMinor : undefined;
+      const partnerStats = partner ? stats.get(partner.id!) : undefined;
+      const partnerLastPartWasWithMinor = partnerStats ? partnerStats.lastPartWasWithMinor : undefined;
+
       const score = scoreCandidate(
         a,
         assignment,
@@ -1572,7 +1600,10 @@ function AssigneePicker({
           ruleSegmentBalancing: settings.ruleSegmentBalancing,
           ruleInfirmedThrottling: settings.ruleInfirmedThrottling,
           ruleSameSexDemogenders: settings.ruleSameSexDemogenders,
-        }
+        },
+        mainIsMinor,
+        partnerIsMinor,
+        partnerLastPartWasWithMinor
       );
 
       const isCurrentPrayer = assignment.partType === "Opening Prayer" || assignment.partType === "Closing Prayer";

@@ -44,6 +44,7 @@ export interface AssigneeStats {
   lastWeekByPartTypeMain?: Record<string, string>;
   lastWeekByPartTypeAssistant?: Record<string, string>;
   lastMinistryRole?: "main" | "assistant";
+  lastPartWasWithMinor?: boolean;
 }
 
 /** Compute per-assignee assignment history from weeks. */
@@ -74,10 +75,18 @@ export function buildStats(
     a.weekOf.localeCompare(b.weekOf)
   );
 
+  const segmentOrder: Record<string, number> = { opening: 0, treasures: 1, ministry: 2, living: 3 };
+
   for (const w of sortedWeeks) {
     if (!w || !Array.isArray(w.assignments)) continue;
 
-    for (const ass of w.assignments) {
+    const sortedAssignments = [...w.assignments].sort((x, y) => {
+      const diff = (segmentOrder[x.segment] ?? 99) - (segmentOrder[y.segment] ?? 99);
+      if (diff !== 0) return diff;
+      return x.order - y.order;
+    });
+
+    for (const ass of sortedAssignments) {
       if (!ass) continue;
       // Main assignee — counts toward main history only.
       if (ass.assigneeId != null) {
@@ -134,6 +143,31 @@ export function buildStats(
         if (ass.assistantId != null) {
           const s = stats.get(ass.assistantId);
           if (s) s.lastMinistryRole = "assistant";
+        }
+      }
+
+      // Track if the assignee's partner in this part was a minor.
+      const hasPartner = ass.assigneeId != null && ass.assistantId != null;
+      if (ass.assigneeId != null) {
+        const s = stats.get(ass.assigneeId);
+        if (s) {
+          if (hasPartner) {
+            const assistantAssignee = assignees.find((p) => p.id === ass.assistantId);
+            s.lastPartWasWithMinor = !!assistantAssignee?.isMinor;
+          } else {
+            s.lastPartWasWithMinor = false;
+          }
+        }
+      }
+      if (ass.assistantId != null) {
+        const s = stats.get(ass.assistantId);
+        if (s) {
+          if (hasPartner) {
+            const mainAssignee = assignees.find((p) => p.id === ass.assigneeId);
+            s.lastPartWasWithMinor = !!mainAssignee?.isMinor;
+          } else {
+            s.lastPartWasWithMinor = false;
+          }
         }
       }
     }
@@ -308,6 +342,23 @@ export function tallyBibleReading(person: Assignee, split: BibleReadingSplit): v
  * The scoring uses configurable knobs from AutoAssignOptions to give
  * administrators granular control over fairness behavior.
  */
+export function getPartnerInfo(
+  part: Assignment,
+  role: "main" | "assistant",
+  assignees: Assignee[],
+  stats: Map<number, AssigneeStats>
+): { partnerIsMinor?: boolean; partnerLastPartWasWithMinor?: boolean } {
+  const partnerId = role === "main" ? part.assistantId : part.assigneeId;
+  if (partnerId == null) return {};
+  const partner = assignees.find((x) => x.id === partnerId);
+  if (!partner) return {};
+  const partnerStats = stats.get(partnerId);
+  return {
+    partnerIsMinor: !!partner.isMinor,
+    partnerLastPartWasWithMinor: partnerStats?.lastPartWasWithMinor,
+  };
+}
+
 export function scoreCandidate(
   a: Assignee,
   part: Assignment,
@@ -344,7 +395,9 @@ export function scoreCandidate(
     | "ruleInfirmedThrottling"
     | "ruleSameSexDemogenders"
   >,
-  isMinorMain?: boolean
+  isMinorMain?: boolean,
+  partnerIsMinor?: boolean,
+  partnerLastPartWasWithMinor?: boolean
 ): number {
   void talkSplit;
   let score = 0;
@@ -699,6 +752,18 @@ export function scoreCandidate(
                     infirmedThrottlingLevel === "medium" ? 100 : 500;
     // Significant penalty to ensure they are chosen last.
     score -= penalty;
+  }
+
+  // Prefer adult partner if candidate's last part was with a minor
+  // Prefer adult candidate if partner's last part was with a minor
+  if (partnerIsMinor !== undefined) {
+    const isPartnerAdult = !partnerIsMinor;
+    if (stats.lastPartWasWithMinor && isPartnerAdult) {
+      score += 10000;
+    }
+    if (partnerLastPartWasWithMinor && !a.isMinor) {
+      score += 10000;
+    }
   }
 
   // Deterministic tiny jitter for reproducible tie-breaking per week.
@@ -1153,7 +1218,8 @@ function pickCandidate(args: PickArgs): Assignee | null {
     opts,
     isMinorMain,
     assignments,
-    historicalWeeks
+    historicalWeeks,
+    assignees
   );
 }
 
@@ -1171,7 +1237,8 @@ function rankAndPick(
   opts: AutoAssignOptions,
   isMinorMain?: boolean,
   assignments?: Assignment[],
-  historicalWeeks?: Week[]
+  historicalWeeks?: Week[],
+  allAssignees?: Assignee[]
 ): Assignee {
   const empty: AssigneeStats = {
     totalMain: 0,
@@ -1182,7 +1249,12 @@ function rankAndPick(
     recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
     recentPrayerDates: [],
     lastMinistryRole: undefined,
+    lastPartWasWithMinor: false,
   };
+
+  const { partnerIsMinor, partnerLastPartWasWithMinor } = allAssignees
+    ? getPartnerInfo(part, role, allAssignees, stats)
+    : {};
 
   const getScore = (candidate: Assignee, s: AssigneeStats) => {
     let score = scoreCandidate(
@@ -1197,7 +1269,9 @@ function rankAndPick(
       bibleReadingSplit,
       role,
       opts,
-      isMinorMain
+      isMinorMain,
+      partnerIsMinor,
+      partnerLastPartWasWithMinor
     );
 
     // Apply household different assignments penalty
@@ -1355,8 +1429,10 @@ export function analyzeWeekOptimization(
           recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
           recentPrayerDates: [],
         };
+        const { partnerIsMinor, partnerLastPartWasWithMinor } = getPartnerInfo(a, "main", assignees, stats);
         const currentScore = scoreCandidate(
-          currentPerson, a, week.weekOf, s, seed, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "main", opts
+          currentPerson, a, week.weekOf, s, seed, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "main", opts,
+          undefined, partnerIsMinor, partnerLastPartWasWithMinor
         );
  
         const best = pickCandidate({
@@ -1374,7 +1450,8 @@ export function analyzeWeekOptimization(
             recentPrayerDates: [],
           };
           const bestScore = scoreCandidate(
-            best, a, week.weekOf, bestStats, seed, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "main", opts
+            best, a, week.weekOf, bestStats, seed, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "main", opts,
+            undefined, partnerIsMinor, partnerLastPartWasWithMinor
           );
  
           const threshold = opts.optimizationThresholdMain ?? 50;
@@ -1404,8 +1481,10 @@ export function analyzeWeekOptimization(
           recentPrayerDates: [],
         };
  
+        const { partnerIsMinor, partnerLastPartWasWithMinor } = getPartnerInfo(a, "assistant", assignees, stats);
         const currentScore = scoreCandidate(
-          currentAssistant, a, week.weekOf, s, seed + 1, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "assistant", opts, isMinorMain
+          currentAssistant, a, week.weekOf, s, seed + 1, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "assistant", opts, isMinorMain,
+          partnerIsMinor, partnerLastPartWasWithMinor
         );
  
         const bestAss = pickCandidate({
@@ -1423,7 +1502,8 @@ export function analyzeWeekOptimization(
             recentPrayerDates: [],
           };
           const bestScore = scoreCandidate(
-            bestAss, a, week.weekOf, bestAssStats, seed + 1, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "assistant", opts, isMinorMain
+            bestAss, a, week.weekOf, bestAssStats, seed + 1, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "assistant", opts, isMinorMain,
+            partnerIsMinor, partnerLastPartWasWithMinor
           );
  
           const threshold = opts.optimizationThresholdAssistant ?? 40;
