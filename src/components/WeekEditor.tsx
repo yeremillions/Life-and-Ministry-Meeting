@@ -1113,6 +1113,7 @@ function PartRow({
 
   const seg = segmentOf(assignment.segment);
   const showAssistant = needsAssistant(assignment.partType, settings.assignmentRules);
+  const canSwap = showAssistant && assignment.partType !== "Congregation Bible Study";
 
   // Household of the currently-selected main person (if any).
   const mainHousehold = useMemo(
@@ -1253,7 +1254,7 @@ function PartRow({
         </div>
       </div>
 
-      <div className={`grid ${showAssistant ? "sm:grid-cols-[1fr_auto_1fr]" : "sm:grid-cols-2"} items-end gap-3 mt-3`}>
+      <div className={`grid ${canSwap ? "sm:grid-cols-[1fr_auto_1fr]" : "sm:grid-cols-2"} items-end gap-3 mt-3`}>
         {assignment.partType === "Video" ? (
           <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded px-3 py-2 col-span-2 flex items-center gap-1.5">
             <span>📹</span>
@@ -1282,7 +1283,7 @@ function PartRow({
               assistantPerson={assistantPerson}
               households={households}
             />
-            {showAssistant && (
+            {canSwap && (
               <div className="flex items-center justify-center pb-2.5">
                 <button
                   type="button"
