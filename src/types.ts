@@ -150,6 +150,7 @@ export interface AppSettings {
   ruleSameSexDemogenders?: RuleEnforcementLevel;
   ruleMainToAssistantConsecutive?: RuleEnforcementLevel;
   rulePrayerRotation?: RuleEnforcementLevel;
+  ruleUnifiedMinistry?: boolean;
 
   // ── Scheduler fairness knobs ──────────────────────────────────────────
 
@@ -386,6 +387,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ruleSameSexDemogenders: "strict",
   ruleMainToAssistantConsecutive: "medium",
   rulePrayerRotation: "medium",
+  ruleUnifiedMinistry: true,
   msTreasuresRatio: 0,
   qmsTreasuresRatio: 0,
   privilegedBibleReadingRatio: 10,

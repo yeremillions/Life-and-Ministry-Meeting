@@ -1621,6 +1621,7 @@ function AssigneePicker({
           qmsPrayerRatio: settings.qmsPrayerRatio ?? 20,
           msPrayerRatio: settings.msPrayerRatio ?? 20,
           rulePrayerRotation: settings.rulePrayerRotation,
+          ruleUnifiedMinistry: settings.ruleUnifiedMinistry,
         },
         mainIsMinor,
         partnerIsMinor,

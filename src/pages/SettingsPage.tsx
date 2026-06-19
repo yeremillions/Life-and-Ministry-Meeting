@@ -80,6 +80,7 @@ function sanitizeSettings(raw: any): AppSettings {
   base.ruleSameSexDemogenders = ruleLevels.includes(raw?.ruleSameSexDemogenders) ? raw.ruleSameSexDemogenders : DEFAULT_SETTINGS.ruleSameSexDemogenders;
   base.ruleMainToAssistantConsecutive = ruleLevels.includes(raw?.ruleMainToAssistantConsecutive) ? raw.ruleMainToAssistantConsecutive : DEFAULT_SETTINGS.ruleMainToAssistantConsecutive;
   base.rulePrayerRotation = ruleLevels.includes(raw?.rulePrayerRotation) ? raw.rulePrayerRotation : DEFAULT_SETTINGS.rulePrayerRotation;
+  base.ruleUnifiedMinistry = typeof raw?.ruleUnifiedMinistry === "boolean" ? raw.ruleUnifiedMinistry : DEFAULT_SETTINGS.ruleUnifiedMinistry;
   
   base.customPartTypes = raw?.customPartTypes && typeof raw.customPartTypes === "object"
     ? {
@@ -1100,12 +1101,35 @@ export default function SettingsPage({
                   className="input text-xs py-1.5 max-w-[150px]"
                   value={draft.pairingAvoidance || "strict"}
                   onChange={(e) =>
-                    setDraft({ ...draft, pairingAvoidance: e.target.value as any })
+                    setDraft({
+                      ...draft,
+                      pairingAvoidance: e.target.value as "strict" | "relaxed" | "off",
+                    })
                   }
                 >
-                  <option value="strict">Strict (Hard Limit)</option>
-                  <option value="relaxed">Relaxed (Warning)</option>
-                  <option value="off">Off (Disabled)</option>
+                  <option value="strict">Strict</option>
+                  <option value="relaxed">Relaxed</option>
+                  <option value="off">Off</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all gap-4">
+                <div className="space-y-1">
+                  <span className="font-semibold text-slate-800 text-sm">Unified Ministry Workload</span>
+                  <p className="text-xs text-slate-500">Treats main and assistant parts in the ministry segment as a single unified workload to ensure publishers alternate roles and prevent double-scheduling.</p>
+                </div>
+                <select
+                  className="input text-xs py-1.5 max-w-[150px]"
+                  value={draft.ruleUnifiedMinistry !== false ? "true" : "false"}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      ruleUnifiedMinistry: e.target.value === "true",
+                    })
+                  }
+                >
+                  <option value="true">Enabled</option>
+                  <option value="false">Disabled</option>
                 </select>
               </div>
             </div>

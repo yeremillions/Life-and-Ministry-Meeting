@@ -45,6 +45,8 @@ export interface AssigneeStats {
   lastWeekByPartTypeAssistant?: Record<string, string>;
   lastMinistryRole?: "main" | "assistant";
   lastPartWasWithMinor?: boolean;
+  lastWeekMinistry?: string;
+  recentMinistryDates?: string[];
 }
 
 /** Compute per-assignee assignment history from weeks. */
@@ -68,6 +70,8 @@ export function buildStats(
       lastWeekByPartTypeMain: {},
       lastWeekByPartTypeAssistant: {},
       lastMinistryRole: undefined,
+      lastWeekMinistry: undefined,
+      recentMinistryDates: [],
     });
   }
 
@@ -138,11 +142,27 @@ export function buildStats(
       if (ass.segment === "ministry") {
         if (ass.assigneeId != null) {
           const s = stats.get(ass.assigneeId);
-          if (s) s.lastMinistryRole = "main";
+          if (s) {
+            s.lastMinistryRole = "main";
+            if (!s.lastWeekMinistry || w.weekOf > s.lastWeekMinistry) {
+              s.lastWeekMinistry = w.weekOf;
+            }
+            if (s.recentMinistryDates && !s.recentMinistryDates.includes(w.weekOf)) {
+              s.recentMinistryDates.push(w.weekOf);
+            }
+          }
         }
         if (ass.assistantId != null) {
           const s = stats.get(ass.assistantId);
-          if (s) s.lastMinistryRole = "assistant";
+          if (s) {
+            s.lastMinistryRole = "assistant";
+            if (!s.lastWeekMinistry || w.weekOf > s.lastWeekMinistry) {
+              s.lastWeekMinistry = w.weekOf;
+            }
+            if (s.recentMinistryDates && !s.recentMinistryDates.includes(w.weekOf)) {
+              s.recentMinistryDates.push(w.weekOf);
+            }
+          }
         }
       }
 
@@ -448,6 +468,7 @@ export function scoreCandidate(
     | "qmsPrayerRatio"
     | "msPrayerRatio"
     | "rulePrayerRotation"
+    | "ruleUnifiedMinistry"
   >,
   isMinorMain?: boolean,
   partnerIsMinor?: boolean,
@@ -581,8 +602,11 @@ export function scoreCandidate(
         if (!candIsQE && !candIsE && !candIsQMS && !candIsMS && targetNonPrivilegedShare === 0) score -= 1000000;
       }
     } else {
-      if (stats.lastWeekMain) {
-        const gap = daysBetween(stats.lastWeekMain, weekOf);
+      const isUnifiedMinistry = (opts.ruleUnifiedMinistry ?? true) && part.segment === "ministry";
+      const lastWeek = isUnifiedMinistry ? stats.lastWeekMinistry : stats.lastWeekMain;
+
+      if (lastWeek) {
+        const gap = daysBetween(lastWeek, weekOf);
 
         // Hard recency penalty: steep penalty within the min-gap window.
         if (minGapLevel !== "off" && gap < minGapDays) {
@@ -613,12 +637,13 @@ export function scoreCandidate(
       // Workload penalty: penalise based on recent main workload in the last 12 weeks (84 days).
       const workloadBalancingLevel = opts.ruleWorkloadBalancing ?? "medium";
       if (workloadBalancingLevel !== "off") {
-        const recentMainCount = stats.recentMainDates.filter(
+        const recentDates = isUnifiedMinistry ? (stats.recentMinistryDates ?? []) : stats.recentMainDates;
+        const recentCount = recentDates.filter(
           (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
         ).length;
         const mainWMultiplier = workloadBalancingLevel === "weak" ? 2 :
                                 workloadBalancingLevel === "medium" ? 8 : 20;
-        score -= recentMainCount * mainWMultiplier;
+        score -= recentCount * mainWMultiplier;
       }
 
       // Segment balancing — penalise heavy recent use in this segment in the last 12 weeks (84 days).
@@ -644,28 +669,32 @@ export function scoreCandidate(
   } else {
     // Assistant role — use assistant-only history.
     const workloadBalancingLevel = opts.ruleWorkloadBalancing ?? "medium";
-    if (stats.lastWeekAssistant) {
-      const gap = daysBetween(stats.lastWeekAssistant, weekOf);
-      if (workloadBalancingLevel !== "off" && gap < 21) {
+    const isUnifiedMinistry = (opts.ruleUnifiedMinistry ?? true) && part.segment === "ministry";
+    const lastWeek = isUnifiedMinistry ? stats.lastWeekMinistry : stats.lastWeekAssistant;
+    const gapDays = isUnifiedMinistry ? minGapDays : 21;
+
+    if (lastWeek) {
+      const gap = daysBetween(lastWeek, weekOf);
+      if (workloadBalancingLevel !== "off" && gap < gapDays) {
         const gapMultiplier = workloadBalancingLevel === "weak" ? 5 :
                               workloadBalancingLevel === "medium" ? 15 : 30;
-        score -= (21 - gap) * gapMultiplier;
+        score -= (gapDays - gap) * gapMultiplier;
       }
-      const DECAY_DAYS = 120;
-      score += Math.min(gap, DECAY_DAYS) * 0.6;
+      const DECAY_DAYS = isUnifiedMinistry ? 180 : 120;
+      score += Math.min(gap, DECAY_DAYS) * (isUnifiedMinistry ? 0.8 : 0.6);
     } else {
       score += 0;
     }
 
     // Workload penalty: penalise based on recent assistant workload in the last 12 weeks (84 days).
     if (workloadBalancingLevel !== "off") {
-      const recentAssistantDates = stats.recentAssistantDates ?? [];
-      const recentAssistantCount = recentAssistantDates.filter(
+      const recentDates = isUnifiedMinistry ? (stats.recentMinistryDates ?? []) : (stats.recentAssistantDates ?? []);
+      const recentCount = recentDates.filter(
         (d) => daysBetween(d, weekOf) > 0 && daysBetween(d, weekOf) <= 84
       ).length;
       const assistantWMultiplier = workloadBalancingLevel === "weak" ? 2 :
                                    workloadBalancingLevel === "medium" ? 6 : 15;
-      score -= recentAssistantCount * assistantWMultiplier;
+      score -= recentCount * assistantWMultiplier;
     }
   }
 
@@ -953,6 +982,7 @@ export interface AutoAssignOptions {
   qmsPrayerRatio?: number;
   msPrayerRatio?: number;
   rulePrayerRotation?: RuleEnforcementLevel;
+  ruleUnifiedMinistry?: boolean;
 }
 
 /**
@@ -1255,13 +1285,25 @@ function pickCandidate(args: PickArgs): Assignee | null {
   });
 
   // ── Hard constraint: minimum gap between main assignments ──────────
-  if (role === "main" && minGapDays > 0 && (opts.ruleMinGap ?? "strict") === "strict") {
-    const filtered = eligiblePool.filter((a) => {
-      const s = stats.get(a.id!);
-      if (!s || !s.lastWeekMain) return true;
-      return daysBetween(s.lastWeekMain, weekOf) >= minGapDays;
-    });
-    if (filtered.length > 0) eligiblePool = filtered;
+  const isUnifiedMinistry = (opts.ruleUnifiedMinistry ?? true) && part.segment === "ministry";
+  if (isUnifiedMinistry) {
+    if (minGapDays > 0 && (opts.ruleMinGap ?? "strict") === "strict") {
+      const filtered = eligiblePool.filter((a) => {
+        const s = stats.get(a.id!);
+        if (!s || !s.lastWeekMinistry) return true;
+        return daysBetween(s.lastWeekMinistry, weekOf) >= minGapDays;
+      });
+      if (filtered.length > 0) eligiblePool = filtered;
+    }
+  } else {
+    if (role === "main" && minGapDays > 0 && (opts.ruleMinGap ?? "strict") === "strict") {
+      const filtered = eligiblePool.filter((a) => {
+        const s = stats.get(a.id!);
+        if (!s || !s.lastWeekMain) return true;
+        return daysBetween(s.lastWeekMain, weekOf) >= minGapDays;
+      });
+      if (filtered.length > 0) eligiblePool = filtered;
+    }
   }
 
   // ── Hard constraint: rolling monthly cap on main assignments ───────
@@ -1429,6 +1471,8 @@ function rankAndPick(
     recentPrayerDates: [],
     lastMinistryRole: undefined,
     lastPartWasWithMinor: false,
+    lastWeekMinistry: undefined,
+    recentMinistryDates: [],
   };
 
   const { partnerIsMinor, partnerLastPartWasWithMinor } = allAssignees
@@ -1639,6 +1683,7 @@ export function analyzeWeekOptimization(
           totalAssistant: 0, recentMainDates: [],
           recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
           recentPrayerDates: [],
+          recentMinistryDates: [],
         };
         const { partnerIsMinor, partnerLastPartWasWithMinor } = getPartnerInfo(a, "main", assignees, stats);
         const currentScore = scoreCandidate(
@@ -1661,6 +1706,7 @@ export function analyzeWeekOptimization(
             totalAssistant: 0, recentMainDates: [],
             recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
             recentPrayerDates: [],
+            recentMinistryDates: [],
           };
           const bestScore = scoreCandidate(
             best, a, week.weekOf, bestStats, seed, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "main", opts,
@@ -1693,6 +1739,7 @@ export function analyzeWeekOptimization(
           totalAssistant: 0, recentMainDates: [],
           recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
           recentPrayerDates: [],
+          recentMinistryDates: [],
         };
  
         const { partnerIsMinor, partnerLastPartWasWithMinor } = getPartnerInfo(a, "assistant", assignees, stats);
@@ -1716,6 +1763,7 @@ export function analyzeWeekOptimization(
             totalAssistant: 0, recentMainDates: [],
             recentMainDatesBySegment: { opening: [], treasures: [], ministry: [], living: [] },
             recentPrayerDates: [],
+            recentMinistryDates: [],
           };
           const bestScore = scoreCandidate(
             bestAss, a, week.weekOf, bestAssStats, seed + 1, talkSplit, treasuresSplit, livingSplit, bibleReadingSplit, "assistant", opts, isMinorMain,
