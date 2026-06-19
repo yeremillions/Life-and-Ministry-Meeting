@@ -36,7 +36,6 @@ export function findWeekConflicts(
   const conflicts: Conflict[] = [];
   const assignments = week.assignments;
   const rules = settings?.assignmentRules || DEFAULT_ASSIGNMENT_RULES;
-  const preventMinorAssistantToAdult = settings?.preventMinorAssistantToAdult ?? true;
   const mode = settings?.availabilityMode || "unavailable";
   const meetingDay = settings?.midweekMeetingDay || "Thursday";
   const meetingDateStr = getMeetingDate(week.weekOf, meetingDay);
@@ -388,7 +387,8 @@ export function findWeekConflicts(
       }
 
       // 9. Assistant Twice in a Row Safeguard
-      if (stats && assistant.id != null) {
+      const asstTwiceLevel = settings?.rulePreventAssistantTwice ?? "strict";
+      if (asstTwiceLevel !== "off" && stats && assistant.id != null) {
         const s = stats.get(assistant.id);
         if (s && s.lastWeekAssistant) {
           const lastMain = s.lastWeekMain;
@@ -404,7 +404,7 @@ export function findWeekConflicts(
               partTitle: a.title,
               ruleName: "Assistant Policy Check",
               message: `${assistant.name} (assistant) is assigned as an assistant but their last assignment was also as an assistant. They should be considered for a main role instead.`,
-              severity: "warning",
+              severity: asstTwiceLevel === "strict" ? "error" : "warning",
               assistantId: assistant.id,
             });
           }
@@ -415,8 +415,9 @@ export function findWeekConflicts(
     // Main & Assistant combined rules
     if (main && assistant) {
       // 9. Same-Sex Demo Match
+      const sameSexLevel = settings?.ruleSameSexDemogenders ?? "strict";
       const isMinistryDemo = a.segment === "ministry" && needsAssistant(a.partType, settings?.assignmentRules);
-      if (isMinistryDemo) {
+      if (sameSexLevel !== "off" && isMinistryDemo) {
         if (main.gender !== assistant.gender) {
           // Check household bypass
           const inSameHousehold = households.some(
@@ -432,7 +433,7 @@ export function findWeekConflicts(
               partTitle: a.title,
               ruleName: "Same-Sex Demo Match",
               message: `${main.name} (${main.gender === "M" ? "brother" : "sister"}) and assistant ${assistant.name} (${assistant.gender === "M" ? "brother" : "sister"}) genders do not match in a demonstration, and they are not in the same household.`,
-              severity: "error",
+              severity: sameSexLevel === "strict" ? "error" : "warning",
               assigneeId: main.id,
               assistantId: assistant.id,
             });
@@ -441,7 +442,8 @@ export function findWeekConflicts(
       }
 
       // 11. Age Constraints
-      if (preventMinorAssistantToAdult && a.segment === "ministry") {
+      const minorAsstLevel = settings?.ruleMinorAssistantToAdult ?? "strict";
+      if (minorAsstLevel !== "off" && a.segment === "ministry") {
         const mainIsMinor = main.isMinor ?? false;
         const assIsMinor = assistant.isMinor ?? false;
         if (!mainIsMinor && assIsMinor) {
@@ -454,7 +456,7 @@ export function findWeekConflicts(
             partTitle: a.title,
             ruleName: "Age Constraints",
             message: `Minor ${assistant.name} is assigned as assistant to adult ${main.name} in a ministry part.`,
-            severity: "warning",
+            severity: minorAsstLevel === "strict" ? "error" : "warning",
             assigneeId: main.id,
             assistantId: assistant.id,
           });

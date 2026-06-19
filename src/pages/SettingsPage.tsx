@@ -64,6 +64,19 @@ function sanitizeSettings(raw: any): AppSettings {
   base.privilegedBibleReadingRatio = typeof raw?.privilegedBibleReadingRatio === "number" ? raw.privilegedBibleReadingRatio : DEFAULT_SETTINGS.privilegedBibleReadingRatio;
   base.pairingAvoidance = ["strict", "relaxed", "off"].includes(raw?.pairingAvoidance) ? raw.pairingAvoidance : "strict";
   
+  const ruleLevels = ["off", "weak", "medium", "strong", "strict"];
+  base.ruleMinGap = ruleLevels.includes(raw?.ruleMinGap) ? raw.ruleMinGap : DEFAULT_SETTINGS.ruleMinGap;
+  base.ruleChairmanGap = ruleLevels.includes(raw?.ruleChairmanGap) ? raw.ruleChairmanGap : DEFAULT_SETTINGS.ruleChairmanGap;
+  base.ruleMinistryAlternation = ruleLevels.includes(raw?.ruleMinistryAlternation) ? raw.ruleMinistryAlternation : DEFAULT_SETTINGS.ruleMinistryAlternation;
+  base.ruleMinorAssistantToAdult = ruleLevels.includes(raw?.ruleMinorAssistantToAdult) ? raw.ruleMinorAssistantToAdult : DEFAULT_SETTINGS.ruleMinorAssistantToAdult;
+  base.ruleAdultAssistantForMinor = ruleLevels.includes(raw?.ruleAdultAssistantForMinor) ? raw.ruleAdultAssistantForMinor : DEFAULT_SETTINGS.ruleAdultAssistantForMinor;
+  base.ruleMainWorkload = ruleLevels.includes(raw?.ruleMainWorkload) ? raw.ruleMainWorkload : DEFAULT_SETTINGS.ruleMainWorkload;
+  base.ruleAssistantWorkload = ruleLevels.includes(raw?.ruleAssistantWorkload) ? raw.ruleAssistantWorkload : DEFAULT_SETTINGS.ruleAssistantWorkload;
+  base.ruleSegmentBalancing = ruleLevels.includes(raw?.ruleSegmentBalancing) ? raw.ruleSegmentBalancing : DEFAULT_SETTINGS.ruleSegmentBalancing;
+  base.rulePreventAssistantTwice = ruleLevels.includes(raw?.rulePreventAssistantTwice) ? raw.rulePreventAssistantTwice : DEFAULT_SETTINGS.rulePreventAssistantTwice;
+  base.ruleInfirmedThrottling = ruleLevels.includes(raw?.ruleInfirmedThrottling) ? raw.ruleInfirmedThrottling : DEFAULT_SETTINGS.ruleInfirmedThrottling;
+  base.ruleSameSexDemogenders = ruleLevels.includes(raw?.ruleSameSexDemogenders) ? raw.ruleSameSexDemogenders : DEFAULT_SETTINGS.ruleSameSexDemogenders;
+  
   base.customPartTypes = raw?.customPartTypes && typeof raw.customPartTypes === "object"
     ? {
         opening: Array.isArray(raw.customPartTypes.opening) ? raw.customPartTypes.opening : [],
@@ -207,6 +220,47 @@ export default function SettingsPage({
   const assignees = useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
   const [draft, setDraft] = useState<AppSettings | null>(null);
   const [saved, setSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState<"general" | "customizer" | "shares" | "customParts" | "eligibility">("general");
+
+  const renderRuleCustomizerRow = (
+    label: string,
+    description: string,
+    field: keyof AppSettings,
+    hasStrict: boolean = true
+  ) => {
+    if (!draft) return null;
+    const value = draft[field] as string || "off";
+    return (
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-800 text-sm">{label}</span>
+            <span className={`pill text-[10px] font-bold uppercase ${
+              value === "strict" ? "bg-rose-50 text-rose-700 border border-rose-100" :
+              value === "strong" ? "bg-amber-50 text-amber-700 border border-amber-100" :
+              value === "medium" ? "bg-blue-50 text-blue-700 border border-blue-100" :
+              value === "weak" ? "bg-slate-50 text-slate-600 border border-slate-200" :
+              "bg-gray-50 text-gray-400 border border-gray-150"
+            }`}>
+              {value}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 max-w-xl">{description}</p>
+        </div>
+        <select
+          className="input text-xs py-1.5 max-w-[150px]"
+          value={value}
+          onChange={(e) => setDraft({ ...draft, [field]: e.target.value as any })}
+        >
+          <option value="off">Off (Disabled)</option>
+          <option value="weak">Weak Enforcement</option>
+          <option value="medium">Medium Enforcement</option>
+          <option value="strong">Strong Enforcement</option>
+          {hasStrict && <option value="strict">Strict (Hard Limit)</option>}
+        </select>
+      </div>
+    );
+  };
 
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
@@ -771,62 +825,302 @@ export default function SettingsPage({
 
     return (
       <div className="space-y-6">
-        <div className="card space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-slate-800">General Settings</h2>
-            <button className="btn-secondary text-xs" onClick={restoreDefaults}>
-              Restore Defaults
-            </button>
-          </div>
+        {/* Page Header */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-200 pb-4 mb-4">
           <div>
-            <label className="label">Congregation name</label>
-            <input
-              className="input max-w-md"
-              value={draft.congregationName ?? ""}
-              onChange={(e) =>
-                setDraft({ ...draft, congregationName: e.target.value })
-              }
-            />
+            <h1 className="text-2xl font-bold text-slate-900">Congregation Settings</h1>
+            <p className="text-sm text-slate-500">Configure scheduling options, customizable rules, publisher ratios, and custom part eligibility.</p>
           </div>
-          <div>
-            <label className="label">Midweek Meeting Night</label>
-            <select
-              className="input max-w-md"
-              value={draft.midweekMeetingDay ?? "Thursday"}
-              onChange={(e) =>
-                setDraft({ ...draft, midweekMeetingDay: e.target.value as any })
-              }
-            >
-              <option value="Monday">Monday</option>
-              <option value="Tuesday">Tuesday</option>
-              <option value="Wednesday">Wednesday</option>
-              <option value="Thursday">Thursday</option>
-              <option value="Friday">Friday</option>
-              <option value="Saturday">Saturday</option>
-              <option value="Sunday">Sunday</option>
-            </select>
-            <p className="text-xs text-slate-500 mt-1">
-              Select the weekday your midweek meeting is held. The system uses this to verify publisher availability for meeting dates.
-            </p>
+          <div className="flex items-center gap-2 mt-4 md:mt-0">
+            <button className="btn" onClick={save}>Save changes</button>
+            {saved && (
+              <span className="text-sm text-green-600 font-semibold animate-fade-in">✓ Saved</span>
+            )}
           </div>
-          <div>
-            <label className="label">Availability Tracking Mode</label>
-            <select
-              className="input max-w-md"
-              value={draft.availabilityMode ?? "unavailable"}
-              onChange={(e) =>
-                setDraft({ ...draft, availabilityMode: e.target.value as any })
-              }
-            >
-              <option value="unavailable">Track when they are Away / Out of town (Default)</option>
-              <option value="available">Track when they are Available / In town</option>
-            </select>
-            <p className="text-xs text-slate-500 mt-1">
-              Choose whether you prefer to record periods when publishers are out of town (default) or when they are in town/available.
-            </p>
+        </div>
+
+        {/* Tab Headers */}
+        <div className="flex border-b border-slate-200 mb-6 overflow-x-auto whitespace-nowrap scrollbar-none gap-1 bg-white p-1.5 rounded-lg shadow-sm border border-slate-150">
+          <button
+            className={`py-2 px-4 font-semibold text-sm rounded-md transition-all ${
+              activeTab === "general"
+                ? "bg-indigo-50 text-indigo-700 shadow-sm font-bold border border-indigo-100"
+                : "border border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
+            }`}
+            onClick={() => setActiveTab("general")}
+          >
+            General &amp; System
+          </button>
+          <button
+            className={`py-2 px-4 font-semibold text-sm rounded-md transition-all ${
+              activeTab === "customizer"
+                ? "bg-indigo-50 text-indigo-700 shadow-sm font-bold border border-indigo-100"
+                : "border border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
+            }`}
+            onClick={() => setActiveTab("customizer")}
+          >
+            Rule Customizer
+          </button>
+          <button
+            className={`py-2 px-4 font-semibold text-sm rounded-md transition-all ${
+              activeTab === "shares"
+                ? "bg-indigo-50 text-indigo-700 shadow-sm font-bold border border-indigo-100"
+                : "border border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
+            }`}
+            onClick={() => setActiveTab("shares")}
+          >
+            Publisher Shares &amp; Splits
+          </button>
+          <button
+            className={`py-2 px-4 font-semibold text-sm rounded-md transition-all ${
+              activeTab === "customParts"
+                ? "bg-indigo-50 text-indigo-700 shadow-sm font-bold border border-indigo-100"
+                : "border border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
+            }`}
+            onClick={() => setActiveTab("customParts")}
+          >
+            Custom Parts &amp; Prayers
+          </button>
+          <button
+            className={`py-2 px-4 font-semibold text-sm rounded-md transition-all ${
+              activeTab === "eligibility"
+                ? "bg-indigo-50 text-indigo-700 shadow-sm font-bold border border-indigo-100"
+                : "border border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
+            }`}
+            onClick={() => setActiveTab("eligibility")}
+          >
+            Assignment Eligibility Table
+          </button>
+        </div>
+
+        {activeTab === "general" && (
+          <div className="card space-y-4 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-800">General Settings</h2>
+              <button className="btn-secondary text-xs" onClick={restoreDefaults}>
+                Restore Defaults
+              </button>
+            </div>
+            <div>
+              <label className="label">Congregation name</label>
+              <input
+                className="input max-w-md"
+                value={draft.congregationName ?? ""}
+                onChange={(e) =>
+                  setDraft({ ...draft, congregationName: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <label className="label">Midweek Meeting Night</label>
+              <select
+                className="input max-w-md"
+                value={draft.midweekMeetingDay ?? "Thursday"}
+                onChange={(e) =>
+                  setDraft({ ...draft, midweekMeetingDay: e.target.value as any })
+                }
+              >
+                <option value="Monday">Monday</option>
+                <option value="Tuesday">Tuesday</option>
+                <option value="Wednesday">Wednesday</option>
+                <option value="Thursday">Thursday</option>
+                <option value="Friday">Friday</option>
+                <option value="Saturday">Saturday</option>
+                <option value="Sunday">Sunday</option>
+              </select>
+              <p className="text-xs text-slate-500 mt-1">
+                Select the weekday your midweek meeting is held. The system uses this to verify publisher availability for meeting dates.
+              </p>
+            </div>
+            <div>
+              <label className="label">Availability Tracking Mode</label>
+              <select
+                className="input max-w-md"
+                value={draft.availabilityMode ?? "unavailable"}
+                onChange={(e) =>
+                  setDraft({ ...draft, availabilityMode: e.target.value as any })
+                }
+              >
+                <option value="unavailable">Track when they are Away / Out of town (Default)</option>
+                <option value="available">Track when they are Available / In town</option>
+              </select>
+              <p className="text-xs text-slate-500 mt-1">
+                Choose whether you prefer to record periods when publishers are out of town (default) or when they are in town/available.
+              </p>
+            </div>
+            <div className="pt-4 border-t border-slate-100 flex items-center">
+              <button className="btn" onClick={save}>
+                Save settings
+              </button>
+              {saved && (
+                <span className="text-sm text-green-600 font-semibold ml-3 animate-fade-in">✓ Settings saved</span>
+              )}
+            </div>
           </div>
-          <div>
-            <h4 className="font-semibold text-slate-800 text-sm mb-3">Field Ministry Parts Shares</h4>
+        )}
+        {activeTab === "customizer" && (
+          <div className="card space-y-4 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Rule Enforcement Customizer</h2>
+                <p className="text-xs text-slate-500">Fine-tune the enforcement level for every scheduling rule. Strict rules act as hard boundaries, while other levels apply graduated scoring penalties.</p>
+              </div>
+              <button className="btn-secondary text-xs" onClick={restoreDefaults}>
+                Restore Defaults
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {renderRuleCustomizerRow(
+                "Student Main Assignment Gap",
+                "Enforces a minimum period of weeks that must pass before a publisher can receive another main assignment.",
+                "ruleMinGap"
+              )}
+
+              {draft.ruleMinGap !== "off" && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50/50 rounded-xl border border-slate-100 gap-4 ml-6 animate-fade-in">
+                  <div className="space-y-1">
+                    <span className="font-semibold text-slate-700 text-sm">Gap Duration (Weeks)</span>
+                    <p className="text-xs text-slate-500">Specify the number of weeks for the student main assignment gap.</p>
+                  </div>
+                  <input
+                    type="number"
+                    min={0}
+                    max={8}
+                    className="input max-w-[150px]"
+                    value={draft.minGapWeeks ?? 2}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        minGapWeeks: clamp(parseInt(e.target.value || "0", 10), 0, 8),
+                      })
+                    }
+                  />
+                </div>
+              )}
+
+              {renderRuleCustomizerRow(
+                "Chairman Assignment Rotation Gap",
+                "Prevents the same elder from being assigned to chair the midweek meeting too frequently.",
+                "ruleChairmanGap"
+              )}
+
+              {draft.ruleChairmanGap !== "off" && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50/50 rounded-xl border border-slate-100 gap-4 ml-6 animate-fade-in">
+                  <div className="space-y-1">
+                    <span className="font-semibold text-slate-705 text-sm">Chairman Gap Duration (Weeks)</span>
+                    <p className="text-xs text-slate-500">Specify the number of weeks for the chairman rotation gap.</p>
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={8}
+                    className="input max-w-[150px]"
+                    value={draft.chairmanGapWeeks ?? 3}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        chairmanGapWeeks: clamp(parseInt(e.target.value || "1", 10), 1, 8),
+                      })
+                    }
+                  />
+                </div>
+              )}
+
+              {renderRuleCustomizerRow(
+                "Field Ministry Segment Alternation",
+                "Promotes fairness by ensuring a student who did a main assignment in the Apply Yourself segment gets an assistant role in their next part, and vice versa.",
+                "ruleMinistryAlternation"
+              )}
+
+              {renderRuleCustomizerRow(
+                "Minor Assistant to Adult",
+                "Restricts minors from assisting adults in the Field Ministry segment to protect boundaries.",
+                "ruleMinorAssistantToAdult"
+              )}
+
+              {renderRuleCustomizerRow(
+                "Prefer Adult Assistant for Minor",
+                "Attempts to assign an adult assistant when a minor is scheduled for a main field ministry part.",
+                "ruleAdultAssistantForMinor",
+                false
+              )}
+
+              {renderRuleCustomizerRow(
+                "Main Assignment Workload Balancing",
+                "Distributes midweek assignments evenly by penalizing recent main assignments in the scoring system.",
+                "ruleMainWorkload",
+                false
+              )}
+
+              {renderRuleCustomizerRow(
+                "Assistant Assignment Workload Balancing",
+                "Distributes assistant assignments evenly by penalizing recent assistant assignments in the scoring system.",
+                "ruleAssistantWorkload",
+                false
+              )}
+
+              {renderRuleCustomizerRow(
+                "Meeting Segment Diversity",
+                "Reduces repetition by penalizing scheduling a publisher in the same meeting segment too close together.",
+                "ruleSegmentBalancing",
+                false
+              )}
+
+              {renderRuleCustomizerRow(
+                "Prevent Assistant Twice in a Row",
+                "Prevents the same publisher from being scheduled as an assistant in consecutive assignments.",
+                "rulePreventAssistantTwice"
+              )}
+
+              {renderRuleCustomizerRow(
+                "Elderly / Infirmed Publisher Throttling",
+                "Protects publishers marked as elderly or infirmed from being scheduled too frequently.",
+                "ruleInfirmedThrottling",
+                false
+              )}
+
+              {renderRuleCustomizerRow(
+                "Same-Sex Demonstration Pairing",
+                "Enforces same-sex pairings for ministry demonstrations, except when the main assignee and assistant belong to the same household.",
+                "ruleSameSexDemogenders"
+              )}
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all gap-4">
+                <div className="space-y-1">
+                  <span className="font-semibold text-slate-800 text-sm">Main/Assistant Pairing Avoidance</span>
+                  <p className="text-xs text-slate-500">Controls pairing repetition: avoids pairing a publisher with the same assistant (or main assignee) within their last 2 or next 2 parts.</p>
+                </div>
+                <select
+                  className="input text-xs py-1.5 max-w-[150px]"
+                  value={draft.pairingAvoidance || "strict"}
+                  onChange={(e) =>
+                    setDraft({ ...draft, pairingAvoidance: e.target.value as any })
+                  }
+                >
+                  <option value="strict">Strict (Hard Limit)</option>
+                  <option value="relaxed">Relaxed (Warning)</option>
+                  <option value="off">Off (Disabled)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex items-center">
+              <button className="btn" onClick={save}>
+                Save settings
+              </button>
+              {saved && (
+                <span className="text-sm text-green-600 font-semibold ml-3 animate-fade-in">✓ Settings saved</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "shares" && (
+          <div className="card space-y-4 animate-fade-in">
+            <h2 className="text-xl font-bold text-slate-800">Congregation Shares &amp; Ratios</h2>
+            <div>
+              <h4 className="font-semibold text-slate-800 text-sm mb-3">Field Ministry Parts Shares</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-w-4xl bg-slate-50 p-4 border border-slate-200 rounded-md">
               <div>
                 <label className="label">QE (Qualified Elders) Share (%)</label>
@@ -1358,9 +1652,12 @@ export default function SettingsPage({
             )}
           </div>
         </div>
+      )}
 
         {/* ── Prayer Overrides Section ── */}
-        <div className="card space-y-4 relative">
+        {activeTab === "customParts" && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="card space-y-4 relative">
           <h2 className="text-xl font-bold text-slate-800">Manual Prayer Qualifications</h2>
           <p className="text-sm text-slate-500">
             Only Elders, Ministerial Servants, and Congregation Bible Study Readers (CBSR) are qualified to offer Opening and Closing Prayer by default. You can manually exclude privileged brothers, or manually include non-privileged brothers.
@@ -1744,8 +2041,11 @@ export default function SettingsPage({
             )}
           </div>
         </div>
+      </div>
+    )}
 
-        <div className="card space-y-4">
+      {activeTab === "eligibility" && (
+        <div className="card space-y-4 animate-fade-in">
           <h2 className="text-xl font-bold text-slate-800">Assignment Eligibility Rules</h2>
           <p className="text-sm text-slate-500">
             Configure who can be assigned to each part type. "Main" refers to the primary person (e.g. Conductor, Speaker), and "Assistant" refers to the secondary person (e.g. Reader, Householder).
@@ -1794,8 +2094,11 @@ export default function SettingsPage({
             )}
           </div>
         </div>
+      )}
 
-        <div className="card space-y-3">
+      {activeTab === "general" && (
+        <>
+          <div className="card space-y-3">
           <h2 className="font-semibold">Backup &amp; restore</h2>
           <p className="text-sm text-slate-600">
             All data lives in your browser. Use backup + restore to move between
@@ -1966,6 +2269,8 @@ export default function SettingsPage({
             The change log automatically prunes old entries beyond 500 records.
           </p>
         </section>
+      </>
+    )}
 
         {onNavigateToAdmin && (
           <div className="text-right">

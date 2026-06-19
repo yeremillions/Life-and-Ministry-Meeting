@@ -1567,6 +1567,17 @@ function AssigneePicker({
           shareMinistryMS: settings.shareMinistryMS ?? 2,
           shareMinistryQMS: settings.shareMinistryQMS ?? 2,
           shareMinistryBrothers: settings.shareMinistryBrothers ?? 2,
+          ruleMinGap: settings.ruleMinGap,
+          ruleChairmanGap: settings.ruleChairmanGap,
+          ruleMinistryAlternation: settings.ruleMinistryAlternation,
+          ruleMinorAssistantToAdult: settings.ruleMinorAssistantToAdult,
+          ruleAdultAssistantForMinor: settings.ruleAdultAssistantForMinor,
+          ruleMainWorkload: settings.ruleMainWorkload,
+          ruleAssistantWorkload: settings.ruleAssistantWorkload,
+          ruleSegmentBalancing: settings.ruleSegmentBalancing,
+          rulePreventAssistantTwice: settings.rulePreventAssistantTwice,
+          ruleInfirmedThrottling: settings.ruleInfirmedThrottling,
+          ruleSameSexDemogenders: settings.ruleSameSexDemogenders,
         }
       );
 

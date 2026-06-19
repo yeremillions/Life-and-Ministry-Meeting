@@ -297,13 +297,23 @@ export function getRuleViolations(
   const isMinistryPart =
     SEGMENT_PART_TYPES.ministry.includes(partType) ||
     (settings?.customPartTypes?.ministry || []).includes(partType);
-  if (preventMinorAssistantToAdult && isMinistryPart && role === "assistant" && mainIsMinor === false && a.isMinor) {
-    violations.push(`Minor assistant cannot normally assist adult`);
+  const minorAsstLevel = settings?.ruleMinorAssistantToAdult ?? (preventMinorAssistantToAdult ? "strict" : "off");
+  if (minorAsstLevel !== "off" && isMinistryPart && role === "assistant" && mainIsMinor === false && a.isMinor) {
+    if (minorAsstLevel === "strict") {
+      violations.push(`Minor assistant cannot normally assist adult`);
+    } else {
+      violations.push(`Warning: Minor assistant assisting adult`);
+    }
   }
 
   // Assistant twice in a row check
-  if (role === "assistant" && lastAssignmentRole === "assistant") {
-    violations.push(`Last assignment was as an assistant (should be considered for a main role instead)`);
+  const asstTwiceLevel = settings?.rulePreventAssistantTwice ?? "strict";
+  if (asstTwiceLevel !== "off" && role === "assistant" && lastAssignmentRole === "assistant") {
+    if (asstTwiceLevel === "strict") {
+      violations.push(`Last assignment was as an assistant (should be considered for a main role instead)`);
+    } else {
+      violations.push(`Warning: Last assignment was as an assistant`);
+    }
   }
 
   return violations;

@@ -126,6 +126,8 @@ export interface LogEntry {
   details?: string;
 }
 
+export type RuleEnforcementLevel = "off" | "weak" | "medium" | "strong" | "strict";
+
 export interface AppSettings {
   id: "app";
   shareMinistryQE?: number;
@@ -135,6 +137,19 @@ export interface AppSettings {
   shareMinistryBrothers?: number;
   /** Congregation name for report headers, etc. */
   congregationName?: string;
+
+  // ── Customizable rule enforcement levels ─────────────────────────────
+  ruleMinGap?: RuleEnforcementLevel;
+  ruleChairmanGap?: RuleEnforcementLevel;
+  ruleMinistryAlternation?: RuleEnforcementLevel;
+  ruleMinorAssistantToAdult?: RuleEnforcementLevel;
+  ruleAdultAssistantForMinor?: RuleEnforcementLevel;
+  ruleMainWorkload?: RuleEnforcementLevel;
+  ruleAssistantWorkload?: RuleEnforcementLevel;
+  ruleSegmentBalancing?: RuleEnforcementLevel;
+  rulePreventAssistantTwice?: RuleEnforcementLevel;
+  ruleInfirmedThrottling?: RuleEnforcementLevel;
+  ruleSameSexDemogenders?: RuleEnforcementLevel;
 
   // ── Scheduler fairness knobs ──────────────────────────────────────────
 
@@ -359,6 +374,17 @@ export const DEFAULT_SETTINGS: AppSettings = {
   optimizationThresholdAssistant: 40,
   assignmentRules: DEFAULT_ASSIGNMENT_RULES,
   preventMinorAssistantToAdult: true,
+  ruleMinGap: "strict",
+  ruleChairmanGap: "strict",
+  ruleMinistryAlternation: "strong",
+  ruleMinorAssistantToAdult: "strict",
+  ruleAdultAssistantForMinor: "strong",
+  ruleMainWorkload: "medium",
+  ruleAssistantWorkload: "medium",
+  ruleSegmentBalancing: "medium",
+  rulePreventAssistantTwice: "strict",
+  ruleInfirmedThrottling: "medium",
+  ruleSameSexDemogenders: "strict",
   msTreasuresRatio: 0,
   qmsTreasuresRatio: 0,
   privilegedBibleReadingRatio: 10,
