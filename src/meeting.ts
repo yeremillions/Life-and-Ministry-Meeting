@@ -168,7 +168,7 @@ export function isEligible(
   purpose: "auto" | "manual" = "manual",
   rules: Record<string, AssignmentRule> = DEFAULT_ASSIGNMENT_RULES,
   mainIsMinor?: boolean,
-  preventMinorAssistantToAdult?: boolean,
+  strictMinorAssistant?: boolean,
   customPartTypes?: Record<SegmentId, string[]>
 ): boolean {
   if (a.archived || !a.active) return false;
@@ -208,7 +208,7 @@ export function isEligible(
   const isMinistryPart =
     SEGMENT_PART_TYPES.ministry.includes(partType) ||
     (customPartTypes?.ministry || []).includes(partType);
-  if (purpose === "auto" && preventMinorAssistantToAdult && isMinistryPart && role === "assistant" && mainIsMinor === false && a.isMinor) {
+  if (purpose === "auto" && strictMinorAssistant && isMinistryPart && role === "assistant" && mainIsMinor === false && a.isMinor) {
     return false;
   }
 
@@ -223,7 +223,6 @@ export function getRuleViolations(
   role: "main" | "assistant" = "main",
   rules: Record<string, AssignmentRule> = DEFAULT_ASSIGNMENT_RULES,
   mainIsMinor?: boolean,
-  preventMinorAssistantToAdult?: boolean,
   lastAssignmentRole?: "main" | "assistant",
   weekOf?: string,
   settings?: AppSettings
@@ -297,7 +296,7 @@ export function getRuleViolations(
   const isMinistryPart =
     SEGMENT_PART_TYPES.ministry.includes(partType) ||
     (settings?.customPartTypes?.ministry || []).includes(partType);
-  const minorAsstLevel = settings?.ruleMinorAssistantToAdult ?? (preventMinorAssistantToAdult ? "strict" : "off");
+  const minorAsstLevel = settings?.ruleMinorAssistantToAdult ?? "strict";
   if (minorAsstLevel !== "off" && isMinistryPart && role === "assistant" && mainIsMinor === false && a.isMinor) {
     if (minorAsstLevel === "strict") {
       violations.push(`Minor assistant cannot normally assist adult`);

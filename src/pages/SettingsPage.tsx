@@ -1232,46 +1232,7 @@ export default function SettingsPage({
               <strong className="font-semibold text-indigo-950 block mb-1">ℹ️ Date-Based Rotation Mark System Active</strong>
               The scheduler enforces category-based rotation: when a publisher is assigned a part type, they are marked with that assignment date. They will not be reassigned that same part type until all other eligible candidates have had a turn.
             </div>
-            <div>
-              <label className="label">Minimum gap between assignments (weeks)</label>
-              <input
-                type="number"
-                min={0}
-                max={8}
-                className="input max-w-xs"
-                value={draft.minGapWeeks ?? 2}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    minGapWeeks: clamp(parseInt(e.target.value || "0", 10), 0, 8),
-                  })
-                }
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                The scheduler will not assign the same person a main part
-                until at least this many weeks have passed. Set to 0 to disable.
-              </p>
-            </div>
 
-            <div>
-              <label className="label">Chairman rotation gap (weeks)</label>
-              <input
-                type="number"
-                min={1}
-                max={8}
-                className="input max-w-xs"
-                value={draft.chairmanGapWeeks ?? 3}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    chairmanGapWeeks: clamp(parseInt(e.target.value || "1", 10), 1, 8),
-                  })
-                }
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                Minimum weeks before the same elder can chair again.
-              </p>
-            </div>
 
             <div>
               <label className="label">Catch-up priority for overlooked publishers</label>
@@ -1598,44 +1559,7 @@ export default function SettingsPage({
               </p>
             </div>
 
-            <div className="flex items-center gap-2 pt-4">
-              <input
-                type="checkbox"
-                id="preventMinorAssistantToAdult"
-                className="checkbox w-5 h-5"
-                checked={draft.preventMinorAssistantToAdult}
-                onChange={(e) =>
-                  setDraft({ ...draft, preventMinorAssistantToAdult: e.target.checked })
-                }
-              />
-              <label htmlFor="preventMinorAssistantToAdult" className="font-semibold text-slate-700 cursor-pointer">
-                Prevent minors from assisting adults
-              </label>
-            </div>
-            <p className="text-xs text-slate-500 col-span-full">
-              If enabled, the scheduler will never assign a minor as an assistant to an adult main participant in the field ministry section. Adults will also be strongly preferred as assistants for minors.
-            </p>
 
-            <div className="flex flex-col gap-1 pt-4 col-span-full">
-              <label htmlFor="pairingAvoidance" className="font-semibold text-slate-700">
-                Main/Assistant Pairing Avoidance
-              </label>
-              <select
-                id="pairingAvoidance"
-                className="input max-w-xs"
-                value={draft.pairingAvoidance || "strict"}
-                onChange={(e) =>
-                  setDraft({ ...draft, pairingAvoidance: e.target.value as any })
-                }
-              >
-                <option value="strict">Strict (prevent pairing with same person in last/next 2 parts)</option>
-                <option value="relaxed">Relaxed (allow pairing with score penalty and warning)</option>
-                <option value="off">Off (disabled)</option>
-              </select>
-              <p className="text-xs text-slate-500">
-                Controls pairing repetition: avoids pairing a publisher with the same assistant (or main assignee) within their last 2 or next 2 parts.
-              </p>
-            </div>
           </div>
 
           <div>

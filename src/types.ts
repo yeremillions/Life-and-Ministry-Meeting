@@ -185,8 +185,6 @@ export interface AppSettings {
   optimizationThresholdAssistant?: number;
   /** Custom eligibility rules for each part type. */
   assignmentRules: Record<string, AssignmentRule>;
-  /** If true, minors are not allowed to assist adults in ministry parts. */
-  preventMinorAssistantToAdult: boolean;
   /**
    * Percentage (0-100) of Treasures Talk and Spiritual Gems parts that should go to
    * MS (regular Ministerial Servants).
@@ -373,7 +371,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   optimizationThresholdMain: 50,
   optimizationThresholdAssistant: 40,
   assignmentRules: DEFAULT_ASSIGNMENT_RULES,
-  preventMinorAssistantToAdult: true,
   ruleMinGap: "strict",
   ruleChairmanGap: "strict",
   ruleMinistryAlternation: "strong",

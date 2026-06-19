@@ -196,7 +196,6 @@ export default function WeekEditor(props: WeekEditorProps) {
             "main",
             props.settings.assignmentRules,
             undefined,
-            props.settings.preventMinorAssistantToAdult,
             undefined,
             w.weekOf,
             props.settings
@@ -211,7 +210,6 @@ export default function WeekEditor(props: WeekEditorProps) {
             "assistant",
             props.settings.assignmentRules,
             mainPerson?.isMinor ?? false,
-            props.settings.preventMinorAssistantToAdult,
             undefined,
             w.weekOf,
             props.settings
@@ -1079,12 +1077,11 @@ function PartRow({
       "main",
       settings.assignmentRules,
       undefined,
-      settings.preventMinorAssistantToAdult,
       undefined,
       week.weekOf,
       settings
     );
-  }, [mainPerson, assignment.partType, settings.assignmentRules, settings.preventMinorAssistantToAdult, week.weekOf, settings]);
+  }, [mainPerson, assignment.partType, settings.assignmentRules, week.weekOf, settings]);
 
   const assistantPerson = assignees.find((a) => a.id === assignment.assistantId);
   const assistantViolations = useMemo(() => {
@@ -1108,12 +1105,11 @@ function PartRow({
       "assistant",
       settings.assignmentRules,
       mainPerson?.isMinor ?? false,
-      settings.preventMinorAssistantToAdult,
       lastAssignmentRole,
       week.weekOf,
       settings
     );
-  }, [assistantPerson, assignment.partType, settings.assignmentRules, mainPerson, settings.preventMinorAssistantToAdult, stats, week.weekOf, settings]);
+  }, [assistantPerson, assignment.partType, settings.assignmentRules, mainPerson, stats, week.weekOf, settings]);
 
   const seg = segmentOf(assignment.segment);
   const showAssistant = needsAssistant(assignment.partType, settings.assignmentRules);
@@ -1668,7 +1664,6 @@ function AssigneePicker({
         role,
         settings.assignmentRules,
         mainIsMinor,
-        settings.preventMinorAssistantToAdult,
         lastAssignmentRole,
         weekOf,
         settings

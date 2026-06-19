@@ -733,8 +733,6 @@ export interface AutoAssignOptions {
   optimizationThresholdAssistant?: number;
   /** Custom eligibility rules. */
   assignmentRules: Record<string, AssignmentRule>;
-  /** If true, minors are not allowed to assist adults in ministry parts. */
-  preventMinorAssistantToAdult: boolean;
   /** Custom balance ratio for Treasures parts between regular MS and Elders. */
   msTreasuresRatio?: number;
   /** Custom balance ratio for Treasures parts between QMS and Elders. */
