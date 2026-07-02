@@ -182,8 +182,8 @@ export interface AppSettings {
    * rolling 4-week period. 0 = no limit. Default 2.
    */
   maxAssignmentsPerMonth?: number;
-  /** Limit on demonstration parts for any male publisher in a month. 0 = no limit. */
-  maxMaleMinistryPartsPerMonth?: number;
+  /** Limit on total demonstration parts assigned to brothers in a month. 0 = no limit. */
+  maxBrothersMinistryPartsPerMonth?: number;
   /** Minimum score difference to trigger a main role optimization suggestion. Default 50. */
   optimizationThresholdMain?: number;
   /** Minimum score difference to trigger an assistant role optimization suggestion. Default 40. */
@@ -377,7 +377,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   chairmanGapWeeks: 3,
   catchUpIntensity: 1,
   maxAssignmentsPerMonth: 2,
-  maxMaleMinistryPartsPerMonth: 0,
+  maxBrothersMinistryPartsPerMonth: 0,
   optimizationThresholdMain: 50,
   optimizationThresholdAssistant: 40,
   assignmentRules: DEFAULT_ASSIGNMENT_RULES,

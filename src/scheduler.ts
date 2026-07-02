@@ -943,8 +943,8 @@ export interface AutoAssignOptions {
   catchUpIntensity: number;
   /** Max main assignments in a rolling 4-week window. 0 = no limit. Default 2. */
   maxAssignmentsPerMonth: number;
-  /** Max demonstration parts per male publisher per month. 0 = no limit. */
-  maxMaleMinistryPartsPerMonth?: number;
+  /** Max demonstration parts assigned to brothers per month. 0 = no limit. */
+  maxBrothersMinistryPartsPerMonth?: number;
   optimizationThresholdMain?: number;
   optimizationThresholdAssistant?: number;
   /** Custom eligibility rules. */
@@ -1322,14 +1322,35 @@ function pickCandidate(args: PickArgs): Assignee | null {
     if (filtered.length > 0) eligiblePool = filtered;
   }
 
-  // ── Hard constraint: limit number of demonstration parts for a male publisher in a calendar month ──
+  // ── Demonstration part constraints (limit total brother parts and adjacent weeks) ──
   const isDemonstrationPart =
     part.segment === "ministry" &&
     part.partType !== "Talk (Ministry)" &&
     !part.partType.toLowerCase().includes("talk");
 
-  const maxMaleMinistryParts = opts.maxMaleMinistryPartsPerMonth ?? 0;
-  if (isDemonstrationPart && maxMaleMinistryParts > 0) {
+  if (isDemonstrationPart) {
+    const genderMap = new Map<number, "M" | "F">();
+    for (const p of assignees) {
+      if (p.id != null) {
+        genderMap.set(p.id, p.gender);
+      }
+    }
+
+    const isBrother = (id: number | undefined) => id != null && genderMap.get(id) === "M";
+
+    const isFamilyPairing = (mainId: number | undefined, assistantId: number | undefined) => {
+      if (mainId == null || assistantId == null || !opts.households) return false;
+      return opts.households.some(
+        (h) => h.memberIds.includes(mainId) && h.memberIds.includes(assistantId)
+      );
+    };
+
+    const isBrotherPart = (mainId: number | undefined, assistantId: number | undefined) => {
+      if (!isBrother(mainId) && !isBrother(assistantId)) return false;
+      if (isFamilyPairing(mainId, assistantId)) return false;
+      return true;
+    };
+
     const currentMon = new Date(weekOf + "T00:00:00");
     const year = currentMon.getFullYear();
     const month = currentMon.getMonth();
@@ -1339,17 +1360,10 @@ function pickCandidate(args: PickArgs): Assignee | null {
       return wMon.getFullYear() === year && wMon.getMonth() === month;
     });
 
-    const genderMap = new Map<number, "M" | "F">();
-    for (const p of assignees) {
-      if (p.id != null) {
-        genderMap.set(p.id, p.gender);
-      }
-    }
-
-    const filtered = eligiblePool.filter((a) => {
-      if (a.gender !== "M") return true;
-
-      let count = 0;
+    // 1. Monthly cap constraint
+    const maxBrothersMinistryParts = opts.maxBrothersMinistryPartsPerMonth ?? 0;
+    if (maxBrothersMinistryParts > 0) {
+      let brotherPartsCount = 0;
       for (const w of otherWeeksInMonth) {
         for (const ass of w.assignments) {
           if (
@@ -1357,8 +1371,8 @@ function pickCandidate(args: PickArgs): Assignee | null {
             ass.partType !== "Talk (Ministry)" &&
             !ass.partType.toLowerCase().includes("talk")
           ) {
-            if (ass.assigneeId === a.id || ass.assistantId === a.id) {
-              count++;
+            if (isBrotherPart(ass.assigneeId, ass.assistantId)) {
+              brotherPartsCount++;
             }
           }
         }
@@ -1372,21 +1386,27 @@ function pickCandidate(args: PickArgs): Assignee | null {
             ass.partType !== "Talk (Ministry)" &&
             !ass.partType.toLowerCase().includes("talk")
           ) {
-            if (ass.assigneeId === a.id || ass.assistantId === a.id) {
-              count++;
+            if (isBrotherPart(ass.assigneeId, ass.assistantId)) {
+              brotherPartsCount++;
             }
           }
         }
       }
 
-      return count + 1 <= maxMaleMinistryParts;
-    });
+      const filtered = eligiblePool.filter((a) => {
+        if (a.gender !== "M") return true; // Female is always fine
 
-    if (filtered.length > 0) eligiblePool = filtered;
-  }
+        const nextMainId = role === "main" ? a.id : part.assigneeId;
+        const nextAssistantId = role === "assistant" ? a.id : part.assistantId;
+        const wouldBeBrotherPart = isBrotherPart(nextMainId, nextAssistantId);
 
-  // ── Soft constraint: brothers should not have demonstration parts in adjacent weeks ──
-  if (isDemonstrationPart) {
+        return !wouldBeBrotherPart || brotherPartsCount + 1 <= maxBrothersMinistryParts;
+      });
+
+      if (filtered.length > 0) eligiblePool = filtered;
+    }
+
+    // 2. Adjacent weeks constraint (Soft constraint)
     const adjacentWeeks = historicalWeeks.filter((w) => {
       if (w.weekOf === weekOf) return false;
       const diff = Math.abs(daysBetween(w.weekOf, weekOf));
@@ -1396,12 +1416,19 @@ function pickCandidate(args: PickArgs): Assignee | null {
     const filtered = eligiblePool.filter((a) => {
       if (a.gender !== "M") return true;
 
+      const nextMainId = role === "main" ? a.id : part.assigneeId;
+      const nextAssistantId = role === "assistant" ? a.id : part.assistantId;
+      
+      // If assigning a brother here is a family pairing, adjacent week restriction does not apply
+      if (isFamilyPairing(nextMainId, nextAssistantId)) return true;
+
       const hasAdjacent = adjacentWeeks.some((w) =>
         w.assignments.some(
           (ass) =>
             ass.segment === "ministry" &&
             ass.partType !== "Talk (Ministry)" &&
             !ass.partType.toLowerCase().includes("talk") &&
+            isBrotherPart(ass.assigneeId, ass.assistantId) &&
             (ass.assigneeId === a.id || ass.assistantId === a.id)
         )
       );
