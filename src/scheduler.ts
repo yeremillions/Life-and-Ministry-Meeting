@@ -943,6 +943,8 @@ export interface AutoAssignOptions {
   catchUpIntensity: number;
   /** Max main assignments in a rolling 4-week window. 0 = no limit. Default 2. */
   maxAssignmentsPerMonth: number;
+  /** Max demonstration parts per male publisher per month. 0 = no limit. */
+  maxMaleMinistryPartsPerMonth?: number;
   optimizationThresholdMain?: number;
   optimizationThresholdAssistant?: number;
   /** Custom eligibility rules. */
@@ -1317,6 +1319,95 @@ function pickCandidate(args: PickArgs): Assignee | null {
       ).length;
       return recentCount < maxPerMonth;
     });
+    if (filtered.length > 0) eligiblePool = filtered;
+  }
+
+  // ── Hard constraint: limit number of demonstration parts for a male publisher in a calendar month ──
+  const isDemonstrationPart =
+    part.segment === "ministry" &&
+    part.partType !== "Talk (Ministry)" &&
+    !part.partType.toLowerCase().includes("talk");
+
+  const maxMaleMinistryParts = opts.maxMaleMinistryPartsPerMonth ?? 0;
+  if (isDemonstrationPart && maxMaleMinistryParts > 0) {
+    const currentMon = new Date(weekOf + "T00:00:00");
+    const year = currentMon.getFullYear();
+    const month = currentMon.getMonth();
+    const otherWeeksInMonth = historicalWeeks.filter((w) => {
+      if (w.weekOf === weekOf) return false;
+      const wMon = new Date(w.weekOf + "T00:00:00");
+      return wMon.getFullYear() === year && wMon.getMonth() === month;
+    });
+
+    const genderMap = new Map<number, "M" | "F">();
+    for (const p of assignees) {
+      if (p.id != null) {
+        genderMap.set(p.id, p.gender);
+      }
+    }
+
+    const filtered = eligiblePool.filter((a) => {
+      if (a.gender !== "M") return true;
+
+      let count = 0;
+      for (const w of otherWeeksInMonth) {
+        for (const ass of w.assignments) {
+          if (
+            ass.segment === "ministry" &&
+            ass.partType !== "Talk (Ministry)" &&
+            !ass.partType.toLowerCase().includes("talk")
+          ) {
+            if (ass.assigneeId === a.id || ass.assistantId === a.id) {
+              count++;
+            }
+          }
+        }
+      }
+
+      if (assignments) {
+        for (const ass of assignments) {
+          if (ass.uid === part.uid) continue;
+          if (
+            ass.segment === "ministry" &&
+            ass.partType !== "Talk (Ministry)" &&
+            !ass.partType.toLowerCase().includes("talk")
+          ) {
+            if (ass.assigneeId === a.id || ass.assistantId === a.id) {
+              count++;
+            }
+          }
+        }
+      }
+
+      return count + 1 <= maxMaleMinistryParts;
+    });
+
+    if (filtered.length > 0) eligiblePool = filtered;
+  }
+
+  // ── Soft constraint: brothers should not have demonstration parts in adjacent weeks ──
+  if (isDemonstrationPart) {
+    const adjacentWeeks = historicalWeeks.filter((w) => {
+      if (w.weekOf === weekOf) return false;
+      const diff = Math.abs(daysBetween(w.weekOf, weekOf));
+      return diff > 0 && diff <= 7;
+    });
+
+    const filtered = eligiblePool.filter((a) => {
+      if (a.gender !== "M") return true;
+
+      const hasAdjacent = adjacentWeeks.some((w) =>
+        w.assignments.some(
+          (ass) =>
+            ass.segment === "ministry" &&
+            ass.partType !== "Talk (Ministry)" &&
+            !ass.partType.toLowerCase().includes("talk") &&
+            (ass.assigneeId === a.id || ass.assistantId === a.id)
+        )
+      );
+      return !hasAdjacent;
+    });
+
     if (filtered.length > 0) eligiblePool = filtered;
   }
 

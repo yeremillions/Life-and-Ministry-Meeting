@@ -1037,8 +1037,13 @@ function WeekListGrouped({
                       onClick={() => onSelect(w.id ?? null)}
                     >
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-medium flex-1">
-                          {weekRangeLabel(w.weekOf)}
+                        <span className="text-sm font-medium flex-1 flex items-center gap-1.5">
+                          <span>{weekRangeLabel(w.weekOf)}</span>
+                          {w.dispatched && (
+                            <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1 rounded border border-emerald-200 shrink-0" title="Dispatched for circulation">
+                              📤
+                            </span>
+                          )}
                         </span>
                         {w.specialEvent ? (
                           <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1 rounded uppercase tracking-tighter shrink-0">
@@ -1220,6 +1225,11 @@ function PeriodOverview({
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-slate-800 text-sm">{weekRangeLabel(w.weekOf)}</span>
+                      {w.dispatched && (
+                        <span className="text-[9px] font-bold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-wider shrink-0">
+                          📤 Dispatched
+                        </span>
+                      )}
                       {w.specialEvent ? (
                         <span className="text-[9px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border uppercase tracking-wider shrink-0">
                           {w.specialEvent}

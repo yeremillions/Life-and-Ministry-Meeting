@@ -272,6 +272,123 @@ export default function WeekEditor(props: WeekEditorProps) {
     };
   }, [activeScope, week, props.allWeeks, assignees, households, props.settings]);
 
+  // ── Dispatch (Circulation) Change Tracking ────────────────────────────
+  const changes = useMemo(() => {
+    if (!week.dispatched || !week.dispatchedAssignments) return [];
+
+    const oldMap = new Map(week.dispatchedAssignments.map((a) => [a.uid, a]));
+    const newMap = new Map(week.assignments.map((a) => [a.uid, a]));
+    const allUids = new Set([...oldMap.keys(), ...newMap.keys()]);
+    const enrolleeChanges = new Map<number, { name: string; changes: string[] }>();
+
+    function addEnrolleeChange(id: number, changeText: string) {
+      const enrollee = assignees.find((p) => p.id === id);
+      if (!enrollee) return;
+      if (!enrolleeChanges.has(id)) {
+        enrolleeChanges.set(id, { name: enrollee.name, changes: [] });
+      }
+      enrolleeChanges.get(id)!.changes.push(changeText);
+    }
+
+    for (const uid of allUids) {
+      const oldAss = oldMap.get(uid);
+      const newAss = newMap.get(uid);
+
+      if (oldAss && !newAss) {
+        // Part removed
+        const partName = oldAss.title || oldAss.partType;
+        if (oldAss.assigneeId) {
+          addEnrolleeChange(oldAss.assigneeId, `Removed from part: "${partName}" (Part was deleted)`);
+        }
+        if (oldAss.assistantId) {
+          addEnrolleeChange(oldAss.assistantId, `Removed as assistant from part: "${partName}" (Part was deleted)`);
+        }
+      } else if (!oldAss && newAss) {
+        // Part added
+        const partName = newAss.title || newAss.partType;
+        if (newAss.assigneeId) {
+          addEnrolleeChange(newAss.assigneeId, `Assigned to new part: "${partName}"`);
+        }
+        if (newAss.assistantId) {
+          addEnrolleeChange(newAss.assistantId, `Assigned as assistant to new part: "${partName}"`);
+        }
+      } else if (oldAss && newAss) {
+        const assigneeChanged = oldAss.assigneeId !== newAss.assigneeId;
+        const assistantChanged = oldAss.assistantId !== newAss.assistantId;
+        const titleChanged = oldAss.title !== newAss.title;
+
+        const oldMainName = oldAss.assigneeId ? assignees.find((p) => p.id === oldAss.assigneeId)?.name || "Unknown" : undefined;
+        const newMainName = newAss.assigneeId ? assignees.find((p) => p.id === newAss.assigneeId)?.name || "Unknown" : undefined;
+        const oldAsstName = oldAss.assistantId ? assignees.find((p) => p.id === oldAss.assistantId)?.name || "Unknown" : undefined;
+        const newAsstName = newAss.assistantId ? assignees.find((p) => p.id === newAss.assistantId)?.name || "Unknown" : undefined;
+
+        const partName = newAss.title || newAss.partType;
+        const isSwap = oldAss.assigneeId === newAss.assistantId && oldAss.assistantId === newAss.assigneeId && oldAss.assigneeId && oldAss.assistantId;
+
+        if (isSwap) {
+          addEnrolleeChange(oldAss.assigneeId!, `Swapped role: now Assistant on "${partName}" (was Main)`);
+          addEnrolleeChange(oldAss.assistantId!, `Swapped role: now Main speaker on "${partName}" (was Assistant)`);
+        } else {
+          if (assigneeChanged) {
+            if (oldAss.assigneeId) {
+              addEnrolleeChange(oldAss.assigneeId, `Removed from part: "${oldAss.title || oldAss.partType}"${newMainName ? ` (replaced by ${newMainName})` : ""}`);
+            }
+            if (newAss.assigneeId) {
+              addEnrolleeChange(newAss.assigneeId, `Assigned to part: "${partName}"${oldMainName ? ` (replacing ${oldMainName})` : ""}`);
+            }
+          }
+          if (assistantChanged) {
+            if (oldAss.assistantId) {
+              addEnrolleeChange(oldAss.assistantId, `Removed as assistant from part: "${oldAss.title || oldAss.partType}"${newAsstName ? ` (replaced by ${newAsstName})` : ""}`);
+            }
+            if (newAss.assistantId) {
+              addEnrolleeChange(newAss.assistantId, `Assigned as assistant to part: "${partName}"${oldAsstName ? ` (replacing ${oldAsstName})` : ""}`);
+            }
+          }
+        }
+
+        // Details changed but assignee is the same
+        if (!assigneeChanged && !isSwap && titleChanged) {
+          if (newAss.assigneeId) {
+            addEnrolleeChange(newAss.assigneeId, `Part title changed to "${newAss.title}" (was "${oldAss.title}")`);
+          }
+          if (newAss.assistantId && !assistantChanged) {
+            addEnrolleeChange(newAss.assistantId, `Part title changed to "${newAss.title}" (was "${oldAss.title}")`);
+          }
+        }
+      }
+    }
+
+    return Array.from(enrolleeChanges.entries()).map(([id, data]) => ({
+      id,
+      name: data.name,
+      changes: data.changes,
+    }));
+  }, [week.dispatched, week.assignments, week.dispatchedAssignments, assignees]);
+
+  function handleMarkAsDispatched() {
+    props.onSave({
+      ...week,
+      dispatched: true,
+      dispatchedAssignments: JSON.parse(JSON.stringify(week.assignments)),
+    });
+  }
+
+  function handleCancelDispatch() {
+    props.onSave({
+      ...week,
+      dispatched: false,
+      dispatchedAssignments: undefined,
+    });
+  }
+
+  function handleUpdateDispatchBaseline() {
+    props.onSave({
+      ...week,
+      dispatchedAssignments: JSON.parse(JSON.stringify(week.assignments)),
+    });
+  }
+
   return (
     <div className="space-y-5">
       {props.onBackToOverview && (
@@ -287,7 +404,14 @@ export default function WeekEditor(props: WeekEditorProps) {
       <header className="card">
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <h2 className="font-semibold text-lg">{weekRangeLabel(week.weekOf)}</h2>
+            <h2 className="font-semibold text-lg flex items-center gap-2">
+              <span>{weekRangeLabel(week.weekOf)}</span>
+              {week.dispatched && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  Dispatched
+                </span>
+              )}
+            </h2>
             <div className="text-xs text-slate-500">
               {week.weeklyBibleReading
                 ? <span className="font-medium text-slate-600">{week.weeklyBibleReading} &middot; </span>
@@ -297,6 +421,15 @@ export default function WeekEditor(props: WeekEditorProps) {
             </div>
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
+            {!week.dispatched ? (
+              <button
+                className="btn bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 cursor-pointer"
+                onClick={handleMarkAsDispatched}
+                title="Mark this week's schedule as dispatched/circulated"
+              >
+                <span>📤</span> Mark as Dispatched
+              </button>
+            ) : null}
             <button className="btn-secondary" onClick={() => props.onClear()}>
               Clear all
             </button>
@@ -365,6 +498,76 @@ export default function WeekEditor(props: WeekEditorProps) {
           </button>
         </div>
       </header>
+
+      {/* Dispatch Status & Changes Tracker Banner */}
+      {week.dispatched && (
+        changes.length > 0 ? (
+          <div className="card border-amber-200 bg-amber-50/30 backdrop-blur-xs p-5 space-y-4 animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl mt-0.5 select-none">⚠️</span>
+                <div>
+                  <h4 className="font-bold text-amber-900 text-base">Schedule changed since dispatch!</h4>
+                  <p className="text-xs text-amber-700 font-medium">
+                    The following enrollees are affected by changes made after the schedule was distributed to the congregation.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <button
+                  className="btn bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded cursor-pointer"
+                  onClick={handleUpdateDispatchBaseline}
+                  title="Update the dispatch baseline to current assignments, acknowledging all current changes"
+                >
+                  Update Dispatch Baseline
+                </button>
+                <button
+                  className="btn-secondary border-amber-200 hover:bg-amber-100/50 text-amber-800 text-xs font-semibold px-3 py-1.5 rounded cursor-pointer"
+                  onClick={handleCancelDispatch}
+                  title="Remove dispatched status from this week"
+                >
+                  Cancel Dispatch
+                </button>
+              </div>
+            </div>
+
+            {/* Affected Enrollees Summary list */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-amber-200/40">
+              {changes.map((c) => (
+                <div key={c.id} className="bg-white/80 border border-amber-100 rounded-lg p-3 shadow-2xs">
+                  <div className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                    <span>👤</span>
+                    <span>{c.name}</span>
+                  </div>
+                  <ul className="mt-1.5 space-y-1 pl-4 list-disc text-xs text-slate-600 font-medium">
+                    {c.changes.map((changeText, idx) => (
+                      <li key={idx} className="leading-relaxed">
+                        {changeText}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="card border-emerald-200 bg-emerald-50/20 py-3.5 px-4 flex items-center justify-between gap-3 animate-fade-in">
+            <div className="flex items-center gap-2">
+              <span className="text-base select-none">📤</span>
+              <span className="text-xs font-semibold text-emerald-800">
+                This week's schedule is dispatched and in sync with the distributed version.
+              </span>
+            </div>
+            <button
+              className="text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+              onClick={handleCancelDispatch}
+              title="Remove dispatched status"
+            >
+              Cancel Dispatch
+            </button>
+          </div>
+        )
+      )}
 
       {/* Opening segment — always first, single Chairman slot */}
       {week.specialEvent ? (

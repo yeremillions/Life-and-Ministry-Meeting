@@ -67,6 +67,7 @@ function sanitizeSettings(raw: any): AppSettings {
   base.msPrayerRatio = typeof raw?.msPrayerRatio === "number" ? raw.msPrayerRatio : DEFAULT_SETTINGS.msPrayerRatio;
   base.privilegedBibleReadingRatio = typeof raw?.privilegedBibleReadingRatio === "number" ? raw.privilegedBibleReadingRatio : DEFAULT_SETTINGS.privilegedBibleReadingRatio;
   base.pairingAvoidance = ["strict", "relaxed", "off"].includes(raw?.pairingAvoidance) ? raw.pairingAvoidance : "strict";
+  base.maxMaleMinistryPartsPerMonth = typeof raw?.maxMaleMinistryPartsPerMonth === "number" ? raw.maxMaleMinistryPartsPerMonth : DEFAULT_SETTINGS.maxMaleMinistryPartsPerMonth;
   
   const ruleLevels = ["off", "weak", "medium", "strong", "strict"];
   base.ruleMinGap = ruleLevels.includes(raw?.ruleMinGap) ? raw.ruleMinGap : DEFAULT_SETTINGS.ruleMinGap;
@@ -1682,6 +1683,30 @@ export default function SettingsPage({
               <p className="text-xs text-slate-500 mt-1">
                 Limits the total main assignments any one person can receive in a
                 rolling 4-week window. Set to 0 to disable.
+              </p>
+            </div>
+
+            <div>
+              <label className="label">Max demonstration parts per male publisher per month</label>
+              <input
+                type="number"
+                min={0}
+                max={8}
+                className="input max-w-xs"
+                value={draft.maxMaleMinistryPartsPerMonth ?? 0}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    maxMaleMinistryPartsPerMonth: clamp(
+                      parseInt(e.target.value || "0", 10),
+                      0,
+                      8
+                    ),
+                  })
+                }
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Limits the number of student demonstration parts (excluding talks) that any individual male publisher can be assigned in the Apply Yourself segment in a calendar month. Set to 0 to disable.
               </p>
             </div>
 
