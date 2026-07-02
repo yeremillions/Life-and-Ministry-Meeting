@@ -153,6 +153,7 @@ export interface AppSettings {
   ruleMainToAssistantConsecutive?: RuleEnforcementLevel;
   rulePrayerRotation?: RuleEnforcementLevel;
   ruleUnifiedMinistry?: boolean;
+  ruleAvoidPioneerPairing?: boolean;
 
   // ── Scheduler fairness knobs ──────────────────────────────────────────
 
@@ -393,6 +394,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ruleMainToAssistantConsecutive: "medium",
   rulePrayerRotation: "medium",
   ruleUnifiedMinistry: true,
+  ruleAvoidPioneerPairing: false,
   msTreasuresRatio: 0,
   qmsTreasuresRatio: 0,
   privilegedBibleReadingRatio: 10,

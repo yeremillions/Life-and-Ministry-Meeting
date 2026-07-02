@@ -986,6 +986,7 @@ export interface AutoAssignOptions {
   msPrayerRatio?: number;
   rulePrayerRotation?: RuleEnforcementLevel;
   ruleUnifiedMinistry?: boolean;
+  ruleAvoidPioneerPairing?: boolean;
 }
 
 /**
@@ -1481,6 +1482,19 @@ function pickCandidate(args: PickArgs): Assignee | null {
     });
 
     if (filtered.length > 0) eligiblePool = filtered;
+
+    // 3. Avoid pioneer-to-pioneer pairings (Soft constraint)
+    if (opts.ruleAvoidPioneerPairing) {
+      const isPioneer = (p: Assignee) => p.privileges?.includes("RP");
+      const otherRoleId = role === "main" ? part.assistantId : part.assigneeId;
+      if (otherRoleId != null) {
+        const otherPerson = assignees.find((p) => p.id === otherRoleId);
+        if (otherPerson && isPioneer(otherPerson)) {
+          const filtered = eligiblePool.filter((p) => !isPioneer(p));
+          if (filtered.length > 0) eligiblePool = filtered;
+        }
+      }
+    }
   }
 
   // ── Enforce ministry category shares as a hard cap ─────────────────

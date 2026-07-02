@@ -82,6 +82,7 @@ function sanitizeSettings(raw: any): AppSettings {
   base.ruleMainToAssistantConsecutive = ruleLevels.includes(raw?.ruleMainToAssistantConsecutive) ? raw.ruleMainToAssistantConsecutive : DEFAULT_SETTINGS.ruleMainToAssistantConsecutive;
   base.rulePrayerRotation = ruleLevels.includes(raw?.rulePrayerRotation) ? raw.rulePrayerRotation : DEFAULT_SETTINGS.rulePrayerRotation;
   base.ruleUnifiedMinistry = typeof raw?.ruleUnifiedMinistry === "boolean" ? raw.ruleUnifiedMinistry : DEFAULT_SETTINGS.ruleUnifiedMinistry;
+  base.ruleAvoidPioneerPairing = typeof raw?.ruleAvoidPioneerPairing === "boolean" ? raw.ruleAvoidPioneerPairing : DEFAULT_SETTINGS.ruleAvoidPioneerPairing;
   
   base.customPartTypes = raw?.customPartTypes && typeof raw.customPartTypes === "object"
     ? {
@@ -1126,6 +1127,26 @@ export default function SettingsPage({
                     setDraft({
                       ...draft,
                       ruleUnifiedMinistry: e.target.value === "true",
+                    })
+                  }
+                >
+                  <option value="true">Enabled</option>
+                  <option value="false">Disabled</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all gap-4">
+                <div className="space-y-1">
+                  <span className="font-semibold text-slate-800 text-sm">Avoid Pioneer-to-Pioneer Pairings</span>
+                  <p className="text-xs text-slate-500">Prevents a Regular Pioneer (RP) from being paired with another Regular Pioneer for a Ministry segment demonstration, unless there are no other options.</p>
+                </div>
+                <select
+                  className="input text-xs py-1.5 max-w-[150px]"
+                  value={draft.ruleAvoidPioneerPairing ? "true" : "false"}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      ruleAvoidPioneerPairing: e.target.value === "true",
                     })
                   }
                 >
