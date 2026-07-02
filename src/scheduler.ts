@@ -1413,9 +1413,39 @@ function pickCandidate(args: PickArgs): Assignee | null {
         if (!wouldBeBrotherPart) return true;
 
         const withinMonthlyLimit = brotherPartsInMonthCount + 1 <= maxBrothersMinistryParts;
-        const withinWeeklyLimit = brotherPartsInCurrentWeekCount + 1 <= maxBrothersMinistryPartsPerWeek;
+        if (!withinMonthlyLimit) return false;
 
-        return withinMonthlyLimit && withinWeeklyLimit;
+        const withinWeeklyLimit = brotherPartsInCurrentWeekCount + 1 <= maxBrothersMinistryPartsPerWeek;
+        if (!withinWeeklyLimit) return false;
+
+        // Dynamic gap spacing between weeks containing brother parts
+        const L = maxBrothersMinistryParts;
+        const W = weeksInMonth.length;
+        const minGapWeeks = L > 1 ? Math.floor((W - L) / (L - 1)) : 0;
+
+        if (minGapWeeks > 0) {
+          for (const w of otherWeeksInMonth) {
+            const diffDays = Math.abs(daysBetween(w.weekOf, weekOf));
+            const diffWeeks = Math.round(diffDays / 7);
+            if (diffWeeks <= minGapWeeks) {
+              const otherWeekHasBrother = w.assignments.some((ass) => {
+                if (
+                  ass.segment === "ministry" &&
+                  ass.partType !== "Talk (Ministry)" &&
+                  !ass.partType.toLowerCase().includes("talk")
+                ) {
+                  return isBrotherPart(ass.assigneeId, ass.assistantId);
+                }
+                return false;
+              });
+              if (otherWeekHasBrother) {
+                return false;
+              }
+            }
+          }
+        }
+
+        return true;
       });
 
       if (filtered.length > 0) eligiblePool = filtered;
