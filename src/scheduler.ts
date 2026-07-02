@@ -477,6 +477,7 @@ export function scoreCandidate(
 ): number {
   void talkSplit;
   void prayerSplit;
+  void seed;
   let score = 0;
 
   // Ministry segment role alternation:
@@ -917,9 +918,9 @@ export function scoreCandidate(
     }
   }
 
-  // Deterministic tiny jitter for reproducible tie-breaking per week.
+  // Random tiny jitter for tie-breaking.
   // Scaled small enough (0..0.99) to never override meaningful differences.
-  const jitter = ((a.id ?? 0) * 1315423911 + seed) % 100;
+  const jitter = Math.random() * 100;
   score += jitter / 100;
 
   return score;
@@ -1360,10 +1361,18 @@ function pickCandidate(args: PickArgs): Assignee | null {
       return wMon.getFullYear() === year && wMon.getMonth() === month;
     });
 
-    // 1. Monthly cap constraint
+    // Compute all weeks in the calendar month to get total weeks count
+    const weeksInMonth = [...otherWeeksInMonth];
+    weeksInMonth.push({ weekOf, assignments: [] } as any);
+
+    // 1. Monthly cap and weekly spacing constraints
     const maxBrothersMinistryParts = opts.maxBrothersMinistryPartsPerMonth ?? 0;
     if (maxBrothersMinistryParts > 0) {
-      let brotherPartsCount = 0;
+      const maxBrothersMinistryPartsPerWeek = Math.ceil(maxBrothersMinistryParts / weeksInMonth.length);
+
+      let brotherPartsInMonthCount = 0;
+      let brotherPartsInCurrentWeekCount = 0;
+
       for (const w of otherWeeksInMonth) {
         for (const ass of w.assignments) {
           if (
@@ -1372,7 +1381,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
             !ass.partType.toLowerCase().includes("talk")
           ) {
             if (isBrotherPart(ass.assigneeId, ass.assistantId)) {
-              brotherPartsCount++;
+              brotherPartsInMonthCount++;
             }
           }
         }
@@ -1387,7 +1396,8 @@ function pickCandidate(args: PickArgs): Assignee | null {
             !ass.partType.toLowerCase().includes("talk")
           ) {
             if (isBrotherPart(ass.assigneeId, ass.assistantId)) {
-              brotherPartsCount++;
+              brotherPartsInMonthCount++;
+              brotherPartsInCurrentWeekCount++;
             }
           }
         }
@@ -1400,7 +1410,12 @@ function pickCandidate(args: PickArgs): Assignee | null {
         const nextAssistantId = role === "assistant" ? a.id : part.assistantId;
         const wouldBeBrotherPart = isBrotherPart(nextMainId, nextAssistantId);
 
-        return !wouldBeBrotherPart || brotherPartsCount + 1 <= maxBrothersMinistryParts;
+        if (!wouldBeBrotherPart) return true;
+
+        const withinMonthlyLimit = brotherPartsInMonthCount + 1 <= maxBrothersMinistryParts;
+        const withinWeeklyLimit = brotherPartsInCurrentWeekCount + 1 <= maxBrothersMinistryPartsPerWeek;
+
+        return withinMonthlyLimit && withinWeeklyLimit;
       });
 
       if (filtered.length > 0) eligiblePool = filtered;
