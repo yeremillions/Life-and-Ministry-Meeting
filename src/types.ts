@@ -101,6 +101,7 @@ export interface Week {
   updatedAt: number;
   dispatched?: boolean;
   dispatchedAssignments?: Assignment[];
+  qaChecked?: boolean;
 }
 
 export type SpecialEventType = "Convention" | "Assembly" | "Memorial" | "Other";

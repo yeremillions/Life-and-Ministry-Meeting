@@ -389,6 +389,13 @@ export default function WeekEditor(props: WeekEditorProps) {
     });
   }
 
+  function handleToggleQaCheck() {
+    props.onSave({
+      ...week,
+      qaChecked: !week.qaChecked,
+    });
+  }
+
   return (
     <div className="space-y-5">
       {props.onBackToOverview && (
@@ -411,6 +418,11 @@ export default function WeekEditor(props: WeekEditorProps) {
                   Dispatched
                 </span>
               )}
+              {week.qaChecked && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200" title="This week's assignments have been verified against the workbook.">
+                  ✓ Checked against Workbook
+                </span>
+              )}
             </h2>
             <div className="text-xs text-slate-500">
               {week.weeklyBibleReading
@@ -421,6 +433,21 @@ export default function WeekEditor(props: WeekEditorProps) {
             </div>
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
+            <button
+              className={`btn flex items-center gap-1.5 cursor-pointer ${
+                week.qaChecked
+                  ? "bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-semibold"
+                  : "bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+              }`}
+              onClick={handleToggleQaCheck}
+              title={
+                week.qaChecked
+                  ? "Unmark this week as checked against the workbook"
+                  : "Mark this week as checked against the workbook and verified"
+              }
+            >
+              <span>{week.qaChecked ? "☑" : "☐"}</span> {week.qaChecked ? "Verified" : "Verify against Workbook"}
+            </button>
             {!week.dispatched ? (
               <button
                 className="btn bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 cursor-pointer"

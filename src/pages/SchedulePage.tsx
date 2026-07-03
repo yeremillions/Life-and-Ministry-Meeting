@@ -172,6 +172,16 @@ export default function SchedulePage({
 
   async function saveWeek(updated: Week) {
     if (updated.id == null) return;
+
+    // Auto-reset QA Checked state if assignments have changed
+    const existing = weeks.find((w) => w.id === updated.id);
+    if (existing) {
+      const assignmentsChanged = JSON.stringify(existing.assignments) !== JSON.stringify(updated.assignments);
+      if (assignmentsChanged && existing.qaChecked && updated.qaChecked) {
+        updated.qaChecked = false;
+      }
+    }
+
     await db.weeks.put(updated);
   }
 
@@ -1044,6 +1054,11 @@ function WeekListGrouped({
                               📤
                             </span>
                           )}
+                          {w.qaChecked && (
+                            <span className="text-[10px] text-indigo-600 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 shrink-0" title="Checked against Workbook & Verified">
+                              ✓ QA
+                            </span>
+                          )}
                         </span>
                         {w.specialEvent ? (
                           <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1 rounded uppercase tracking-tighter shrink-0">
@@ -1225,9 +1240,14 @@ function PeriodOverview({
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-slate-800 text-sm">{weekRangeLabel(w.weekOf)}</span>
-                      {w.dispatched && (
+                       {w.dispatched && (
                         <span className="text-[9px] font-bold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-wider shrink-0">
                           📤 Dispatched
+                        </span>
+                      )}
+                      {w.qaChecked && (
+                        <span className="text-[9px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 uppercase tracking-wider shrink-0" title="Checked against Workbook & Verified">
+                          ✓ QA Verified
                         </span>
                       )}
                       {w.specialEvent ? (
