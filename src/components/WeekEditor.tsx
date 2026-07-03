@@ -64,6 +64,12 @@ export default function WeekEditor(props: WeekEditorProps) {
   const { week, assignees, households } = props;
   const [activeScope, setActiveScope] = useState<"week" | "month" | "month-pair">("week");
   const [showOptimizationModal, setShowOptimizationModal] = useState(false);
+  const [isEditingDispatched, setIsEditingDispatched] = useState(false);
+  const isReadOnly = !!week.dispatched && !isEditingDispatched;
+
+  useEffect(() => {
+    setIsEditingDispatched(false);
+  }, [week.id]);
 
   const bySegment = useMemo(() => {
     const map: Record<SegmentId, Assignment[]> = {
@@ -440,6 +446,7 @@ export default function WeekEditor(props: WeekEditorProps) {
                   : "bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
               }`}
               onClick={handleToggleQaCheck}
+              disabled={isReadOnly}
               title={
                 week.qaChecked
                   ? "Unmark this week as checked against the workbook"
@@ -457,13 +464,14 @@ export default function WeekEditor(props: WeekEditorProps) {
                 <span>📤</span> Mark as Dispatched
               </button>
             ) : null}
-            <button className="btn-secondary" onClick={() => props.onClear()}>
+            <button className="btn-secondary" onClick={() => props.onClear()} disabled={isReadOnly}>
               Clear all
             </button>
             <button
               className="btn-secondary"
               onClick={() => props.onAutoFill(true)}
               title="Fill empty slots only"
+              disabled={isReadOnly}
             >
               Auto-fill empty
             </button>
@@ -471,10 +479,11 @@ export default function WeekEditor(props: WeekEditorProps) {
               className="btn"
               onClick={() => props.onAutoFill(false)}
               title="Reassign everything from scratch"
+              disabled={isReadOnly}
             >
               Auto-assign all
             </button>
-            <button className="btn-danger" onClick={() => props.onDelete()}>
+            <button className="btn-danger" onClick={() => props.onDelete()} disabled={isReadOnly}>
               Delete
             </button>
           </div>
@@ -486,6 +495,7 @@ export default function WeekEditor(props: WeekEditorProps) {
             <input
               className="input max-w-md font-bold text-slate-800"
               value={week.weeklyBibleReading ?? ""}
+              disabled={isReadOnly}
               onChange={(e) =>
                 props.onSave({
                   ...week,
@@ -501,6 +511,7 @@ export default function WeekEditor(props: WeekEditorProps) {
               className="input font-semibold"
               style={{ color: week.specialEvent ? "var(--living)" : "inherit" }}
               value={week.specialEvent ?? ""}
+              disabled={isReadOnly}
               onChange={(e) =>
                 props.onSave({
                   ...week,
@@ -519,7 +530,7 @@ export default function WeekEditor(props: WeekEditorProps) {
             className="btn-secondary"
             onClick={handleReviewOptimization}
             title="Review for compliance optimizations"
-            disabled={!!week.specialEvent}
+            disabled={!!week.specialEvent || isReadOnly}
           >
             Review Optimization
           </button>
@@ -541,6 +552,17 @@ export default function WeekEditor(props: WeekEditorProps) {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 shrink-0">
+                <button
+                  className={`btn text-xs font-semibold px-3 py-1.5 rounded cursor-pointer ${
+                    isEditingDispatched
+                      ? "bg-slate-600 hover:bg-slate-700 text-white"
+                      : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                  }`}
+                  onClick={() => setIsEditingDispatched(!isEditingDispatched)}
+                  title={isEditingDispatched ? "Lock editing to make assignments view-only" : "Enable editing for this dispatched week"}
+                >
+                  {isEditingDispatched ? "🔒 Lock Editing" : "🔓 Enable Editing"}
+                </button>
                 <button
                   className="btn bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded cursor-pointer"
                   onClick={handleUpdateDispatchBaseline}
@@ -585,13 +607,26 @@ export default function WeekEditor(props: WeekEditorProps) {
                 This week's schedule is dispatched and in sync with the distributed version.
               </span>
             </div>
-            <button
-              className="text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
-              onClick={handleCancelDispatch}
-              title="Remove dispatched status"
-            >
-              Cancel Dispatch
-            </button>
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                className={`btn text-xs font-semibold px-3 py-1.5 rounded cursor-pointer ${
+                  isEditingDispatched
+                    ? "bg-slate-600 hover:bg-slate-700 text-white"
+                    : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                }`}
+                onClick={() => setIsEditingDispatched(!isEditingDispatched)}
+                title={isEditingDispatched ? "Lock editing to make assignments view-only" : "Enable editing for this dispatched week"}
+              >
+                {isEditingDispatched ? "🔒 Lock Editing" : "🔓 Enable Editing"}
+              </button>
+              <button
+                className="text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+                onClick={handleCancelDispatch}
+                title="Remove dispatched status"
+              >
+                Cancel Dispatch
+              </button>
+            </div>
           </div>
         )
       )}
@@ -659,6 +694,7 @@ export default function WeekEditor(props: WeekEditorProps) {
             settings={props.settings}
             allWeeks={props.allWeeks}
             partNumbers={partNumbers}
+            disabled={isReadOnly}
           />
           {SEGMENTS.filter((s) => s.id !== "opening").map((seg) => (
             <SegmentCard
@@ -700,6 +736,7 @@ export default function WeekEditor(props: WeekEditorProps) {
               settings={props.settings}
               allWeeks={props.allWeeks}
               partNumbers={partNumbers}
+              disabled={isReadOnly}
             />
           ))}
         </>
@@ -998,6 +1035,7 @@ function SegmentCard({
   settings,
   allWeeks,
   partNumbers,
+  disabled,
 }: {
   segment: SegmentId;
   title: string;
@@ -1020,6 +1058,7 @@ function SegmentCard({
   settings: AppSettings;
   allWeeks: Week[];
   partNumbers: Map<string, number>;
+  disabled?: boolean;
 }) {
   const [isOver, setIsOver] = useState(false);
   const [isAddingCustom, setIsAddingCustom] = useState(false);
@@ -1086,6 +1125,7 @@ function SegmentCard({
           <select
             className="input w-auto text-sm"
             value={pickerType}
+            disabled={disabled}
             onChange={(e) => {
               if (e.target.value === "__ADD_NEW_PART_TYPE__") {
                 setIsAddingCustom(true);
@@ -1104,6 +1144,7 @@ function SegmentCard({
           <button
             className="btn-secondary"
             onClick={() => onAddPart(pickerType)}
+            disabled={disabled}
           >
             + Part
           </button>
@@ -1140,6 +1181,7 @@ function SegmentCard({
               settings={settings}
               allWeeks={allWeeks}
               partNumber={partNumbers.get(a.uid)}
+              disabled={disabled}
             />
           ))}
         </ul>
@@ -1275,6 +1317,7 @@ function PartRow({
   settings,
   allWeeks,
   partNumber,
+  disabled,
 }: {
   assignment: Assignment;
   assignees: Assignee[];
@@ -1293,6 +1336,7 @@ function PartRow({
   settings: AppSettings;
   allWeeks: Week[];
   partNumber?: number;
+  disabled?: boolean;
 }) {
   const mainPerson = assignees.find((a) => a.id === assignment.assigneeId);
 
@@ -1454,6 +1498,7 @@ function PartRow({
           <select
             className="input"
             value={assignment.partType}
+            disabled={disabled}
             onChange={(e) =>
               onUpdate({
                 ...assignment,
@@ -1476,6 +1521,7 @@ function PartRow({
           <input
             className="input"
             value={assignment.title}
+            disabled={disabled}
             placeholder={titlePlaceholder(assignment.partType)}
             onChange={(e) =>
               onUpdate({ ...assignment, title: e.target.value })
@@ -1485,8 +1531,9 @@ function PartRow({
 
         <div className="pt-5">
           <button
-            className="text-slate-400 hover:text-red-600 text-sm"
+            className="text-slate-400 hover:text-red-600 text-sm disabled:text-slate-300 disabled:hover:text-slate-300 disabled:cursor-not-allowed"
             onClick={onRemove}
+            disabled={disabled}
             title="Remove part"
           >
             Remove
@@ -1507,6 +1554,7 @@ function PartRow({
               value={assignment.assigneeId}
               options={eligibleMain}
               usedIds={usedIds}
+              disabled={disabled}
               onChange={(id) => onUpdate({ ...assignment, assigneeId: id })}
               onNavigateToProfile={onNavigateToProfile}
               stats={stats}
@@ -1529,7 +1577,8 @@ function PartRow({
                 <button
                   type="button"
                   onClick={handleSwap}
-                  className="w-9 h-9 rounded-full border border-slate-200 bg-slate-50 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center transition-colors shadow-xs active:scale-95 cursor-pointer"
+                  disabled={disabled}
+                  className="w-9 h-9 rounded-full border border-slate-200 bg-slate-50 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 flex items-center justify-center transition-colors shadow-xs active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-slate-50 disabled:hover:text-slate-500"
                   title="Swap main and assistant roles"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1546,6 +1595,7 @@ function PartRow({
                     : "Householder / assistant"
                 }
                 value={assignment.assistantId}
+                disabled={disabled}
                 options={
                   (() => {
                     if (assignment.partType === "Congregation Bible Study") {
@@ -1741,6 +1791,7 @@ function AssigneePicker({
   mainPerson,
   assistantPerson,
   households,
+  disabled,
 }: {
   label: string;
   value?: number;
@@ -1765,6 +1816,7 @@ function AssigneePicker({
   mainPerson?: Assignee;
   assistantPerson?: Assignee;
   households?: Household[];
+  disabled?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -2097,16 +2149,21 @@ function AssigneePicker({
         <input
           ref={inputRef}
           className="input"
-          style={{ paddingRight: "2rem", cursor: "text" }}
+          style={{ paddingRight: "2rem", cursor: disabled ? "not-allowed" : "text" }}
           placeholder="— unassigned —"
           value={open ? query : displayValue}
+          disabled={disabled}
           onFocus={() => {
-            setOpen(true);
-            setQuery("");
+            if (!disabled) {
+              setOpen(true);
+              setQuery("");
+            }
           }}
           onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
+            if (!disabled) {
+              setQuery(e.target.value);
+              setOpen(true);
+            }
           }}
           onKeyDown={(e) => {
             if (e.key === "Escape") { setOpen(false); setQuery(""); }
