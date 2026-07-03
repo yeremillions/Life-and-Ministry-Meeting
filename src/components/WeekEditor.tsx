@@ -207,7 +207,8 @@ export default function WeekEditor(props: WeekEditorProps) {
             undefined,
             undefined,
             w.weekOf,
-            props.settings
+            props.settings,
+            assistantPerson?.isMinor
           );
           criticalViolations += mainV.length;
         }
@@ -1353,6 +1354,8 @@ function PartRow({
     return assignees.filter((a) => !a.archived && a.active && allowedGenders.includes(a.gender));
   }, [assignees, assignment.partType, settings.assignmentRules]);
 
+  const assistantPerson = assignees.find((a) => a.id === assignment.assistantId);
+
   const mainViolations = useMemo(() => {
     if (!mainPerson) return [];
     return getRuleViolations(
@@ -1363,11 +1366,11 @@ function PartRow({
       undefined,
       undefined,
       week.weekOf,
-      settings
+      settings,
+      assistantPerson?.isMinor
     );
-  }, [mainPerson, assignment.partType, settings.assignmentRules, week.weekOf, settings]);
+  }, [mainPerson, assistantPerson, assignment.partType, settings.assignmentRules, week.weekOf, settings]);
 
-  const assistantPerson = assignees.find((a) => a.id === assignment.assistantId);
   const assistantViolations = useMemo(() => {
     if (!assistantPerson) return [];
     const s = stats.get(assistantPerson.id!);
@@ -2000,7 +2003,8 @@ function AssigneePicker({
         mainIsMinor,
         lastAssignmentRole,
         weekOf,
-        settings
+        settings,
+        partnerIsMinor
       );
 
       // Same-Sex Demo Match Check inside options map

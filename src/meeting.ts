@@ -169,7 +169,8 @@ export function isEligible(
   rules: Record<string, AssignmentRule> = DEFAULT_ASSIGNMENT_RULES,
   mainIsMinor?: boolean,
   strictMinorAssistant?: boolean,
-  customPartTypes?: Record<SegmentId, string[]>
+  customPartTypes?: Record<SegmentId, string[]>,
+  partnerIsMinor?: boolean
 ): boolean {
   if (a.archived || !a.active) return false;
 
@@ -208,8 +209,13 @@ export function isEligible(
   const isMinistryPart =
     SEGMENT_PART_TYPES.ministry.includes(partType) ||
     (customPartTypes?.ministry || []).includes(partType);
-  if (purpose === "auto" && strictMinorAssistant && isMinistryPart && role === "assistant" && mainIsMinor === false && a.isMinor) {
-    return false;
+  if (purpose === "auto" && strictMinorAssistant && isMinistryPart) {
+    if (role === "assistant" && mainIsMinor === false && a.isMinor) {
+      return false;
+    }
+    if (role === "main" && partnerIsMinor === true && !a.isMinor) {
+      return false;
+    }
   }
 
   if (partType === "Video") return false;
@@ -225,7 +231,8 @@ export function getRuleViolations(
   mainIsMinor?: boolean,
   lastAssignmentRole?: "main" | "assistant",
   weekOf?: string,
-  settings?: AppSettings
+  settings?: AppSettings,
+  partnerIsMinor?: boolean
 ): string[] {
   const violations: string[] = [];
   if (a.archived || !a.active) return violations;
@@ -297,11 +304,19 @@ export function getRuleViolations(
     SEGMENT_PART_TYPES.ministry.includes(partType) ||
     (settings?.customPartTypes?.ministry || []).includes(partType);
   const minorAsstLevel = settings?.ruleMinorAssistantToAdult ?? "strict";
-  if (minorAsstLevel !== "off" && isMinistryPart && role === "assistant" && mainIsMinor === false && a.isMinor) {
-    if (minorAsstLevel === "strict") {
-      violations.push(`Minor assistant cannot normally assist adult`);
-    } else {
-      violations.push(`Warning: Minor assistant assisting adult`);
+  if (minorAsstLevel !== "off" && isMinistryPart) {
+    if (role === "assistant" && mainIsMinor === false && a.isMinor) {
+      if (minorAsstLevel === "strict") {
+        violations.push(`Minor assistant cannot normally assist adult`);
+      } else {
+        violations.push(`Warning: Minor assistant assisting adult`);
+      }
+    } else if (role === "main" && partnerIsMinor === true && !a.isMinor) {
+      if (minorAsstLevel === "strict") {
+        violations.push(`Adult main assignee cannot normally be assisted by a minor`);
+      } else {
+        violations.push(`Warning: Adult main assignee being assisted by a minor`);
+      }
     }
   }
 

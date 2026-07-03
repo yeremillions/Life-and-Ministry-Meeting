@@ -879,10 +879,16 @@ export function scoreCandidate(
 
   // Penalty for minor assistant to adult main
   const minorAssistantToAdultLevel = opts.ruleMinorAssistantToAdult ?? "strict";
-  if (role === "assistant" && !isMinorMain && a.isMinor && minorAssistantToAdultLevel !== "off" && minorAssistantToAdultLevel !== "strict") {
-    const penalty = minorAssistantToAdultLevel === "weak" ? 250 :
-                    minorAssistantToAdultLevel === "medium" ? 1000 : 5000;
-    score -= penalty;
+  if (minorAssistantToAdultLevel !== "off" && minorAssistantToAdultLevel !== "strict") {
+    if (role === "assistant" && !isMinorMain && a.isMinor) {
+      const penalty = minorAssistantToAdultLevel === "weak" ? 250 :
+                      minorAssistantToAdultLevel === "medium" ? 1000 : 5000;
+      score -= penalty;
+    } else if (role === "main" && partnerIsMinor && !a.isMinor) {
+      const penalty = minorAssistantToAdultLevel === "weak" ? 250 :
+                      minorAssistantToAdultLevel === "medium" ? 1000 : 5000;
+      score -= penalty;
+    }
   }
 
   // ── Frequency throttling ────────────────────────────────────────────
@@ -1235,6 +1241,14 @@ function pickCandidate(args: PickArgs): Assignee | null {
     }
   }
 
+  let partnerIsMinor = false;
+  if (role === "main" && part.assistantId != null) {
+    const assistant = assignees.find((p) => p.id === part.assistantId);
+    if (assistant) {
+      partnerIsMinor = assistant.isMinor ?? false;
+    }
+  }
+
 
   // --- Check publisher availability for the midweek meeting ---
   const meetingDay = opts.midweekMeetingDay || "Thursday";
@@ -1275,7 +1289,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
 
     // Hard eligibility check
     const preventMinor = (opts.ruleMinorAssistantToAdult ?? "strict") === "strict";
-    if (!isEligible(a, part.partType, role, "auto", opts.assignmentRules, isMinorMain, preventMinor, opts.customPartTypes)) {
+    if (!isEligible(a, part.partType, role, "auto", opts.assignmentRules, isMinorMain, preventMinor, opts.customPartTypes, partnerIsMinor)) {
       return false;
     }
 
