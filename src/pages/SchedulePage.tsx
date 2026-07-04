@@ -68,11 +68,6 @@ export default function SchedulePage({
     return saved || null;
   });
 
-  useEffect(() => {
-    if (initialWeekId !== undefined) {
-      setSelectedId(initialWeekId);
-    }
-  }, [initialWeekId]);
 
   useEffect(() => {
     if (initialPeriodKey !== undefined) {
