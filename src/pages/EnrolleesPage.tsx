@@ -1201,6 +1201,16 @@ export function EnrolleeModal({
     }
   }, [isMinor]);
 
+  useEffect(() => {
+    const isElder = privileges.includes("E") || privileges.includes("QE");
+    if (!isElder) {
+      setIsSecretary(false);
+      setIsServiceOverseer(false);
+      setIsHlcMember(false);
+      setIsLmmOverseer(false);
+    }
+  }, [privileges]);
+
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [restrictionType, setRestrictionType] = useState<Assignee["restrictionType"]>(
     initial?.restrictionType ?? "none"
@@ -1342,83 +1352,89 @@ export function EnrolleeModal({
           </label>
         </div>
 
-        <div>
-          <label className="label">Special Roles & Relationships</label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
-              <input
-                type="checkbox"
-                checked={isSecretary}
-                onChange={(e) => setIsSecretary(e.target.checked)}
-              />
-              Secretary
-            </label>
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
-              <input
-                type="checkbox"
-                checked={isServiceOverseer}
-                onChange={(e) => setIsServiceOverseer(e.target.checked)}
-              />
-              Service Overseer
-            </label>
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
-              <input
-                type="checkbox"
-                checked={isHlcMember}
-                onChange={(e) => setIsHlcMember(e.target.checked)}
-              />
-              HLC Member
-            </label>
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
-              <input
-                type="checkbox"
-                checked={isLmmOverseer}
-                onChange={(e) => setIsLmmOverseer(e.target.checked)}
-              />
-              LMM Overseer
-            </label>
-            {gender === "M" && !isMinor && (
-              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
-                <input
-                  type="checkbox"
-                  checked={isFather}
-                  onChange={(e) => setIsFather(e.target.checked)}
-                />
-                Father
-              </label>
-            )}
-            {gender === "F" && !isMinor && (
-              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
-                <input
-                  type="checkbox"
-                  checked={isMother}
-                  onChange={(e) => setIsMother(e.target.checked)}
-                />
-                Mother
-              </label>
-            )}
-            {gender === "M" && !isMinor && (
-              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
-                <input
-                  type="checkbox"
-                  checked={isHusband}
-                  onChange={(e) => setIsHusband(e.target.checked)}
-                />
-                Husband
-              </label>
-            )}
-            {gender === "F" && !isMinor && (
-              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
-                <input
-                  type="checkbox"
-                  checked={isWife}
-                  onChange={(e) => setIsWife(e.target.checked)}
-                />
-                Wife
-              </label>
-            )}
+        {((privileges.includes("E") || privileges.includes("QE")) || !isMinor) && (
+          <div>
+            <label className="label">Special Roles & Relationships</label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
+              {(privileges.includes("E") || privileges.includes("QE")) && (
+                <>
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+                    <input
+                      type="checkbox"
+                      checked={isSecretary}
+                      onChange={(e) => setIsSecretary(e.target.checked)}
+                    />
+                    Secretary
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+                    <input
+                      type="checkbox"
+                      checked={isServiceOverseer}
+                      onChange={(e) => setIsServiceOverseer(e.target.checked)}
+                    />
+                    Service Overseer
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+                    <input
+                      type="checkbox"
+                      checked={isHlcMember}
+                      onChange={(e) => setIsHlcMember(e.target.checked)}
+                    />
+                    HLC Member
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+                    <input
+                      type="checkbox"
+                      checked={isLmmOverseer}
+                      onChange={(e) => setIsLmmOverseer(e.target.checked)}
+                    />
+                    LMM Overseer
+                  </label>
+                </>
+              )}
+              {gender === "M" && !isMinor && (
+                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+                  <input
+                    type="checkbox"
+                    checked={isFather}
+                    onChange={(e) => setIsFather(e.target.checked)}
+                  />
+                  Father
+                </label>
+              )}
+              {gender === "F" && !isMinor && (
+                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+                  <input
+                    type="checkbox"
+                    checked={isMother}
+                    onChange={(e) => setIsMother(e.target.checked)}
+                  />
+                  Mother
+                </label>
+              )}
+              {gender === "M" && !isMinor && (
+                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+                  <input
+                    type="checkbox"
+                    checked={isHusband}
+                    onChange={(e) => setIsHusband(e.target.checked)}
+                  />
+                  Husband
+                </label>
+              )}
+              {gender === "F" && !isMinor && (
+                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+                  <input
+                    type="checkbox"
+                    checked={isWife}
+                    onChange={(e) => setIsWife(e.target.checked)}
+                  />
+                  Wife
+                </label>
+              )}
+            </div>
           </div>
-        </div>
+        )}
         <div>
           <label className="label">Privileges</label>
           <div className="flex gap-2 flex-wrap">
