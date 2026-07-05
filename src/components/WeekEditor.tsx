@@ -1820,10 +1820,13 @@ function PartRow({
             disabled={disabled}
             onChange={(e) => {
               const isChecked = e.target.checked;
+              const specialReqs = settings.specialRequirements || [
+                "Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer", "Father", "Mother", "Husband", "Wife"
+              ];
               onUpdate({
                 ...assignment,
                 isSpecial: isChecked,
-                specialRequirements: isChecked ? "Children" : undefined
+                specialRequirements: isChecked ? (specialReqs[0] || "Children") : undefined
               });
             }}
           />
@@ -1837,7 +1840,12 @@ function PartRow({
             <label className="text-xs font-medium text-slate-500 whitespace-nowrap">Target:</label>
             <select
               className="input text-xs py-1 px-2 h-8 w-full sm:w-auto"
-              value={["Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer"].includes(assignment.specialRequirements ?? "") ? (assignment.specialRequirements ?? "Children") : "Custom"}
+              value={(() => {
+                const specialReqs = settings.specialRequirements || [
+                  "Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer", "Father", "Mother", "Husband", "Wife"
+                ];
+                return specialReqs.includes(assignment.specialRequirements ?? "") ? (assignment.specialRequirements ?? (specialReqs[0] || "Children")) : "Custom";
+              })()}
               disabled={disabled}
               onChange={(e) => {
                 const val = e.target.value;
@@ -1848,18 +1856,22 @@ function PartRow({
                 }
               }}
             >
-              <option value="Children">Children</option>
-              <option value="Brothers">Brothers</option>
-              <option value="Sisters">Sisters</option>
-              <option value="School Students">School Students</option>
-              <option value="Secretary">Secretary</option>
-              <option value="Service Overseer">Service Overseer</option>
-              <option value="HLC Member">HLC Member</option>
-              <option value="LMM Overseer">LMM Overseer</option>
+              {(settings.specialRequirements || [
+                "Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer", "Father", "Mother", "Husband", "Wife"
+              ]).map((req) => (
+                <option key={req} value={req}>
+                  {req}
+                </option>
+              ))}
               <option value="Custom">Custom...</option>
             </select>
 
-            {!["Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer"].includes(assignment.specialRequirements ?? "") && (
+            {!(() => {
+              const specialReqs = settings.specialRequirements || [
+                "Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer", "Father", "Mother", "Husband", "Wife"
+              ];
+              return specialReqs.includes(assignment.specialRequirements ?? "");
+            })() && (
               <input
                 type="text"
                 className="input text-xs py-1 px-2 h-8 flex-1 sm:w-48 placeholder-slate-400"

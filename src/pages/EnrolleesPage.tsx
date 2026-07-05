@@ -718,7 +718,7 @@ export default function EnrolleesPage({
                         {a.baptised ? "Yes" : "No"}
                       </td>
                       <td className="py-2 pr-3">
-                        {(a.privileges ?? []).length === 0 ? (
+                        {((a.privileges ?? []).length === 0 && !a.isSecretary && !a.isServiceOverseer && !a.isHlcMember && !a.isLmmOverseer && !a.isFather && !a.isMother && !a.isHusband && !a.isWife) ? (
                           <span className="text-slate-400">—</span>
                         ) : (
                           <div className="flex gap-1 flex-wrap">
@@ -730,6 +730,14 @@ export default function EnrolleesPage({
                                 {p}
                               </span>
                             ))}
+                            {a.isSecretary && <span className="pill bg-indigo-100 text-indigo-800">Secretary</span>}
+                            {a.isServiceOverseer && <span className="pill bg-indigo-100 text-indigo-800">Service Overseer</span>}
+                            {a.isHlcMember && <span className="pill bg-indigo-100 text-indigo-800">HLC Member</span>}
+                            {a.isLmmOverseer && <span className="pill bg-indigo-100 text-indigo-800">LMM Overseer</span>}
+                            {a.isFather && <span className="pill bg-indigo-100 text-indigo-800">Father</span>}
+                            {a.isMother && <span className="pill bg-indigo-100 text-indigo-800">Mother</span>}
+                            {a.isHusband && <span className="pill bg-indigo-100 text-indigo-800">Husband</span>}
+                            {a.isWife && <span className="pill bg-indigo-100 text-indigo-800">Wife</span>}
                           </div>
                         )}
                       </td>
@@ -1162,6 +1170,14 @@ export function EnrolleeModal({
   const [baptised, setBaptised] = useState(initial?.baptised ?? true);
   const [active, setActive] = useState(initial?.active ?? true);
   const [isMinor, setIsMinor] = useState(initial?.isMinor ?? false);
+  const [isSecretary, setIsSecretary] = useState(initial?.isSecretary ?? false);
+  const [isServiceOverseer, setIsServiceOverseer] = useState(initial?.isServiceOverseer ?? false);
+  const [isHlcMember, setIsHlcMember] = useState(initial?.isHlcMember ?? false);
+  const [isLmmOverseer, setIsLmmOverseer] = useState(initial?.isLmmOverseer ?? false);
+  const [isFather, setIsFather] = useState(initial?.isFather ?? false);
+  const [isMother, setIsMother] = useState(initial?.isMother ?? false);
+  const [isHusband, setIsHusband] = useState(initial?.isHusband ?? false);
+  const [isWife, setIsWife] = useState(initial?.isWife ?? false);
   const [privileges, setPrivileges] = useState<Privilege[]>(
     initial?.privileges ?? []
   );
@@ -1304,6 +1320,76 @@ export function EnrolleeModal({
             />
             Active
           </label>
+        </div>
+
+        <div>
+          <label className="label">Special Roles & Relationships</label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+              <input
+                type="checkbox"
+                checked={isSecretary}
+                onChange={(e) => setIsSecretary(e.target.checked)}
+              />
+              Secretary
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+              <input
+                type="checkbox"
+                checked={isServiceOverseer}
+                onChange={(e) => setIsServiceOverseer(e.target.checked)}
+              />
+              Service Overseer
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+              <input
+                type="checkbox"
+                checked={isHlcMember}
+                onChange={(e) => setIsHlcMember(e.target.checked)}
+              />
+              HLC Member
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+              <input
+                type="checkbox"
+                checked={isLmmOverseer}
+                onChange={(e) => setIsLmmOverseer(e.target.checked)}
+              />
+              LMM Overseer
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+              <input
+                type="checkbox"
+                checked={isFather}
+                onChange={(e) => setIsFather(e.target.checked)}
+              />
+              Father
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+              <input
+                type="checkbox"
+                checked={isMother}
+                onChange={(e) => setIsMother(e.target.checked)}
+              />
+              Mother
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+              <input
+                type="checkbox"
+                checked={isHusband}
+                onChange={(e) => setIsHusband(e.target.checked)}
+              />
+              Husband
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+              <input
+                type="checkbox"
+                checked={isWife}
+                onChange={(e) => setIsWife(e.target.checked)}
+              />
+              Wife
+            </label>
+          </div>
         </div>
         <div>
           <label className="label">Privileges</label>
@@ -1583,6 +1669,14 @@ export function EnrolleeModal({
                 baptised,
                 active,
                 isMinor,
+                isSecretary,
+                isServiceOverseer,
+                isHlcMember,
+                isLmmOverseer,
+                isFather,
+                isMother,
+                isHusband,
+                isWife,
                 privileges:
                   gender === "M"
                     ? normalizePrivileges(privileges)

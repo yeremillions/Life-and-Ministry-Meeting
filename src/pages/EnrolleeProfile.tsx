@@ -303,6 +303,21 @@ export default function EnrolleeProfile({
                 ) : <span className="text-slate-400">—</span>}
               </div>
             </div>
+            {(enrollee.isSecretary || enrollee.isServiceOverseer || enrollee.isHlcMember || enrollee.isLmmOverseer || enrollee.isFather || enrollee.isMother || enrollee.isHusband || enrollee.isWife) && (
+              <div className="flex justify-between border-t border-slate-100 pt-2">
+                <span className="text-slate-500">Special Roles</span>
+                <div className="flex flex-wrap justify-end gap-1">
+                  {enrollee.isSecretary && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">Secretary</span>}
+                  {enrollee.isServiceOverseer && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">Service Overseer</span>}
+                  {enrollee.isHlcMember && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">HLC Member</span>}
+                  {enrollee.isLmmOverseer && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">LMM Overseer</span>}
+                  {enrollee.isFather && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">Father</span>}
+                  {enrollee.isMother && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">Mother</span>}
+                  {enrollee.isHusband && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">Husband</span>}
+                  {enrollee.isWife && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">Wife</span>}
+                </div>
+              </div>
+            )}
             {myHouseholds.length > 0 && (
                 <div className="pt-2">
                     <span className="text-slate-500 block mb-1">Housemates</span>

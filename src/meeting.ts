@@ -529,3 +529,20 @@ export function checkPairingViolation(
 
   return inALast2 || inANext2 || inBLast2 || inBNext2;
 }
+
+export function meetsSpecialRequirement(a: Assignee, req: string): boolean {
+  const normalized = req.trim().toLowerCase();
+  if (normalized === "children") return !!a.isMinor;
+  if (normalized === "brothers") return a.gender === "M";
+  if (normalized === "sisters") return a.gender === "F";
+  if (normalized === "school students") return true; // all active enrollees
+  if (normalized === "secretary") return !!a.isSecretary;
+  if (normalized === "service overseer") return !!a.isServiceOverseer;
+  if (normalized === "hlc member") return !!a.isHlcMember;
+  if (normalized === "lmm overseer") return !!a.isLmmOverseer;
+  if (normalized === "father") return !!a.isFather;
+  if (normalized === "mother") return !!a.isMother;
+  if (normalized === "husband") return !!a.isHusband;
+  if (normalized === "wife") return !!a.isWife;
+  return false; // custom requirement must be manually assigned
+}

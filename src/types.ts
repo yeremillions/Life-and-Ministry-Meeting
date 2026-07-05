@@ -48,6 +48,14 @@ export interface Assignee {
   unavailableRanges?: UnavailableRange[];
   /** True when the enrollee has been soft-deleted/archived to preserve past history. */
   archived?: boolean;
+  isSecretary?: boolean;
+  isServiceOverseer?: boolean;
+  isHlcMember?: boolean;
+  isLmmOverseer?: boolean;
+  isFather?: boolean;
+  isMother?: boolean;
+  isHusband?: boolean;
+  isWife?: boolean;
 }
 
 /** Which segment an assignment belongs to. */
@@ -241,6 +249,7 @@ export interface AppSettings {
   customPartTypes?: Record<SegmentId, string[]>;
   /** Main/Assistant pairing repetition avoidance check: strict, relaxed, or off. */
   pairingAvoidance?: "strict" | "relaxed" | "off";
+  specialRequirements?: string[];
 }
 
 export interface AssignmentRule {
@@ -418,4 +427,18 @@ export const DEFAULT_SETTINGS: AppSettings = {
     living: [],
   },
   pairingAvoidance: "strict",
+  specialRequirements: [
+    "Children",
+    "Brothers",
+    "Sisters",
+    "School Students",
+    "Secretary",
+    "Service Overseer",
+    "HLC Member",
+    "LMM Overseer",
+    "Father",
+    "Mother",
+    "Husband",
+    "Wife"
+  ],
 };

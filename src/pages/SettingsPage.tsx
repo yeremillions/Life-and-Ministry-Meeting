@@ -227,7 +227,9 @@ export default function SettingsPage({
   const assignees = useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
   const [draft, setDraft] = useState<AppSettings | null>(null);
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<"general" | "customizer" | "shares" | "customParts" | "eligibility">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "customizer" | "shares" | "customParts" | "eligibility" | "specialRequirements">("general");
+  const [newSpecialRequirement, setNewSpecialRequirement] = useState("");
+  const [specialRequirementError, setSpecialRequirementError] = useState("");
 
   const renderRuleCustomizerRow = (
     label: string,
@@ -333,6 +335,32 @@ export default function SettingsPage({
   useEffect(() => {
     if (settings) setDraft(sanitizeSettings(settings));
   }, [settings]);
+
+  function handleAddSpecialRequirement() {
+    if (!draft) return;
+    const val = newSpecialRequirement.trim();
+    if (!val) return;
+    const current = draft.specialRequirements || [];
+    if (current.includes(val)) {
+      setSpecialRequirementError("This requirement already exists.");
+      return;
+    }
+    setDraft({
+      ...draft,
+      specialRequirements: [...current, val],
+    });
+    setNewSpecialRequirement("");
+    setSpecialRequirementError("");
+  }
+
+  function handleRemoveSpecialRequirement(req: string) {
+    if (!draft) return;
+    const current = draft.specialRequirements || [];
+    setDraft({
+      ...draft,
+      specialRequirements: current.filter((r) => r !== req),
+    });
+  }
 
   async function save() {
     if (!draft) return;
@@ -897,6 +925,16 @@ export default function SettingsPage({
             onClick={() => setActiveTab("eligibility")}
           >
             Assignment Eligibility Table
+          </button>
+          <button
+            className={`py-2 px-4 font-semibold text-sm rounded-md transition-all ${
+              activeTab === "specialRequirements"
+                ? "bg-indigo-50 text-indigo-700 shadow-sm font-bold border border-indigo-100"
+                : "border border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
+            }`}
+            onClick={() => setActiveTab("specialRequirements")}
+          >
+            Special Requirements List
           </button>
         </div>
 
@@ -2224,6 +2262,96 @@ export default function SettingsPage({
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 flex items-center">
+            <button className="btn" onClick={save}>
+              Save settings
+            </button>
+            {saved && (
+              <span
+                className="inline-flex items-center gap-1 text-sm font-medium ml-3 animate-fade-in"
+                style={{ color: 'var(--treasures)' }}
+              >
+                ✓ Settings saved
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "specialRequirements" && (
+        <div className="card space-y-4 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-slate-800">Special Requirements Guidelines</h2>
+            <p className="text-xs text-slate-500">
+              Manage the list of preset special requirement attributes.
+            </p>
+          </div>
+          <p className="text-sm text-slate-500">
+            Define the special requirements that the LMM Overseer can choose from when marking assignments as special. These requirements are matched against enrollee profiles (e.g., Secretary, Service Overseer, Children, Brothers, Father, Mother, etc.) to evaluate auto-assignment eligibility.
+          </p>
+
+          <div className="max-w-md space-y-4 pt-2">
+            <div className="space-y-2">
+              <label className="label">Add New Special Requirement Preset</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  className="input flex-1"
+                  placeholder="E.g., Audiovisual Helper, Aux. Pioneer..."
+                  value={newSpecialRequirement}
+                  onChange={(e) => setNewSpecialRequirement(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddSpecialRequirement();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={handleAddSpecialRequirement}
+                >
+                  Add
+                </button>
+              </div>
+              {specialRequirementError && (
+                <p className="text-[11px] text-rose-500 font-medium animate-shake">
+                  {specialRequirementError}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="label">Current Requirements</label>
+              <div className="border border-slate-250 rounded-lg divide-y divide-slate-100 max-h-96 overflow-y-auto bg-slate-50/20 shadow-xs">
+                {((draft?.specialRequirements as string[] | undefined) || []).length === 0 ? (
+                  <div className="p-4 text-sm text-slate-400 text-center italic">
+                    No special requirements defined.
+                  </div>
+                ) : (
+                  ((draft?.specialRequirements as string[] | undefined) || []).map((req) => (
+                    <div
+                      key={req}
+                      className="flex items-center justify-between px-4 py-3 hover:bg-slate-50/50 transition-colors"
+                    >
+                      <span className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                        <span>⭐</span> {req}
+                      </span>
+                      <button
+                        type="button"
+                        className="text-xs text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2.5 py-1 rounded transition-colors font-medium border border-transparent hover:border-rose-100"
+                        onClick={() => handleRemoveSpecialRequirement(req)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="pt-4 border-t border-slate-100 flex items-center">

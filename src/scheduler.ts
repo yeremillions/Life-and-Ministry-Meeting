@@ -3,6 +3,7 @@ import {
   isPrivileged,
   needsAssistant,
   checkPairingViolation,
+  meetsSpecialRequirement,
 } from "./meeting";
 import {
   Assignee,
@@ -1062,7 +1063,6 @@ export function autoAssignWeek(
       if (assignment.assistantId != null) {
         usedThisWeek.add(assignment.assistantId);
       }
-      continue;
     }
 
     const stats = buildStats(assignees, [
@@ -1070,7 +1070,7 @@ export function autoAssignWeek(
       { ...week, assignments },
     ]);
 
-    if (!(opts.preserveExisting && assignment.assigneeId != null)) {
+    if (!(opts.preserveExisting && assignment.assigneeId != null) && !(assignment.isSpecial && assignment.assigneeId != null)) {
       // For Opening Prayer, allow the already-assigned Chairman to also be
       // considered — remove his ID from the exclusion set for this pick only.
       let usedForPick = usedThisWeek;
@@ -1154,7 +1154,7 @@ export function autoAssignWeek(
 
     // Secondary participant (householder / reader).
     if (needsAssistant(assignment.partType, opts.assignmentRules)) {
-      if (!(opts.preserveExisting && assignment.assistantId != null)) {
+      if (!(opts.preserveExisting && assignment.assistantId != null) && !(assignment.isSpecial && assignment.assistantId != null)) {
         const candidate = pickCandidate({
           part: assignment,
           role: "assistant",
@@ -1311,6 +1311,12 @@ function pickCandidate(args: PickArgs): Assignee | null {
     }
     return true;
   });
+
+  if (role === "main" && part.isSpecial && part.specialRequirements) {
+    eligiblePool = eligiblePool.filter((a) =>
+      meetsSpecialRequirement(a, part.specialRequirements!)
+    );
+  }
 
   // ── Hard constraint: minimum gap between main assignments ──────────
   const isUnifiedMinistry = (opts.ruleUnifiedMinistry ?? true) && part.segment === "ministry";
