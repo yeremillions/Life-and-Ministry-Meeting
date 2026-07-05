@@ -450,7 +450,7 @@ export default function WeekEditor(props: WeekEditorProps) {
               {/* Group 1: Scheduling / Assignment Actions */}
               <div className="flex items-center gap-1.5 bg-slate-100/60 p-1 rounded-lg border border-slate-200/50" title="Scheduling / Assignment Actions">
                 <button
-                  className="btn text-[9px] sm:text-[10px] md:text-[11.2px] px-1.5 md:px-2.5 py-1 md:py-1.5"
+                  className="btn text-[9.3px] sm:text-[10.3px] md:text-[11.5px] px-[6.5px] md:px-[10.5px] py-[4.5px] md:py-[6.5px]"
                   onClick={() => props.onAutoFill(false)}
                   title="Reassign everything from scratch"
                   disabled={isReadOnly}
@@ -458,7 +458,7 @@ export default function WeekEditor(props: WeekEditorProps) {
                   Auto-assign all
                 </button>
                 <button
-                  className="btn-secondary text-[9px] sm:text-[10px] md:text-[11.2px] px-1.5 md:px-2.5 py-1 md:py-1.5"
+                  className="btn-secondary text-[9.3px] sm:text-[10.3px] md:text-[11.5px] px-[6.5px] md:px-[10.5px] py-[4.5px] md:py-[6.5px]"
                   onClick={() => props.onAutoFill(true)}
                   title="Fill empty slots only"
                   disabled={isReadOnly}
@@ -472,7 +472,7 @@ export default function WeekEditor(props: WeekEditorProps) {
               {/* Group 2: QA Actions */}
               <div className="flex flex-wrap items-center gap-1.5 bg-indigo-50/30 p-1 rounded-lg border border-indigo-100/40" title="Quality Assurance Actions">
                 <button
-                  className={`btn text-[9px] sm:text-[10px] md:text-[11.2px] px-1.5 md:px-2.5 py-1 md:py-1.5 flex items-center gap-1.5 cursor-pointer ${
+                  className={`btn text-[9.3px] sm:text-[10.3px] md:text-[11.5px] px-[6.5px] md:px-[10.5px] py-[4.5px] md:py-[6.5px] flex items-center gap-1.5 cursor-pointer ${
                     week.qaChecked
                       ? "bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-semibold"
                       : "bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
@@ -489,7 +489,7 @@ export default function WeekEditor(props: WeekEditorProps) {
                 </button>
                 {!week.dispatched ? (
                   <button
-                    className="btn text-[9px] sm:text-[10px] md:text-[11.2px] px-1.5 md:px-2.5 py-1 md:py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 cursor-pointer"
+                    className="btn text-[9.3px] sm:text-[10.3px] md:text-[11.5px] px-[6.5px] md:px-[10.5px] py-[4.5px] md:py-[6.5px] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 cursor-pointer"
                     onClick={handleMarkAsDispatched}
                     title="Mark this week's schedule as dispatched/circulated"
                   >
@@ -497,7 +497,7 @@ export default function WeekEditor(props: WeekEditorProps) {
                   </button>
                 ) : null}
                 <button
-                  className="btn-secondary text-[9px] sm:text-[10px] md:text-[11.2px] px-1.5 md:px-2.5 py-1 md:py-1.5 cursor-pointer"
+                  className="btn-secondary text-[9.3px] sm:text-[10.3px] md:text-[11.5px] px-[6.5px] md:px-[10.5px] py-[4.5px] md:py-[6.5px] cursor-pointer"
                   onClick={handleReviewOptimization}
                   title="Review for compliance optimizations"
                   disabled={!!week.specialEvent || isReadOnly}
@@ -511,14 +511,14 @@ export default function WeekEditor(props: WeekEditorProps) {
             <div className="flex justify-start">
               <div className="flex items-center gap-1.5 bg-rose-50/20 p-1 rounded-lg border border-rose-100/30" title="Data Management Actions">
                 <button
-                  className="btn-secondary text-[9px] sm:text-[10px] md:text-[11.2px] px-1.5 md:px-2.5 py-1 md:py-1.5 border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  className="btn-secondary text-[9.3px] sm:text-[10.3px] md:text-[11.5px] px-[6.5px] md:px-[10.5px] py-[4.5px] md:py-[6.5px] border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   onClick={() => props.onClear()}
                   disabled={isReadOnly}
                 >
                   Clear all
                 </button>
                 <button
-                  className="btn-danger text-[9px] sm:text-[10px] md:text-[11.2px] px-1.5 md:px-2.5 py-1 md:py-1.5 cursor-pointer"
+                  className="btn-danger text-[9.3px] sm:text-[10.3px] md:text-[11.5px] px-[6.5px] md:px-[10.5px] py-[4.5px] md:py-[6.5px] cursor-pointer"
                   onClick={() => props.onDelete()}
                   disabled={isReadOnly}
                 >
