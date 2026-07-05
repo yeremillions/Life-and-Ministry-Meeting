@@ -1055,6 +1055,16 @@ export function autoAssignWeek(
   // Order parts so Treasures is filled before Ministry (which depends on
   // the privileged-share counter) — the array is already in this order.
   for (const assignment of assignments) {
+    if (assignment.isSpecial) {
+      if (assignment.assigneeId != null) {
+        usedThisWeek.add(assignment.assigneeId);
+      }
+      if (assignment.assistantId != null) {
+        usedThisWeek.add(assignment.assistantId);
+      }
+      continue;
+    }
+
     const stats = buildStats(assignees, [
       ...workingWeeks,
       { ...week, assignments },
@@ -1858,6 +1868,7 @@ export function analyzeWeekOptimization(
   }
  
   for (const a of week.assignments) {
+    if (a.isSpecial) continue;
     if (a.assigneeId != null) {
       const currentPerson = assignees.find((x) => x.id === a.assigneeId);
       if (currentPerson) {

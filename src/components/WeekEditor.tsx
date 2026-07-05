@@ -48,7 +48,7 @@ export interface WeekEditorProps {
   onSave: (w: Week) => void | Promise<void>;
   onDelete: () => void;
   onAutoFill: (preserveExisting: boolean) => void;
-  onClear: () => void;
+  onClear: (includeSpecial?: boolean) => void;
   onAddPart: (segment: SegmentId, partType: PartType) => void;
   onRemovePart: (uid: string) => void;
   onUpdateAssignment: (a: Assignment) => void;
@@ -512,10 +512,19 @@ export default function WeekEditor(props: WeekEditorProps) {
               <div className="flex items-center gap-1.5 bg-rose-50/20 p-1 rounded-lg border border-rose-100/30" title="Data Management Actions">
                 <button
                   className="btn-secondary text-[9.3px] sm:text-[10.3px] md:text-[11.5px] px-[6.5px] md:px-[10.5px] py-[4.5px] md:py-[6.5px] border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  onClick={() => props.onClear()}
+                  onClick={() => props.onClear(false)}
                   disabled={isReadOnly}
+                  title="Clear normal assignments only, preserving special requirements"
                 >
                   Clear all
+                </button>
+                <button
+                  className="btn-secondary text-[9.3px] sm:text-[10.3px] md:text-[11.5px] px-[6.5px] md:px-[10.5px] py-[4.5px] md:py-[6.5px] border-rose-300 text-rose-800 hover:bg-rose-100 hover:border-rose-400 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-semibold"
+                  onClick={() => props.onClear(true)}
+                  disabled={isReadOnly}
+                  title="Clear all assignments, including special assignments"
+                >
+                  Clear All Inc. Special
                 </button>
                 <button
                   className="btn-danger text-[9.3px] sm:text-[10.3px] md:text-[11.5px] px-[6.5px] md:px-[10.5px] py-[4.5px] md:py-[6.5px] cursor-pointer"
@@ -1519,7 +1528,11 @@ function PartRow({
           onDropOnto(draggedUid);
         }
       }}
-      className="border border-slate-200 rounded-md p-3 bg-white cursor-grab active:cursor-grabbing hover:border-slate-300 hover:shadow-sm transition-all"
+      className={`border rounded-md p-3 cursor-grab active:cursor-grabbing hover:shadow-sm transition-all ${
+        assignment.isSpecial
+          ? "border-amber-300 bg-amber-50/10 shadow-xs"
+          : "border-slate-200 bg-white hover:border-slate-300"
+      }`}
       style={{ borderLeft: `4px solid ${seg.color}` }}
     >
       <div className="flex flex-wrap gap-2 items-start">
@@ -1574,6 +1587,14 @@ function PartRow({
             Remove
           </button>
         </div>
+
+        {/* Special Requirement Banner */}
+        {assignment.isSpecial && (
+          <div className="w-full mt-1.5 flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-50 border border-amber-200 text-xs text-amber-800 font-semibold w-fit animate-fade-in">
+            <span>⭐ Special Requirement:</span>
+            <span className="text-amber-900">{assignment.specialRequirements || "Unspecified"}</span>
+          </div>
+        )}
       </div>
 
       <div className={`grid ${canSwap ? "sm:grid-cols-[1fr_auto_1fr]" : "sm:grid-cols-2"} items-end gap-3 mt-3`}>
@@ -1787,6 +1808,69 @@ function PartRow({
             }
           />
         </div>
+      </div>
+
+      <div className="mt-3 pt-3 border-t border-dashed border-slate-100 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id={`special-${assignment.uid}`}
+            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+            checked={!!assignment.isSpecial}
+            disabled={disabled}
+            onChange={(e) => {
+              const isChecked = e.target.checked;
+              onUpdate({
+                ...assignment,
+                isSpecial: isChecked,
+                specialRequirements: isChecked ? "Children" : undefined
+              });
+            }}
+          />
+          <label htmlFor={`special-${assignment.uid}`} className="text-xs font-semibold text-slate-600 cursor-pointer flex items-center gap-1">
+            ⭐ Special Requirement
+          </label>
+        </div>
+
+        {assignment.isSpecial && (
+          <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+            <label className="text-xs font-medium text-slate-500 whitespace-nowrap">Target:</label>
+            <select
+              className="input text-xs py-1 px-2 h-8 w-full sm:w-auto"
+              value={["Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer"].includes(assignment.specialRequirements ?? "") ? (assignment.specialRequirements ?? "Children") : "Custom"}
+              disabled={disabled}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "Custom") {
+                  onUpdate({ ...assignment, specialRequirements: "" });
+                } else {
+                  onUpdate({ ...assignment, specialRequirements: val });
+                }
+              }}
+            >
+              <option value="Children">Children</option>
+              <option value="Brothers">Brothers</option>
+              <option value="Sisters">Sisters</option>
+              <option value="School Students">School Students</option>
+              <option value="Secretary">Secretary</option>
+              <option value="Service Overseer">Service Overseer</option>
+              <option value="HLC Member">HLC Member</option>
+              <option value="LMM Overseer">LMM Overseer</option>
+              <option value="Custom">Custom...</option>
+            </select>
+
+            {!["Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer"].includes(assignment.specialRequirements ?? "") && (
+              <input
+                type="text"
+                className="input text-xs py-1 px-2 h-8 flex-1 sm:w-48 placeholder-slate-400"
+                placeholder="Specify requirement..."
+                disabled={disabled}
+                value={assignment.specialRequirements ?? ""}
+                onChange={(e) => onUpdate({ ...assignment, specialRequirements: e.target.value })}
+              />
+            )}
+          </div>
+        )}
       </div>
     </li>
   );

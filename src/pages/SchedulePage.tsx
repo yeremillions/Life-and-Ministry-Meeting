@@ -324,17 +324,26 @@ export default function SchedulePage({
     });
   }
 
-  async function clearAssignments(week: Week) {
+  async function clearAssignments(week: Week, includeSpecial = false) {
     const cleared = {
       ...week,
-      assignments: week.assignments.map((a) => ({
-        ...a,
-        assigneeId: undefined,
-        assistantId: undefined,
-      })),
+      assignments: week.assignments.map((a) => {
+        if (a.isSpecial && !includeSpecial) {
+          return a;
+        }
+        return {
+          ...a,
+          assigneeId: undefined,
+          assistantId: undefined,
+        };
+      }),
     };
     await saveWeek(cleared);
-    await addLog("schedule", "Cleared all assignments", `Week of ${week.weekOf}`);
+    await addLog(
+      "schedule",
+      includeSpecial ? "Cleared all assignments including special" : "Cleared normal assignments",
+      `Week of ${week.weekOf}`
+    );
   }
 
   function addPart(week: Week, segment: SegmentId, partType: PartType) {
@@ -456,7 +465,7 @@ export default function SchedulePage({
             onSave={saveWeek}
             onDelete={() => selected.id != null && deleteWeek(selected.id)}
             onAutoFill={(preserve) => autoFill(selected, preserve)}
-            onClear={() => clearAssignments(selected)}
+            onClear={(includeSpecial) => clearAssignments(selected, includeSpecial)}
             onAddPart={(segment, partType) => addPart(selected, segment, partType)}
             onRemovePart={(uid) => removePart(selected, uid)}
             onUpdateAssignment={(a) => updateAssignment(selected, a)}

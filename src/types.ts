@@ -79,6 +79,8 @@ export interface Assignment {
   note?: string;
   /** Duration of the part in minutes, as parsed from the workbook or entered manually. */
   minutes?: number;
+  isSpecial?: boolean;
+  specialRequirements?: string;
 }
 
 export interface SkippedOptimization {
