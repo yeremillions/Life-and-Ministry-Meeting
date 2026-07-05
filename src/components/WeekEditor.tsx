@@ -489,6 +489,14 @@ export default function WeekEditor(props: WeekEditorProps) {
                   <span>📤</span> Mark as Dispatched
                 </button>
               ) : null}
+              <button
+                className="btn-secondary cursor-pointer"
+                onClick={handleReviewOptimization}
+                title="Review for compliance optimizations"
+                disabled={!!week.specialEvent || isReadOnly}
+              >
+                Review Optimization
+              </button>
             </div>
 
             <div className="h-6 w-px bg-slate-200 hidden xl:block" />
@@ -550,14 +558,6 @@ export default function WeekEditor(props: WeekEditorProps) {
               <option value="Other">Other Special Event</option>
             </select>
           </div>
-          <button
-            className="btn-secondary"
-            onClick={handleReviewOptimization}
-            title="Review for compliance optimizations"
-            disabled={!!week.specialEvent || isReadOnly}
-          >
-            Review Optimization
-          </button>
         </div>
       </header>
 
