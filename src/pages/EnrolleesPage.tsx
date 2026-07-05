@@ -1181,6 +1181,26 @@ export function EnrolleeModal({
   const [privileges, setPrivileges] = useState<Privilege[]>(
     initial?.privileges ?? []
   );
+
+  useEffect(() => {
+    if (gender === "M") {
+      setIsMother(false);
+      setIsWife(false);
+    } else if (gender === "F") {
+      setIsFather(false);
+      setIsHusband(false);
+    }
+  }, [gender]);
+
+  useEffect(() => {
+    if (isMinor) {
+      setIsFather(false);
+      setIsMother(false);
+      setIsHusband(false);
+      setIsWife(false);
+    }
+  }, [isMinor]);
+
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [restrictionType, setRestrictionType] = useState<Assignee["restrictionType"]>(
     initial?.restrictionType ?? "none"
@@ -1357,38 +1377,46 @@ export function EnrolleeModal({
               />
               LMM Overseer
             </label>
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
-              <input
-                type="checkbox"
-                checked={isFather}
-                onChange={(e) => setIsFather(e.target.checked)}
-              />
-              Father
-            </label>
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
-              <input
-                type="checkbox"
-                checked={isMother}
-                onChange={(e) => setIsMother(e.target.checked)}
-              />
-              Mother
-            </label>
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
-              <input
-                type="checkbox"
-                checked={isHusband}
-                onChange={(e) => setIsHusband(e.target.checked)}
-              />
-              Husband
-            </label>
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
-              <input
-                type="checkbox"
-                checked={isWife}
-                onChange={(e) => setIsWife(e.target.checked)}
-              />
-              Wife
-            </label>
+            {gender === "M" && !isMinor && (
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+                <input
+                  type="checkbox"
+                  checked={isFather}
+                  onChange={(e) => setIsFather(e.target.checked)}
+                />
+                Father
+              </label>
+            )}
+            {gender === "F" && !isMinor && (
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+                <input
+                  type="checkbox"
+                  checked={isMother}
+                  onChange={(e) => setIsMother(e.target.checked)}
+                />
+                Mother
+              </label>
+            )}
+            {gender === "M" && !isMinor && (
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+                <input
+                  type="checkbox"
+                  checked={isHusband}
+                  onChange={(e) => setIsHusband(e.target.checked)}
+                />
+                Husband
+              </label>
+            )}
+            {gender === "F" && !isMinor && (
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50">
+                <input
+                  type="checkbox"
+                  checked={isWife}
+                  onChange={(e) => setIsWife(e.target.checked)}
+                />
+                Wife
+              </label>
+            )}
           </div>
         </div>
         <div>
