@@ -1810,7 +1810,7 @@ function PartRow({
         </div>
       </div>
 
-      {!["Chairman", "Opening Prayer", "Closing Prayer", "Treasures Talk", "Spiritual Gems", "Local Needs", "Congregation Bible Study"].includes(assignment.partType) && (
+      {!["Chairman", "Opening Prayer", "Closing Prayer", "Treasures Talk", "Spiritual Gems", "Local Needs", "Congregation Bible Study", "Bible Reading"].includes(assignment.partType) && (
         <div className="mt-3 pt-3 border-t border-dashed border-slate-100 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <input
