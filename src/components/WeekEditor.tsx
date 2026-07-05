@@ -416,36 +416,41 @@ export default function WeekEditor(props: WeekEditorProps) {
         </div>
       )}
       <header className="card">
-        <div className="flex flex-wrap items-center gap-3">
-          <div>
-            <h2 className="font-semibold text-lg flex items-center gap-2">
-              <span>{weekRangeLabel(week.weekOf)}</span>
-              {week.dispatched && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  Dispatched
-                </span>
-              )}
-              {week.qaChecked && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200" title="This week's assignments have been verified against the workbook.">
-                  ✓ Checked against Workbook
-                </span>
-              )}
-            </h2>
-            <div className="text-xs text-slate-500">
-              {week.weeklyBibleReading
-                ? <span className="font-medium text-slate-600">{week.weeklyBibleReading} &middot; </span>
-                : null}
-              {week.assignments.length} parts &middot;{" "}
-              {week.assignments.filter((a) => a.assigneeId).length} assigned
+        <div className="flex flex-col gap-4">
+          {/* Top part: Title and Stats */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h2 className="font-semibold text-lg flex flex-wrap items-center gap-2">
+                <span>{weekRangeLabel(week.weekOf)}</span>
+                {week.dispatched && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    Dispatched
+                  </span>
+                )}
+                {week.qaChecked && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200" title="This week's assignments have been verified against the workbook.">
+                    ✓ Checked against Workbook
+                  </span>
+                )}
+              </h2>
+              <div className="text-xs text-slate-500 mt-0.5">
+                {week.weeklyBibleReading
+                  ? <span className="font-medium text-slate-600">{week.weeklyBibleReading} &middot; </span>
+                  : null}
+                {week.assignments.length} parts &middot;{" "}
+                {week.assignments.filter((a) => a.assigneeId).length} assigned
+              </div>
             </div>
           </div>
-          <div className="ml-auto flex flex-col items-end gap-2.5 w-full lg:w-auto">
-            {/* Top row: Scheduling / Assignment & QA Actions */}
-            <div className="flex flex-wrap items-center justify-end gap-2.5 w-full">
+
+          {/* Bottom part: Buttons organized strictly in 2 rows */}
+          <div className="flex flex-col gap-3 w-full">
+            {/* Row 1: Scheduling/Assignment & QA Actions */}
+            <div className="flex flex-wrap items-center gap-3 w-full">
               {/* Group 1: Scheduling / Assignment Actions */}
-              <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/60 p-1.5 rounded-lg border border-slate-200/50" title="Scheduling / Assignment Actions">
+              <div className="flex items-center gap-1.5 bg-slate-100/60 p-1 rounded-lg border border-slate-200/50" title="Scheduling / Assignment Actions">
                 <button
-                  className="btn text-xs md:text-sm px-2 md:px-4 py-1.5 md:py-2"
+                  className="btn text-[11px] sm:text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2"
                   onClick={() => props.onAutoFill(false)}
                   title="Reassign everything from scratch"
                   disabled={isReadOnly}
@@ -453,7 +458,7 @@ export default function WeekEditor(props: WeekEditorProps) {
                   Auto-assign all
                 </button>
                 <button
-                  className="btn-secondary text-xs md:text-sm px-2 md:px-4 py-1.5 md:py-2"
+                  className="btn-secondary text-[11px] sm:text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2"
                   onClick={() => props.onAutoFill(true)}
                   title="Fill empty slots only"
                   disabled={isReadOnly}
@@ -465,9 +470,9 @@ export default function WeekEditor(props: WeekEditorProps) {
               <div className="h-6 w-px bg-slate-200 hidden sm:block" />
 
               {/* Group 2: QA Actions */}
-              <div className="flex flex-wrap items-center gap-1.5 bg-indigo-50/30 p-1.5 rounded-lg border border-indigo-100/40" title="Quality Assurance Actions">
+              <div className="flex flex-wrap items-center gap-1.5 bg-indigo-50/30 p-1 rounded-lg border border-indigo-100/40" title="Quality Assurance Actions">
                 <button
-                  className={`btn text-xs md:text-sm px-2 md:px-4 py-1.5 md:py-2 flex items-center gap-1.5 cursor-pointer ${
+                  className={`btn text-[11px] sm:text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2 flex items-center gap-1.5 cursor-pointer ${
                     week.qaChecked
                       ? "bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-semibold"
                       : "bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
@@ -484,7 +489,7 @@ export default function WeekEditor(props: WeekEditorProps) {
                 </button>
                 {!week.dispatched ? (
                   <button
-                    className="btn text-xs md:text-sm px-2 md:px-4 py-1.5 md:py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 cursor-pointer"
+                    className="btn text-[11px] sm:text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 cursor-pointer"
                     onClick={handleMarkAsDispatched}
                     title="Mark this week's schedule as dispatched/circulated"
                   >
@@ -492,7 +497,7 @@ export default function WeekEditor(props: WeekEditorProps) {
                   </button>
                 ) : null}
                 <button
-                  className="btn-secondary text-xs md:text-sm px-2 md:px-4 py-1.5 md:py-2 cursor-pointer"
+                  className="btn-secondary text-[11px] sm:text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2 cursor-pointer"
                   onClick={handleReviewOptimization}
                   title="Review for compliance optimizations"
                   disabled={!!week.specialEvent || isReadOnly}
@@ -502,62 +507,65 @@ export default function WeekEditor(props: WeekEditorProps) {
               </div>
             </div>
 
-            {/* Bottom row: Data Management Actions */}
-            <div className="flex flex-wrap items-center gap-1.5 bg-rose-50/20 p-1.5 rounded-lg border border-rose-100/30" title="Data Management Actions">
-              <button
-                className="btn-secondary text-xs md:text-sm px-2 md:px-4 py-1.5 md:py-2 border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                onClick={() => props.onClear()}
-                disabled={isReadOnly}
-              >
-                Clear all
-              </button>
-              <button
-                className="btn-danger text-xs md:text-sm px-2 md:px-4 py-1.5 md:py-2 cursor-pointer"
-                onClick={() => props.onDelete()}
-                disabled={isReadOnly}
-              >
-                Delete
-              </button>
+            {/* Row 2: Data Management Actions */}
+            <div className="flex justify-start">
+              <div className="flex items-center gap-1.5 bg-rose-50/20 p-1 rounded-lg border border-rose-100/30" title="Data Management Actions">
+                <button
+                  className="btn-secondary text-[11px] sm:text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2 border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  onClick={() => props.onClear()}
+                  disabled={isReadOnly}
+                >
+                  Clear all
+                </button>
+                <button
+                  className="btn-danger text-[11px] sm:text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2 cursor-pointer"
+                  onClick={() => props.onDelete()}
+                  disabled={isReadOnly}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="mt-3 flex items-end justify-between gap-3 border-t border-slate-100 pt-3">
-          <div className="flex-1">
-            <label className="label">Weekly Bible reading (optional)</label>
-            <input
-              className="input max-w-md font-bold text-slate-800"
-              value={week.weeklyBibleReading ?? ""}
-              disabled={isReadOnly}
-              onChange={(e) =>
-                props.onSave({
-                  ...week,
-                  weeklyBibleReading: e.target.value,
-                })
-              }
-              placeholder="e.g. Matthew 5-7"
-            />
-          </div>
-          <div className="w-48">
-            <label className="label">Special Event</label>
-            <select
-              className="input font-semibold"
-              style={{ color: week.specialEvent ? "var(--living)" : "inherit" }}
-              value={week.specialEvent ?? ""}
-              disabled={isReadOnly}
-              onChange={(e) =>
-                props.onSave({
-                  ...week,
-                  specialEvent: (e.target.value as SpecialEventType) || null,
-                })
-              }
-            >
-              <option value="">- Normal Meeting -</option>
-              <option value="Convention">Regional Convention</option>
-              <option value="Assembly">Circuit Assembly</option>
-              <option value="Memorial">Memorial</option>
-              <option value="Other">Other Special Event</option>
-            </select>
+          {/* Bottom row inputs */}
+          <div className="mt-3 flex items-end justify-between gap-3 border-t border-slate-100 pt-3">
+            <div className="flex-1">
+              <label className="label">Weekly Bible reading (optional)</label>
+              <input
+                className="input max-w-md font-bold text-slate-800"
+                value={week.weeklyBibleReading ?? ""}
+                disabled={isReadOnly}
+                onChange={(e) =>
+                  props.onSave({
+                    ...week,
+                    weeklyBibleReading: e.target.value,
+                  })
+                }
+                placeholder="e.g. Matthew 5-7"
+              />
+            </div>
+            <div className="w-48">
+              <label className="label">Special Event</label>
+              <select
+                className="input font-semibold"
+                style={{ color: week.specialEvent ? "var(--living)" : "inherit" }}
+                value={week.specialEvent ?? ""}
+                disabled={isReadOnly}
+                onChange={(e) =>
+                  props.onSave({
+                    ...week,
+                    specialEvent: (e.target.value as SpecialEventType) || null,
+                  })
+                }
+              >
+                <option value="">- Normal Meeting -</option>
+                <option value="Convention">Regional Convention</option>
+                <option value="Assembly">Circuit Assembly</option>
+                <option value="Memorial">Memorial</option>
+                <option value="Other">Other Special Event</option>
+              </select>
+            </div>
           </div>
         </div>
       </header>
