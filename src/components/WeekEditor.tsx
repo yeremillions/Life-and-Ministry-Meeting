@@ -1810,80 +1810,82 @@ function PartRow({
         </div>
       </div>
 
-      <div className="mt-3 pt-3 border-t border-dashed border-slate-100 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id={`special-${assignment.uid}`}
-            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
-            checked={!!assignment.isSpecial}
-            disabled={disabled}
-            onChange={(e) => {
-              const isChecked = e.target.checked;
-              const specialReqs = settings.specialRequirements || [
-                "Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer", "Father", "Mother", "Husband", "Wife"
-              ];
-              onUpdate({
-                ...assignment,
-                isSpecial: isChecked,
-                specialRequirements: isChecked ? (specialReqs[0] || "Children") : undefined
-              });
-            }}
-          />
-          <label htmlFor={`special-${assignment.uid}`} className="text-xs font-semibold text-slate-600 cursor-pointer flex items-center gap-1">
-            ⭐ Special Requirement
-          </label>
-        </div>
-
-        {assignment.isSpecial && (
-          <div className="flex items-center gap-2 flex-1 sm:flex-initial">
-            <label className="text-xs font-medium text-slate-500 whitespace-nowrap">Target:</label>
-            <select
-              className="input text-xs py-1 px-2 h-8 w-full sm:w-auto"
-              value={(() => {
+      {!["Chairman", "Opening Prayer", "Closing Prayer", "Treasures Talk", "Spiritual Gems", "Local Needs", "Congregation Bible Study"].includes(assignment.partType) && (
+        <div className="mt-3 pt-3 border-t border-dashed border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id={`special-${assignment.uid}`}
+              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+              checked={!!assignment.isSpecial}
+              disabled={disabled}
+              onChange={(e) => {
+                const isChecked = e.target.checked;
                 const specialReqs = settings.specialRequirements || [
                   "Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer", "Father", "Mother", "Husband", "Wife"
                 ];
-                return specialReqs.includes(assignment.specialRequirements ?? "") ? (assignment.specialRequirements ?? (specialReqs[0] || "Children")) : "Custom";
-              })()}
-              disabled={disabled}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === "Custom") {
-                  onUpdate({ ...assignment, specialRequirements: "" });
-                } else {
-                  onUpdate({ ...assignment, specialRequirements: val });
-                }
+                onUpdate({
+                  ...assignment,
+                  isSpecial: isChecked,
+                  specialRequirements: isChecked ? (specialReqs[0] || "Children") : undefined
+                });
               }}
-            >
-              {(settings.specialRequirements || [
-                "Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer", "Father", "Mother", "Husband", "Wife"
-              ]).map((req) => (
-                <option key={req} value={req}>
-                  {req}
-                </option>
-              ))}
-              <option value="Custom">Custom...</option>
-            </select>
-
-            {!(() => {
-              const specialReqs = settings.specialRequirements || [
-                "Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer", "Father", "Mother", "Husband", "Wife"
-              ];
-              return specialReqs.includes(assignment.specialRequirements ?? "");
-            })() && (
-              <input
-                type="text"
-                className="input text-xs py-1 px-2 h-8 flex-1 sm:w-48 placeholder-slate-400"
-                placeholder="Specify requirement..."
-                disabled={disabled}
-                value={assignment.specialRequirements ?? ""}
-                onChange={(e) => onUpdate({ ...assignment, specialRequirements: e.target.value })}
-              />
-            )}
+            />
+            <label htmlFor={`special-${assignment.uid}`} className="text-xs font-semibold text-slate-600 cursor-pointer flex items-center gap-1">
+              ⭐ Special Requirement
+            </label>
           </div>
-        )}
-      </div>
+
+          {assignment.isSpecial && (
+            <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+              <label className="text-xs font-medium text-slate-500 whitespace-nowrap">Target:</label>
+              <select
+                className="input text-xs py-1 px-2 h-8 w-full sm:w-auto"
+                value={(() => {
+                  const specialReqs = settings.specialRequirements || [
+                    "Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer", "Father", "Mother", "Husband", "Wife"
+                  ];
+                  return specialReqs.includes(assignment.specialRequirements ?? "") ? (assignment.specialRequirements ?? (specialReqs[0] || "Children")) : "Custom";
+                })()}
+                disabled={disabled}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "Custom") {
+                    onUpdate({ ...assignment, specialRequirements: "" });
+                  } else {
+                    onUpdate({ ...assignment, specialRequirements: val });
+                  }
+                }}
+              >
+                {(settings.specialRequirements || [
+                  "Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer", "Father", "Mother", "Husband", "Wife"
+                ]).map((req) => (
+                  <option key={req} value={req}>
+                    {req}
+                  </option>
+                ))}
+                <option value="Custom">Custom...</option>
+              </select>
+
+              {!(() => {
+                const specialReqs = settings.specialRequirements || [
+                  "Children", "Brothers", "Sisters", "School Students", "Secretary", "Service Overseer", "HLC Member", "LMM Overseer", "Father", "Mother", "Husband", "Wife"
+                ];
+                return specialReqs.includes(assignment.specialRequirements ?? "");
+              })() && (
+                <input
+                  type="text"
+                  className="input text-xs py-1 px-2 h-8 flex-1 sm:w-48 placeholder-slate-400"
+                  placeholder="Specify requirement..."
+                  disabled={disabled}
+                  value={assignment.specialRequirements ?? ""}
+                  onChange={(e) => onUpdate({ ...assignment, specialRequirements: e.target.value })}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </li>
   );
 }
