@@ -439,54 +439,77 @@ export default function WeekEditor(props: WeekEditorProps) {
               {week.assignments.filter((a) => a.assigneeId).length} assigned
             </div>
           </div>
-          <div className="ml-auto flex flex-wrap gap-2">
-            <button
-              className={`btn flex items-center gap-1.5 cursor-pointer ${
-                week.qaChecked
-                  ? "bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-semibold"
-                  : "bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
-              }`}
-              onClick={handleToggleQaCheck}
-              disabled={isReadOnly}
-              title={
-                week.qaChecked
-                  ? "Unmark this week as checked against the workbook"
-                  : "Mark this week as checked against the workbook and verified"
-              }
-            >
-              <span>{week.qaChecked ? "☑" : "☐"}</span> {week.qaChecked ? "Verified" : "Verify against Workbook"}
-            </button>
-            {!week.dispatched ? (
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            {/* Group 1: Scheduling / Assignment Actions */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/60 p-1.5 rounded-lg border border-slate-200/50" title="Scheduling / Assignment Actions">
               <button
-                className="btn bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 cursor-pointer"
-                onClick={handleMarkAsDispatched}
-                title="Mark this week's schedule as dispatched/circulated"
+                className="btn"
+                onClick={() => props.onAutoFill(false)}
+                title="Reassign everything from scratch"
+                disabled={isReadOnly}
               >
-                <span>📤</span> Mark as Dispatched
+                Auto-assign all
               </button>
-            ) : null}
-            <button className="btn-secondary" onClick={() => props.onClear()} disabled={isReadOnly}>
-              Clear all
-            </button>
-            <button
-              className="btn-secondary"
-              onClick={() => props.onAutoFill(true)}
-              title="Fill empty slots only"
-              disabled={isReadOnly}
-            >
-              Auto-fill empty
-            </button>
-            <button
-              className="btn"
-              onClick={() => props.onAutoFill(false)}
-              title="Reassign everything from scratch"
-              disabled={isReadOnly}
-            >
-              Auto-assign all
-            </button>
-            <button className="btn-danger" onClick={() => props.onDelete()} disabled={isReadOnly}>
-              Delete
-            </button>
+              <button
+                className="btn-secondary"
+                onClick={() => props.onAutoFill(true)}
+                title="Fill empty slots only"
+                disabled={isReadOnly}
+              >
+                Auto-fill empty
+              </button>
+            </div>
+
+            <div className="h-6 w-px bg-slate-200 hidden xl:block" />
+
+            {/* Group 2: QA Actions */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-indigo-50/30 p-1.5 rounded-lg border border-indigo-100/40" title="Quality Assurance Actions">
+              <button
+                className={`btn flex items-center gap-1.5 cursor-pointer ${
+                  week.qaChecked
+                    ? "bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-semibold"
+                    : "bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+                }`}
+                onClick={handleToggleQaCheck}
+                disabled={isReadOnly}
+                title={
+                  week.qaChecked
+                    ? "Unmark this week as checked against the workbook"
+                    : "Mark this week as checked against the workbook and verified"
+                }
+              >
+                <span>{week.qaChecked ? "☑" : "☐"}</span> {week.qaChecked ? "Verified" : "Verify against Workbook"}
+              </button>
+              {!week.dispatched ? (
+                <button
+                  className="btn bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 cursor-pointer"
+                  onClick={handleMarkAsDispatched}
+                  title="Mark this week's schedule as dispatched/circulated"
+                >
+                  <span>📤</span> Mark as Dispatched
+                </button>
+              ) : null}
+            </div>
+
+            <div className="h-6 w-px bg-slate-200 hidden xl:block" />
+
+            {/* Group 3: Data Management Actions */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-rose-50/20 p-1.5 rounded-lg border border-rose-100/30" title="Data Management Actions">
+              <button
+                className="btn-secondary border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                onClick={() => props.onClear()}
+                disabled={isReadOnly}
+              >
+                Clear all
+              </button>
+              <button
+                className="btn-danger cursor-pointer"
+                onClick={() => props.onDelete()}
+                disabled={isReadOnly}
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
 
