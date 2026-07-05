@@ -439,6 +439,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     "Father",
     "Mother",
     "Husband",
-    "Wife"
+    "Wife",
+    "Parent and Child"
   ],
 };

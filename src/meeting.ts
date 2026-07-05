@@ -8,6 +8,7 @@ import {
   DEFAULT_ASSIGNMENT_RULES,
   AppSettings,
   Week,
+  Household,
 } from "./types";
 import { getMeetingDate } from "./utils";
 
@@ -530,12 +531,17 @@ export function checkPairingViolation(
   return inALast2 || inANext2 || inBLast2 || inBNext2;
 }
 
-export function meetsSpecialRequirement(a: Assignee, req: string): boolean {
+export function meetsSpecialRequirement(
+  a: Assignee,
+  req: string,
+  households?: Household[],
+  assignees?: Assignee[]
+): boolean {
   const normalized = req.trim().toLowerCase();
   if (normalized === "children") return !!a.isMinor;
   if (normalized === "brothers") return a.gender === "M";
   if (normalized === "sisters") return a.gender === "F";
-  if (normalized === "school students") return true; // all active enrollees
+  if (normalized === "school students") return !!a.isMinor;
   if (normalized === "secretary") return !!a.isSecretary;
   if (normalized === "service overseer") return !!a.isServiceOverseer;
   if (normalized === "hlc member") return !!a.isHlcMember;
@@ -544,5 +550,15 @@ export function meetsSpecialRequirement(a: Assignee, req: string): boolean {
   if (normalized === "mother") return !!a.isMother;
   if (normalized === "husband") return !!a.isHusband;
   if (normalized === "wife") return !!a.isWife;
+  if (normalized === "parent and child") {
+    if (!households || !assignees) return false;
+    const h = households.find((hh) => hh.memberIds.includes(a.id!));
+    if (!h) return false;
+    const members = assignees.filter((m) => h.memberIds.includes(m.id!));
+    const hasParent = members.some((m) => !!m.isHusband || !!m.isWife || !!m.isFather || !!m.isMother);
+    const hasChild = members.some((m) => !!m.isMinor);
+    if (!hasParent || !hasChild) return false;
+    return !!a.isMinor || !!a.isHusband || !!a.isWife || !!a.isFather || !!a.isMother;
+  }
   return false; // custom requirement must be manually assigned
 }

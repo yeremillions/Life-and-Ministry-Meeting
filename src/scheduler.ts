@@ -1312,10 +1312,35 @@ function pickCandidate(args: PickArgs): Assignee | null {
     return true;
   });
 
-  if (role === "main" && part.isSpecial && part.specialRequirements) {
-    eligiblePool = eligiblePool.filter((a) =>
-      meetsSpecialRequirement(a, part.specialRequirements!)
-    );
+  if (part.isSpecial && part.specialRequirements) {
+    const req = part.specialRequirements.trim().toLowerCase();
+    if (req === "parent and child") {
+      if (role === "main") {
+        eligiblePool = eligiblePool.filter((a) =>
+          meetsSpecialRequirement(a, part.specialRequirements!, opts.households, assignees)
+        );
+      } else if (role === "assistant" && mainId != null) {
+        const main = assignees.find((p) => p.id === mainId);
+        if (main && opts.households) {
+          const mainH = opts.households.find((h) => h.memberIds.includes(mainId));
+          const isMainParent = !!main.isHusband || !!main.isWife || !!main.isFather || !!main.isMother;
+          const isMainChild = !!main.isMinor;
+          eligiblePool = eligiblePool.filter((a) => {
+            const inSameH = mainH ? mainH.memberIds.includes(a.id!) : false;
+            if (!inSameH) return false;
+            if (isMainParent) return !!a.isMinor;
+            if (isMainChild) return !!a.isHusband || !!a.isWife || !!a.isFather || !!a.isMother;
+            return false;
+          });
+        }
+      }
+    } else {
+      if (role === "main") {
+        eligiblePool = eligiblePool.filter((a) =>
+          meetsSpecialRequirement(a, part.specialRequirements!, opts.households, assignees)
+        );
+      }
+    }
   }
 
   // ── Hard constraint: minimum gap between main assignments ──────────
