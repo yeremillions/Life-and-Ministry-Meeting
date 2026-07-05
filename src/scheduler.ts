@@ -1314,7 +1314,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
 
   if (part.isSpecial && part.specialRequirements) {
     const req = part.specialRequirements.trim().toLowerCase();
-    if (req === "parent and child") {
+    if (req === "parent and child" || req === "child and parent") {
       if (role === "main") {
         eligiblePool = eligiblePool.filter((a) =>
           meetsSpecialRequirement(a, part.specialRequirements!, opts.households, assignees)

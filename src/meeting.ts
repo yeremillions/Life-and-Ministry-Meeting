@@ -558,7 +558,17 @@ export function meetsSpecialRequirement(
     const hasParent = members.some((m) => !!m.isHusband || !!m.isWife || !!m.isFather || !!m.isMother);
     const hasChild = members.some((m) => !!m.isMinor);
     if (!hasParent || !hasChild) return false;
-    return !!a.isMinor || !!a.isHusband || !!a.isWife || !!a.isFather || !!a.isMother;
+    return !!a.isHusband || !!a.isWife || !!a.isFather || !!a.isMother;
+  }
+  if (normalized === "child and parent") {
+    if (!households || !assignees) return false;
+    const h = households.find((hh) => hh.memberIds.includes(a.id!));
+    if (!h) return false;
+    const members = assignees.filter((m) => h.memberIds.includes(m.id!));
+    const hasParent = members.some((m) => !!m.isHusband || !!m.isWife || !!m.isFather || !!m.isMother);
+    const hasChild = members.some((m) => !!m.isMinor);
+    if (!hasParent || !hasChild) return false;
+    return !!a.isMinor;
   }
   return false; // custom requirement must be manually assigned
 }
