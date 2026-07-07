@@ -227,9 +227,10 @@ export default function SettingsPage({
   const assignees = useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
   const [draft, setDraft] = useState<AppSettings | null>(null);
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<"general" | "customizer" | "shares" | "customParts" | "eligibility" | "specialRequirements">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "customizations" | "advanced">("general");
   const [newSpecialRequirement, setNewSpecialRequirement] = useState("");
   const [specialRequirementError, setSpecialRequirementError] = useState("");
+  const [expandedSection, setExpandedSection] = useState<"shares" | "customizer" | "eligibility" | null>("shares");
 
   const renderRuleCustomizerRow = (
     label: string,
@@ -259,7 +260,7 @@ export default function SettingsPage({
         <select
           className="input text-xs py-1.5 max-w-[150px]"
           value={value}
-          onChange={(e) => setDraft({ ...draft, [field]: e.target.value as any })}
+          onChange={(e) => setDraft({ ...draft, [field]: e.target.value as any, schedulingPreset: "custom" })}
         >
           <option value="off">Off (Disabled)</option>
           <option value="weak">Weak Enforcement</option>
@@ -360,6 +361,72 @@ export default function SettingsPage({
       ...draft,
       specialRequirements: current.filter((r) => r !== req),
     });
+  }
+
+  function applyPreset(preset: "conservative" | "balanced" | "flexible", currentDraft: AppSettings): AppSettings {
+    const updated: AppSettings = { ...currentDraft, schedulingPreset: preset };
+    if (preset === "conservative") {
+      updated.ruleMinGap = "strict";
+      updated.ruleChairmanGap = "strict";
+      updated.ruleRoleAlternation = "strict";
+      updated.ruleMinorAssistantToAdult = "strict";
+      updated.ruleAdultAssistantForMinor = "strict";
+      updated.ruleWorkloadBalancing = "medium";
+      updated.ruleSegmentBalancing = "medium";
+      updated.ruleSameSexDemogenders = "strict";
+      updated.ruleMainToAssistantConsecutive = "medium";
+      updated.rulePrayerRotation = "medium";
+      updated.ruleUnifiedMinistry = true;
+      updated.ruleAvoidPioneerPairing = true;
+    } else if (preset === "balanced") {
+      updated.ruleMinGap = "strict";
+      updated.ruleChairmanGap = "strict";
+      updated.ruleRoleAlternation = "medium";
+      updated.ruleMinorAssistantToAdult = "medium";
+      updated.ruleAdultAssistantForMinor = "medium";
+      updated.ruleWorkloadBalancing = "weak";
+      updated.ruleSegmentBalancing = "weak";
+      updated.ruleSameSexDemogenders = "strict";
+      updated.ruleMainToAssistantConsecutive = "weak";
+      updated.rulePrayerRotation = "medium";
+      updated.ruleUnifiedMinistry = true;
+      updated.ruleAvoidPioneerPairing = false;
+    } else if (preset === "flexible") {
+      updated.ruleMinGap = "weak";
+      updated.ruleChairmanGap = "weak";
+      updated.ruleRoleAlternation = "weak";
+      updated.ruleMinorAssistantToAdult = "weak";
+      updated.ruleAdultAssistantForMinor = "weak";
+      updated.ruleWorkloadBalancing = "off";
+      updated.ruleSegmentBalancing = "off";
+      updated.ruleSameSexDemogenders = "weak";
+      updated.ruleMainToAssistantConsecutive = "off";
+      updated.rulePrayerRotation = "weak";
+      updated.ruleUnifiedMinistry = true;
+      updated.ruleAvoidPioneerPairing = false;
+    }
+    return updated;
+  }
+
+  function applyCongregationSize(size: "small" | "medium" | "large", currentDraft: AppSettings): AppSettings {
+    let updated: AppSettings = { ...currentDraft, congregationSize: size };
+    if (size === "small") {
+      updated.minGapWeeks = 1;
+      updated.chairmanGapWeeks = 2;
+      updated.maxAssignmentsPerMonth = 3;
+      updated = applyPreset("flexible", updated);
+    } else if (size === "medium") {
+      updated.minGapWeeks = 2;
+      updated.chairmanGapWeeks = 3;
+      updated.maxAssignmentsPerMonth = 2;
+      updated = applyPreset("balanced", updated);
+    } else if (size === "large") {
+      updated.minGapWeeks = 2;
+      updated.chairmanGapWeeks = 4;
+      updated.maxAssignmentsPerMonth = 2;
+      updated = applyPreset("conservative", updated);
+    }
+    return updated;
   }
 
   async function save() {
@@ -884,57 +951,27 @@ export default function SettingsPage({
             }`}
             onClick={() => setActiveTab("general")}
           >
-            General &amp; System
+            General Settings
           </button>
           <button
             className={`py-2 px-4 font-semibold text-sm rounded-md transition-all ${
-              activeTab === "customizer"
+              activeTab === "customizations"
                 ? "bg-indigo-50 text-indigo-700 shadow-sm font-bold border border-indigo-100"
                 : "border border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
             }`}
-            onClick={() => setActiveTab("customizer")}
+            onClick={() => setActiveTab("customizations")}
           >
-            Rule Customizer
+            Customizations
           </button>
           <button
             className={`py-2 px-4 font-semibold text-sm rounded-md transition-all ${
-              activeTab === "shares"
+              activeTab === "advanced"
                 ? "bg-indigo-50 text-indigo-700 shadow-sm font-bold border border-indigo-100"
                 : "border border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
             }`}
-            onClick={() => setActiveTab("shares")}
+            onClick={() => setActiveTab("advanced")}
           >
-            Publisher Shares &amp; Splits
-          </button>
-          <button
-            className={`py-2 px-4 font-semibold text-sm rounded-md transition-all ${
-              activeTab === "customParts"
-                ? "bg-indigo-50 text-indigo-700 shadow-sm font-bold border border-indigo-100"
-                : "border border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
-            }`}
-            onClick={() => setActiveTab("customParts")}
-          >
-            Custom Parts &amp; Prayers
-          </button>
-          <button
-            className={`py-2 px-4 font-semibold text-sm rounded-md transition-all ${
-              activeTab === "eligibility"
-                ? "bg-indigo-50 text-indigo-700 shadow-sm font-bold border border-indigo-100"
-                : "border border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
-            }`}
-            onClick={() => setActiveTab("eligibility")}
-          >
-            Assignment Eligibility Table
-          </button>
-          <button
-            className={`py-2 px-4 font-semibold text-sm rounded-md transition-all ${
-              activeTab === "specialRequirements"
-                ? "bg-indigo-50 text-indigo-700 shadow-sm font-bold border border-indigo-100"
-                : "border border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50/50"
-            }`}
-            onClick={() => setActiveTab("specialRequirements")}
-          >
-            Special Requirements List
+            Advanced Tuning
           </button>
         </div>
 
@@ -993,6 +1030,50 @@ export default function SettingsPage({
                 Choose whether you prefer to record periods when publishers are out of town (default) or when they are in town/available.
               </p>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+              <div>
+                <label className="label">Congregation Size Preset</label>
+                <select
+                  className="input"
+                  value={draft.congregationSize ?? "medium"}
+                  onChange={(e) => {
+                    const size = e.target.value as "small" | "medium" | "large";
+                    const updated = applyCongregationSize(size, draft);
+                    setDraft(updated);
+                  }}
+                >
+                  <option value="small">Small (&lt;40 active publishers)</option>
+                  <option value="medium">Medium (40-80 active publishers)</option>
+                  <option value="large">Large (80+ active publishers)</option>
+                </select>
+                <p className="text-xs text-slate-500 mt-1">
+                  Automatically sets default gap durations appropriate for your congregation size.
+                </p>
+              </div>
+
+              <div>
+                <label className="label">Scheduling Strictness Preset</label>
+                <select
+                  className="input"
+                  value={draft.schedulingPreset ?? "balanced"}
+                  onChange={(e) => {
+                    const preset = e.target.value as "conservative" | "balanced" | "flexible";
+                    const updated = applyPreset(preset, draft);
+                    setDraft(updated);
+                  }}
+                >
+                  <option value="conservative">🛡️ Conservative (Strict gap rules & same-sex pairings)</option>
+                  <option value="balanced">⚖️ Balanced (Recommended rules and balanced rotation)</option>
+                  <option value="flexible">🍃 Flexible (Shorter gaps, relaxed constraints for smaller congregations)</option>
+                  <option value="custom" disabled>🛠️ Custom (Modified manually in Advanced tab)</option>
+                </select>
+                <p className="text-xs text-slate-500 mt-1">
+                  Control how strictly the auto-scheduler enforces scheduling constraints.
+                </p>
+              </div>
+            </div>
+
             <div className="pt-4 border-t border-slate-100 flex items-center">
               <button className="btn" onClick={save}>
                 Save settings
@@ -1003,21 +1084,32 @@ export default function SettingsPage({
             </div>
           </div>
         )}
-        {activeTab === "customizer" && (
-          <div className="card space-y-4 animate-fade-in">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h2 className="text-xl font-bold text-slate-800">Rule Enforcement Customizer</h2>
-                <p className="text-xs text-slate-500">Fine-tune the enforcement level for every scheduling rule. Strict rules act as hard boundaries, while other levels apply graduated scoring penalties.</p>
-              </div>
-              <button className="btn-secondary text-xs" onClick={restoreDefaults}>
-                Restore Defaults
+        {activeTab === "advanced" && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="card space-y-4">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between text-left font-bold text-lg text-slate-800 focus:outline-none"
+                onClick={() => setExpandedSection(expandedSection === "customizer" ? null : "customizer")}
+              >
+                <span>⚙️ Rule Enforcement Customizer</span>
+                <span className="text-slate-400">{expandedSection === "customizer" ? "▼" : "▶"}</span>
               </button>
-            </div>
+              {expandedSection === "customizer" && (
+                <div className="mt-4 pt-4 border-t border-slate-100 space-y-4 animate-fade-in">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-800">Rule Enforcement Customizer</h2>
+                      <p className="text-xs text-slate-500">Fine-tune the enforcement level for every scheduling rule. Strict rules act as hard boundaries, while other levels apply graduated scoring penalties.</p>
+                    </div>
+                    <button className="btn-secondary text-xs" onClick={restoreDefaults}>
+                      Restore Defaults
+                    </button>
+                  </div>
 
-            <div className="space-y-4">
+                  <div className="space-y-4">
               {renderRuleCustomizerRow(
-                "Student Main Assignment Gap",
+                "Ensure Minimum Gap Between Assignments",
                 "Enforces a minimum period of weeks that must pass before a publisher can receive another main assignment.",
                 "ruleMinGap"
               )}
@@ -1025,7 +1117,7 @@ export default function SettingsPage({
               {draft.ruleMinGap !== "off" && (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50/50 rounded-xl border border-slate-100 gap-4 ml-6 animate-fade-in">
                   <div className="space-y-1">
-                    <span className="font-semibold text-slate-700 text-sm">Gap Duration (Weeks)</span>
+                    <span className="font-semibold text-slate-707 text-sm">Gap Duration (Weeks)</span>
                     <p className="text-xs text-slate-500">Specify the number of weeks for the student main assignment gap.</p>
                   </div>
                   <input
@@ -1038,6 +1130,7 @@ export default function SettingsPage({
                       setDraft({
                         ...draft,
                         minGapWeeks: clamp(parseInt(e.target.value || "0", 10), 0, 8),
+                        schedulingPreset: "custom",
                       })
                     }
                   />
@@ -1045,8 +1138,8 @@ export default function SettingsPage({
               )}
 
               {renderRuleCustomizerRow(
-                "Chairman Assignment Rotation Gap",
-                "Prevents the same elder from being assigned to chair the midweek meeting too frequently.",
+                "Ensure Minimum Gap for Chairmen",
+                "Prevents the same elder from chairing the midweek meeting too frequently.",
                 "ruleChairmanGap"
               )}
 
@@ -1066,6 +1159,7 @@ export default function SettingsPage({
                       setDraft({
                         ...draft,
                         chairmanGapWeeks: clamp(parseInt(e.target.value || "1", 10), 1, 8),
+                        schedulingPreset: "custom",
                       })
                     }
                   />
@@ -1073,13 +1167,13 @@ export default function SettingsPage({
               )}
 
               {renderRuleCustomizerRow(
-                "Role Alternation",
+                "Prefer Role Alternation (Main / Assistant)",
                 "Promotes fairness by ensuring publishers switch between Main and Assistant roles in student ministry parts, and do not serve as assistants in consecutive assignments.",
                 "ruleRoleAlternation"
               )}
 
               {renderRuleCustomizerRow(
-                "Minor Assistant to Adult",
+                "Prevent Minor Assisting Adult (for demonstrations)",
                 "Restricts minors from assisting adults in the Field Ministry segment to protect boundaries.",
                 "ruleMinorAssistantToAdult"
               )}
@@ -1092,49 +1186,49 @@ export default function SettingsPage({
               )}
 
               {renderRuleCustomizerRow(
-                "Workload & Frequency Balancing",
+                "Workload Balancing (spread parts evenly)",
                 "Distributes assignments evenly across the congregation by penalizing publishers who recently served in main or assistant roles.",
                 "ruleWorkloadBalancing",
                 false
               )}
 
               {renderRuleCustomizerRow(
-                "Consecutive Main to Assistant Restriction",
+                "Avoid Back-to-Back Parts (consecutive weeks)",
                 "Prevents assigning a publisher as an assistant if they gave a main part the previous week (unless as a fallback when no one else is available).",
                 "ruleMainToAssistantConsecutive",
                 false
               )}
 
               {renderRuleCustomizerRow(
-                "Prayer Category Rotation",
+                "Prayer Rotation Balancing",
                 "Enforces a strict round-robin rotation for Opening/Closing Prayers within each privilege category, shifting turns to next week if a conflict arises.",
                 "rulePrayerRotation",
                 false
               )}
 
               {renderRuleCustomizerRow(
-                "Meeting Segment Diversity",
+                "Segment Balancing (rotate segment types)",
                 "Reduces repetition by penalizing scheduling a publisher in the same meeting segment too close together.",
                 "ruleSegmentBalancing",
                 false
               )}
 
               {renderRuleCustomizerRow(
-                "Elderly / Infirmed Publisher Throttling",
+                "Limit Assignments for Infirmed/Elderly",
                 "Protects publishers marked as elderly or infirmed from being scheduled too frequently.",
                 "ruleInfirmedThrottling",
                 false
               )}
 
               {renderRuleCustomizerRow(
-                "Same-Sex Demonstration Pairing",
+                "Enforce Same-Sex Pairings (for demonstrations)",
                 "Enforces same-sex pairings for ministry demonstrations, except when the main assignee and assistant belong to the same household.",
                 "ruleSameSexDemogenders"
               )}
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all gap-4">
                 <div className="space-y-1">
-                  <span className="font-semibold text-slate-800 text-sm">Main/Assistant Pairing Avoidance</span>
+                  <span className="font-semibold text-slate-800 text-sm">Pairing Repetition Avoidance</span>
                   <p className="text-xs text-slate-500">Controls pairing repetition: avoids pairing a publisher with the same assistant (or main assignee) within their last 2 or next 2 parts.</p>
                 </div>
                 <select
@@ -1144,6 +1238,7 @@ export default function SettingsPage({
                     setDraft({
                       ...draft,
                       pairingAvoidance: e.target.value as "strict" | "relaxed" | "off",
+                      schedulingPreset: "custom",
                     })
                   }
                 >
@@ -1155,7 +1250,7 @@ export default function SettingsPage({
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all gap-4">
                 <div className="space-y-1">
-                  <span className="font-semibold text-slate-800 text-sm">Unified Ministry Workload</span>
+                  <span className="font-semibold text-slate-800 text-sm">Allow Family/Household Pairings (Unified Ministry exception)</span>
                   <p className="text-xs text-slate-500">Treats main and assistant parts in the ministry segment as a single unified workload to ensure publishers alternate roles and prevent double-scheduling.</p>
                 </div>
                 <select
@@ -1165,6 +1260,7 @@ export default function SettingsPage({
                     setDraft({
                       ...draft,
                       ruleUnifiedMinistry: e.target.value === "true",
+                      schedulingPreset: "custom",
                     })
                   }
                 >
@@ -1175,7 +1271,7 @@ export default function SettingsPage({
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all gap-4">
                 <div className="space-y-1">
-                  <span className="font-semibold text-slate-800 text-sm">Avoid Pioneer-to-Pioneer Pairings</span>
+                  <span className="font-semibold text-slate-800 text-sm">Avoid Pairing Two Regular Pioneers Together</span>
                   <p className="text-xs text-slate-500">Prevents a Regular Pioneer (RP) from being paired with another Regular Pioneer for a Ministry segment demonstration, unless there are no other options.</p>
                 </div>
                 <select
@@ -1185,6 +1281,7 @@ export default function SettingsPage({
                     setDraft({
                       ...draft,
                       ruleAvoidPioneerPairing: e.target.value === "true",
+                      schedulingPreset: "custom",
                     })
                   }
                 >
@@ -1194,20 +1291,22 @@ export default function SettingsPage({
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 flex items-center">
-              <button className="btn" onClick={save}>
-                Save settings
-              </button>
-              {saved && (
-                <span className="text-sm text-green-600 font-semibold ml-3 animate-fade-in">✓ Settings saved</span>
-              )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {activeTab === "shares" && (
-          <div className="card space-y-4 animate-fade-in">
-            <h2 className="text-xl font-bold text-slate-800">Congregation Shares &amp; Ratios</h2>
+        <div className="card space-y-4">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between text-left font-bold text-lg text-slate-800 focus:outline-none"
+            onClick={() => setExpandedSection(expandedSection === "shares" ? null : "shares")}
+          >
+            <span>📊 Publisher Shares &amp; Splits</span>
+            <span className="text-slate-400">{expandedSection === "shares" ? "▼" : "▶"}</span>
+          </button>
+          {expandedSection === "shares" && (
+            <div className="mt-4 pt-4 border-t border-slate-100 space-y-4 animate-fade-in">
+              <h2 className="text-xl font-bold text-slate-800">Congregation Shares &amp; Ratios</h2>
             <div>
               <h4 className="font-semibold text-slate-800 text-sm mb-3">Field Ministry Parts Shares</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-w-4xl bg-slate-50 p-4 border border-slate-200 rounded-md">
@@ -1835,12 +1934,76 @@ export default function SettingsPage({
               </span>
             )}
           </div>
+            </div>
+          )}
         </div>
-      )}
 
-        {/* ── Prayer Overrides Section ── */}
-        {activeTab === "customParts" && (
-          <div className="space-y-6 animate-fade-in">
+        <div className="card space-y-4">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between text-left font-bold text-lg text-slate-800 focus:outline-none"
+            onClick={() => setExpandedSection(expandedSection === "eligibility" ? null : "eligibility")}
+          >
+            <span>📋 Assignment Eligibility Table</span>
+            <span className="text-slate-400">{expandedSection === "eligibility" ? "▼" : "▶"}</span>
+          </button>
+          {expandedSection === "eligibility" && (
+            <div className="mt-4 pt-4 border-t border-slate-100 space-y-4 animate-fade-in">
+              <h2 className="text-xl font-bold text-slate-800">Assignment Eligibility Rules</h2>
+              <p className="text-sm text-slate-500">
+                Configure who can be assigned to each part type. "Main" refers to the primary person (e.g. Conductor, Speaker), and "Assistant" refers to the secondary person (e.g. Reader, Householder).
+              </p>
+
+              <div className="overflow-x-auto -mx-6 sm:mx-0">
+                <table className="w-full text-left border-collapse min-w-[800px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-y border-slate-100">
+                      <th className="py-2 px-6">Part Type</th>
+                      <th className="py-2 px-6">Role</th>
+                      <th className="py-2 px-6">Allowed Genders</th>
+                      <th className="py-2 px-6">Must be Baptized</th>
+                      <th className="py-2 px-6">Required Privileges</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-sm divide-y divide-slate-50">
+                    {Object.keys(draft.assignmentRules || DEFAULT_ASSIGNMENT_RULES).map((partType) => (
+                      <RuleRows
+                        key={partType}
+                        partType={partType}
+                        rule={draft.assignmentRules?.[partType] || DEFAULT_ASSIGNMENT_RULES[partType]}
+                        onChange={(r) => {
+                          setDraft({
+                            ...draft,
+                            assignmentRules: { ...draft.assignmentRules, [partType]: r },
+                          });
+                        }}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex items-center">
+                <button className="btn" onClick={save}>
+                  Save settings
+                </button>
+                {saved && (
+                  <span
+                    className="inline-flex items-center gap-1 text-sm font-medium ml-3 animate-fade-in"
+                    style={{ color: 'var(--treasures)' }}
+                  >
+                    ✓ Settings saved
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+
+    {activeTab === "customizations" && (
+      <div className="space-y-6 animate-fade-in">
             <div className="card space-y-4 relative">
           <h2 className="text-xl font-bold text-slate-800">Manual Prayer Qualifications</h2>
           <p className="text-sm text-slate-500">
@@ -2225,63 +2388,8 @@ export default function SettingsPage({
             )}
           </div>
         </div>
-      </div>
-    )}
 
-      {activeTab === "eligibility" && (
-        <div className="card space-y-4 animate-fade-in">
-          <h2 className="text-xl font-bold text-slate-800">Assignment Eligibility Rules</h2>
-          <p className="text-sm text-slate-500">
-            Configure who can be assigned to each part type. "Main" refers to the primary person (e.g. Conductor, Speaker), and "Assistant" refers to the secondary person (e.g. Reader, Householder).
-          </p>
-
-          <div className="overflow-x-auto -mx-6 sm:mx-0">
-            <table className="w-full text-left border-collapse min-w-[800px]">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-y border-slate-100">
-                  <th className="py-2 px-6">Part Type</th>
-                  <th className="py-2 px-6">Role</th>
-                  <th className="py-2 px-6">Allowed Genders</th>
-                  <th className="py-2 px-6">Must be Baptized</th>
-                  <th className="py-2 px-6">Required Privileges</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm divide-y divide-slate-50">
-                {Object.keys(draft.assignmentRules || DEFAULT_ASSIGNMENT_RULES).map((partType) => (
-                  <RuleRows
-                    key={partType}
-                    partType={partType}
-                    rule={draft.assignmentRules?.[partType] || DEFAULT_ASSIGNMENT_RULES[partType]}
-                    onChange={(r) => {
-                      setDraft({
-                        ...draft,
-                        assignmentRules: { ...draft.assignmentRules, [partType]: r },
-                      });
-                    }}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 flex items-center">
-            <button className="btn" onClick={save}>
-              Save settings
-            </button>
-            {saved && (
-              <span
-                className="inline-flex items-center gap-1 text-sm font-medium ml-3 animate-fade-in"
-                style={{ color: 'var(--treasures)' }}
-              >
-                ✓ Settings saved
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activeTab === "specialRequirements" && (
-        <div className="card space-y-4 animate-fade-in">
+      <div className="card space-y-4 mt-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-slate-800">Special Requirements Guidelines</h2>
             <p className="text-xs text-slate-500">
@@ -2368,7 +2476,8 @@ export default function SettingsPage({
             )}
           </div>
         </div>
-      )}
+      </div>
+    )}
 
       {activeTab === "general" && (
         <>

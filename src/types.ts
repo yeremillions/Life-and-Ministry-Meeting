@@ -250,6 +250,8 @@ export interface AppSettings {
   /** Main/Assistant pairing repetition avoidance check: strict, relaxed, or off. */
   pairingAvoidance?: "strict" | "relaxed" | "off";
   specialRequirements?: string[];
+  congregationSize?: "small" | "medium" | "large";
+  schedulingPreset?: "conservative" | "balanced" | "flexible" | "custom";
 }
 
 export interface AssignmentRule {
@@ -443,4 +445,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     "Parent and Child",
     "Child and Parent"
   ],
+  congregationSize: "medium",
+  schedulingPreset: "balanced",
 };
