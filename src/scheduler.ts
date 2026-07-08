@@ -976,7 +976,7 @@ export interface AutoAssignOptions {
   /** Custom part types. */
   customPartTypes?: Record<SegmentId, string[]>;
   /** Main/Assistant pairing repetition avoidance check: strict, relaxed, or off. */
-  pairingAvoidance?: "strict" | "relaxed" | "off";
+  pairingAvoidance?: RuleEnforcementLevel;
   ruleMinGap?: RuleEnforcementLevel;
   ruleChairmanGap?: RuleEnforcementLevel;
   ruleRoleAlternation?: RuleEnforcementLevel;
@@ -1779,11 +1779,13 @@ function rankAndPick(
       }
     }
 
-    // Apply pairing avoidance penalty in relaxed mode
+    // Apply pairing avoidance penalty in soft constraint mode
     const mainId = part.assigneeId;
-    if (role === "assistant" && mainId != null && opts.pairingAvoidance === "relaxed" && candidate.id != null && historicalWeeks) {
+    const avoidanceLevel = opts.pairingAvoidance || "strict";
+    if (role === "assistant" && mainId != null && avoidanceLevel !== "off" && avoidanceLevel !== "strict" && candidate.id != null && historicalWeeks) {
       if (checkPairingViolation(mainId, candidate.id, weekOf, historicalWeeks)) {
-        score -= 250;
+        const penalty = avoidanceLevel === "weak" ? 100 : avoidanceLevel === "medium" ? 250 : 500;
+        score -= penalty;
       }
     }
     return score;

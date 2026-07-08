@@ -248,7 +248,7 @@ export interface AppSettings {
   /** Custom part types added by user per segment. */
   customPartTypes?: Record<SegmentId, string[]>;
   /** Main/Assistant pairing repetition avoidance check: strict, relaxed, or off. */
-  pairingAvoidance?: "strict" | "relaxed" | "off";
+  pairingAvoidance?: RuleEnforcementLevel;
   specialRequirements?: string[];
   congregationSize?: "small" | "medium" | "large";
   schedulingPreset?: "conservative" | "balanced" | "flexible" | "custom";

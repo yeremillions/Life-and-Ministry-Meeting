@@ -9,6 +9,7 @@ import {
   type Gender,
   type Privilege,
   type SegmentId,
+  type RuleEnforcementLevel,
 } from "../types";
 import { addLog } from "../db";
 import { isPrivileged, SEGMENT_PART_TYPES } from "../meeting";
@@ -378,6 +379,7 @@ export default function SettingsPage({
       updated.rulePrayerRotation = "medium";
       updated.ruleUnifiedMinistry = true;
       updated.ruleAvoidPioneerPairing = true;
+      updated.pairingAvoidance = "strict";
     } else if (preset === "balanced") {
       updated.ruleMinGap = "strict";
       updated.ruleChairmanGap = "strict";
@@ -391,6 +393,7 @@ export default function SettingsPage({
       updated.rulePrayerRotation = "medium";
       updated.ruleUnifiedMinistry = true;
       updated.ruleAvoidPioneerPairing = false;
+      updated.pairingAvoidance = "medium";
     } else if (preset === "flexible") {
       updated.ruleMinGap = "weak";
       updated.ruleChairmanGap = "weak";
@@ -404,6 +407,7 @@ export default function SettingsPage({
       updated.rulePrayerRotation = "weak";
       updated.ruleUnifiedMinistry = true;
       updated.ruleAvoidPioneerPairing = false;
+      updated.pairingAvoidance = "weak";
     }
     return updated;
   }
@@ -1237,14 +1241,16 @@ export default function SettingsPage({
                   onChange={(e) =>
                     setDraft({
                       ...draft,
-                      pairingAvoidance: e.target.value as "strict" | "relaxed" | "off",
+                      pairingAvoidance: e.target.value as RuleEnforcementLevel,
                       schedulingPreset: "custom",
                     })
                   }
                 >
-                  <option value="strict">Strict</option>
-                  <option value="relaxed">Relaxed</option>
-                  <option value="off">Off</option>
+                  <option value="off">Off (Disabled)</option>
+                  <option value="weak">Weak Enforcement</option>
+                  <option value="medium">Medium Enforcement</option>
+                  <option value="strong">Strong Enforcement</option>
+                  <option value="strict">Strict (Hard Limit)</option>
                 </select>
               </div>
 
