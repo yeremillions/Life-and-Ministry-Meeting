@@ -272,6 +272,7 @@ export default function SchedulePage({
           if (w.specialEvent) continue;
           const cleared = {
             ...w,
+            qaChecked: false,
             assignments: w.assignments.map((a) => ({
               ...a,
               assigneeId: undefined,
@@ -327,6 +328,7 @@ export default function SchedulePage({
   async function clearAssignments(week: Week, includeSpecial = false) {
     const cleared = {
       ...week,
+      qaChecked: false,
       assignments: week.assignments.map((a) => {
         if (a.isSpecial && !includeSpecial) {
           return a;
