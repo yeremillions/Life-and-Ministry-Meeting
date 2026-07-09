@@ -2,9 +2,9 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo, useState, useEffect } from "react";
 import { db } from "../db";
 import { buildStats, fmtLastAssigned } from "../scheduler";
-import { privilegeLabel, segmentOf } from "../meeting";
-import type { Assignment, Week } from "../types";
-import { workbookPeriod } from "../utils";
+import { privilegeLabel, segmentOf, isEligible } from "../meeting";
+import { type Assignment, type Week, DEFAULT_ASSIGNMENT_RULES } from "../types";
+import { workbookPeriod, getMeetingDate } from "../utils";
 
 type SortBy = "name" | "total" | "last";
 
@@ -276,10 +276,10 @@ export default function ReportsPage({
     // Filter weeks for the selected period
     const periodWeeks = weeks.filter((w) => workbookPeriod(w.weekOf).key === selectedPeriodKey);
     
-    // Get all active assignees
-    const activeAssignees = assignees.filter((a) => !a.archived && a.active);
+    // Get all non-archived assignees
+    const nonArchivedAssignees = assignees.filter((a) => !a.archived);
 
-    return activeAssignees.map((a) => {
+    return nonArchivedAssignees.map((a) => {
       const details: { weekId: number; dateLabel: string; partType: string; role: "main" | "assistant"; title: string }[] = [];
       let mainCount = 0;
       let assistantCount = 0;
@@ -313,15 +313,19 @@ export default function ReportsPage({
         }
       }
 
+      const totalCount = mainCount + assistantCount;
+      const skippedReason = totalCount === 0 ? getSkippedReason(a, periodWeeks, weeks, settings) : "";
+
       return {
         assignee: a,
         mainCount,
         assistantCount,
-        totalCount: mainCount + assistantCount,
+        totalCount,
         details,
+        skippedReason,
       };
     }).sort((a, b) => b.totalCount - a.totalCount || a.assignee.name.localeCompare(b.assignee.name));
-  }, [assignees, weeks, selectedPeriodKey]);
+  }, [assignees, weeks, selectedPeriodKey, settings]);
 
   const periodStats = useMemo(() => {
     if (!selectedPeriodKey) return { totalParts: 0, eldersScheduled: 0, totalElders: 0, msScheduled: 0, totalMS: 0 };
@@ -727,6 +731,88 @@ function downloadCsv(filename: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
+function getSkippedReason(
+  a: any,
+  periodWeeks: Week[],
+  allWeeks: Week[],
+  settings: any
+): string {
+  if (a.archived) return "Enrollee is archived.";
+  if (!a.active) return "Enrollee is marked as inactive.";
+
+  if (a.allowedParts && a.allowedParts.length === 0) {
+    return "No allowed parts configured in profile.";
+  }
+
+  // 1. Availability check
+  const meetingDay = settings?.midweekMeetingDay || "Thursday";
+  const mode = settings?.availabilityMode || "unavailable";
+  
+  let totalMeetingWeeks = 0;
+  let unavailableWeeks = 0;
+  
+  for (const w of periodWeeks) {
+    if (w.specialEvent) continue;
+    totalMeetingWeeks++;
+    const meetingDateStr = getMeetingDate(w.weekOf, meetingDay);
+    const ranges = a.unavailableRanges ?? [];
+    const overlapsAny = ranges.some((range: any) => meetingDateStr >= range.start && meetingDateStr <= range.end);
+    const isUnavailable = mode === "available" ? !overlapsAny : overlapsAny;
+    if (isUnavailable) {
+      unavailableWeeks++;
+    }
+  }
+
+  if (totalMeetingWeeks > 0 && unavailableWeeks === totalMeetingWeeks) {
+    return "Marked unavailable for all weeks in this period.";
+  }
+
+  // 2. Qualification/Eligibility check
+  let hasEligiblePart = false;
+  const rules = settings?.assignmentRules || DEFAULT_ASSIGNMENT_RULES;
+  const customParts = settings?.customPartTypes;
+  
+  for (const w of periodWeeks) {
+    if (w.specialEvent) continue;
+    for (const ass of w.assignments) {
+      if (isEligible(a, ass.partType, "main", "auto", rules, false, false, customParts)) {
+        hasEligiblePart = true;
+        break;
+      }
+      const rule = rules[ass.partType] || DEFAULT_ASSIGNMENT_RULES[ass.partType];
+      if (rule?.assistant && isEligible(a, ass.partType, "assistant", "auto", rules, false, false, customParts)) {
+        hasEligiblePart = true;
+        break;
+      }
+    }
+    if (hasEligiblePart) break;
+  }
+
+  if (!hasEligiblePart) {
+    return "Not qualified/eligible for any parts scheduled in this period.";
+  }
+
+  // 3. Last assignment check
+  let lastAssignedDate = "";
+  for (const w of allWeeks) {
+    for (const ass of w.assignments) {
+      if (ass.assigneeId === a.id || ass.assistantId === a.id) {
+        if (!lastAssignedDate || w.weekOf > lastAssignedDate) {
+          lastAssignedDate = w.weekOf;
+        }
+      }
+    }
+  }
+
+  if (lastAssignedDate) {
+    const dateObj = new Date(lastAssignedDate + "T00:00:00");
+    const dateLabel = dateObj.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    return `Lower rotation priority; last assigned on ${dateLabel}.`;
+  }
+
+  return "Eligible, but not selected during auto-assignment.";
+}
+
 function SnapshotView({
   periods,
   selectedPeriodKey,
@@ -745,6 +831,7 @@ function SnapshotView({
     assistantCount: number;
     totalCount: number;
     details: { weekId: number; dateLabel: string; partType: string; role: "main" | "assistant"; title: string }[];
+    skippedReason?: string;
   }[];
   periodStats: {
     totalParts: number;
@@ -906,7 +993,7 @@ function SnapshotView({
                     return (
                       <tr
                         key={row.assignee.id}
-                        className={`border-t border-slate-100 ${isZero ? "bg-amber-50/30 font-medium" : ""}`}
+                        className={`border-t border-slate-100 ${isZero ? "bg-amber-50/30 font-medium" : ""} ${row.assignee.active ? "" : "opacity-60 grayscale"}`}
                       >
                         <td className="py-3 px-4 font-semibold text-slate-800">
                           <a
@@ -965,9 +1052,16 @@ function SnapshotView({
                               </a>
                             ))}
                             {row.details.length === 0 && (
-                              <span className="text-xs text-rose-600 font-semibold bg-rose-50/30 px-2 py-0.5 rounded border border-rose-100/30 uppercase tracking-wide text-[10px]">
-                                No assignments this period
-                              </span>
+                              <div className="flex flex-col gap-1 text-left">
+                                <span className="text-xs text-rose-600 font-semibold bg-rose-50/30 px-2 py-0.5 rounded border border-rose-100/30 uppercase tracking-wide text-[10px] w-fit">
+                                  No assignments this period
+                                </span>
+                                {row.skippedReason && (
+                                  <span className="text-[11px] text-slate-500 font-normal leading-normal">
+                                    {row.skippedReason}
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
                         </td>
