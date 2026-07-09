@@ -8,6 +8,7 @@ import {
   type AppSettings,
   type LogEntry,
   type AssignmentRule,
+  type RuleEnforcementLevel,
   DEFAULT_SETTINGS,
 } from "./types";
 
@@ -179,12 +180,36 @@ export async function ensureSettings(): Promise<AppSettings> {
       updated.ruleWorkloadBalancing = oldExisting.ruleMainWorkload ?? oldExisting.ruleAssistantWorkload ?? DEFAULT_SETTINGS.ruleWorkloadBalancing;
     }
 
+    // Migration for role-alternation settings consolidation
+    if (oldExisting.ruleMainToAssistantConsecutive !== undefined) {
+      const enforcementOrder: RuleEnforcementLevel[] = ["off", "weak", "medium", "strong", "strict"];
+      const alternationVal: RuleEnforcementLevel = updated.ruleRoleAlternation ?? "strong";
+      const consecutiveVal: RuleEnforcementLevel = oldExisting.ruleMainToAssistantConsecutive;
+      
+      const altIdx = enforcementOrder.indexOf(alternationVal);
+      const consIdx = enforcementOrder.indexOf(consecutiveVal);
+      
+      const maxIdx = Math.max(altIdx >= 0 ? altIdx : 3, consIdx >= 0 ? consIdx : 2);
+      const migratedVal = enforcementOrder[maxIdx];
+      updated.ruleRoleAlternation = migratedVal;
+
+      if (Math.abs(altIdx - consIdx) > 1) {
+        const message = `Settings ruleRoleAlternation (${alternationVal}) and ruleMainToAssistantConsecutive (${consecutiveVal}) differed by more than one level. Migrated to stricter: ${migratedVal}.`;
+        console.warn(`[Migration Alert] ${message}`);
+        await addLog("system", "Role alternation settings consolidated", message).catch(err => {
+          console.error("Failed to write migration log:", err);
+        });
+      }
+    }
+
     // Clean up old fields
     delete (updated as any).ruleMinistryAlternation;
     delete (updated as any).rulePreventAssistantTwice;
     delete (updated as any).ruleMainWorkload;
     delete (updated as any).ruleAssistantWorkload;
     delete (updated as any).preventMinorAssistantToAdult;
+    delete (updated as any).ruleMainToAssistantConsecutive;
+    delete (updated as any).ruleUnifiedMinistry;
 
     // Safely merge assignmentRules
     const existingRules = existing.assignmentRules && typeof existing.assignmentRules === "object"

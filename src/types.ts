@@ -161,9 +161,7 @@ export interface AppSettings {
   ruleSegmentBalancing?: RuleEnforcementLevel;
   ruleInfirmedThrottling?: RuleEnforcementLevel;
   ruleSameSexDemogenders?: RuleEnforcementLevel;
-  ruleMainToAssistantConsecutive?: RuleEnforcementLevel;
   rulePrayerRotation?: RuleEnforcementLevel;
-  ruleUnifiedMinistry?: boolean;
   ruleAvoidPioneerPairing?: boolean;
 
   // ── Scheduler fairness knobs ──────────────────────────────────────────
@@ -405,9 +403,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ruleSegmentBalancing: "medium",
   ruleInfirmedThrottling: "medium",
   ruleSameSexDemogenders: "strict",
-  ruleMainToAssistantConsecutive: "medium",
   rulePrayerRotation: "medium",
-  ruleUnifiedMinistry: true,
   ruleAvoidPioneerPairing: false,
   msTreasuresRatio: 0,
   qmsTreasuresRatio: 0,

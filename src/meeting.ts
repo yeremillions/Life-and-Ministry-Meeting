@@ -10,7 +10,7 @@ import {
   Week,
   Household,
 } from "./types";
-import { getMeetingDate } from "./utils";
+import { getMeetingDate, daysBetween } from "./utils";
 
 export const SEGMENTS: {
   id: SegmentId;
@@ -224,6 +224,37 @@ export function isEligible(
   return true;
 }
 
+/** Evaluates the penalty score for role transitions in the ministry segment. */
+export function evaluateRoleTransitionPenalty(
+  lastRole: "main" | "assistant" | undefined,
+  currentRole: "main" | "assistant",
+  gapWeeks: number,
+  level: RuleEnforcementLevel
+): number {
+  if (level === "off" || !lastRole) return 0;
+
+  // 1. Same-role twice in a row (role repeat)
+  if (lastRole === currentRole) {
+    return level === "weak" ? 500 :
+           level === "medium" ? 5000 :
+           level === "strong" ? 20000 : 1000000;
+  }
+
+  // 2. Main then Assistant (demotion)
+  if (lastRole === "main" && currentRole === "assistant") {
+    if (gapWeeks < 2) {
+      return level === "weak" ? 100 :
+             level === "medium" ? 1000 :
+             level === "strong" ? 10000 : 200000;
+    }
+  }
+
+  // 3. Assistant then Main (encouraged transition)
+  return 0;
+}
+
+import { RuleEnforcementLevel } from "./types";
+
 export function getRuleViolations(
   a: Assignee,
   partType: PartType,
@@ -233,7 +264,9 @@ export function getRuleViolations(
   lastAssignmentRole?: "main" | "assistant",
   weekOf?: string,
   settings?: AppSettings,
-  partnerIsMinor?: boolean
+  partnerIsMinor?: boolean,
+  lastMinistryRole?: "main" | "assistant",
+  lastWeekMinistry?: string
 ): string[] {
   const violations: string[] = [];
   if (a.archived || !a.active) return violations;
@@ -321,13 +354,42 @@ export function getRuleViolations(
     }
   }
 
-  // Assistant twice in a row check (part of Role Alternation)
-  const roleAlternationLevel = settings?.ruleRoleAlternation ?? "strong";
-  if (roleAlternationLevel !== "off" && role === "assistant" && lastAssignmentRole === "assistant") {
-    if (roleAlternationLevel === "strict") {
-      violations.push(`Last assignment was as an assistant (should be considered for a main role instead)`);
-    } else {
-      violations.push(`Warning: Last assignment was as an assistant`);
+  // Ministry segment role transition check (consolidated)
+  if (isMinistryPart && settings && lastMinistryRole) {
+    const roleAlternationLevel = settings.ruleRoleAlternation ?? "strong";
+    if (roleAlternationLevel !== "off") {
+      // 1. Same-role repeat
+      if (lastMinistryRole === role) {
+        if (roleAlternationLevel === "strict") {
+          violations.push(`Last ministry role was also as ${role} (roles should alternate)`);
+        } else {
+          violations.push(`Warning: Last ministry role was also as ${role}`);
+        }
+      }
+      
+      // 2. Main then Assistant (demotion) within 14 days
+      if (lastMinistryRole === "main" && role === "assistant" && lastWeekMinistry && weekOf) {
+        const gap = daysBetween(lastWeekMinistry, weekOf);
+        if (gap < 14) {
+          if (roleAlternationLevel === "strict") {
+            violations.push(`Cannot assign as assistant within 14 days of being a main speaker`);
+          } else {
+            violations.push(`Warning: Assigning as assistant within 14 days of being a main speaker`);
+          }
+        }
+      }
+    }
+  }
+
+  // Non-ministry fallback check: Assistant twice in a row (if lastAssignmentRole is provided)
+  if (!isMinistryPart && lastAssignmentRole === "assistant" && role === "assistant") {
+    const roleAlternationLevel = settings?.ruleRoleAlternation ?? "strong";
+    if (roleAlternationLevel !== "off") {
+      if (roleAlternationLevel === "strict") {
+        violations.push(`Last assignment was as an assistant (should be considered for a main role instead)`);
+      } else {
+        violations.push(`Warning: Last assignment was as an assistant`);
+      }
     }
   }
 

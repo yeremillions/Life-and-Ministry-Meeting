@@ -80,9 +80,7 @@ function sanitizeSettings(raw: any): AppSettings {
   base.ruleSegmentBalancing = ruleLevels.includes(raw?.ruleSegmentBalancing) ? raw.ruleSegmentBalancing : DEFAULT_SETTINGS.ruleSegmentBalancing;
   base.ruleInfirmedThrottling = ruleLevels.includes(raw?.ruleInfirmedThrottling) ? raw.ruleInfirmedThrottling : DEFAULT_SETTINGS.ruleInfirmedThrottling;
   base.ruleSameSexDemogenders = ruleLevels.includes(raw?.ruleSameSexDemogenders) ? raw.ruleSameSexDemogenders : DEFAULT_SETTINGS.ruleSameSexDemogenders;
-  base.ruleMainToAssistantConsecutive = ruleLevels.includes(raw?.ruleMainToAssistantConsecutive) ? raw.ruleMainToAssistantConsecutive : DEFAULT_SETTINGS.ruleMainToAssistantConsecutive;
   base.rulePrayerRotation = ruleLevels.includes(raw?.rulePrayerRotation) ? raw.rulePrayerRotation : DEFAULT_SETTINGS.rulePrayerRotation;
-  base.ruleUnifiedMinistry = typeof raw?.ruleUnifiedMinistry === "boolean" ? raw.ruleUnifiedMinistry : DEFAULT_SETTINGS.ruleUnifiedMinistry;
   base.ruleAvoidPioneerPairing = typeof raw?.ruleAvoidPioneerPairing === "boolean" ? raw.ruleAvoidPioneerPairing : DEFAULT_SETTINGS.ruleAvoidPioneerPairing;
   
   base.customPartTypes = raw?.customPartTypes && typeof raw.customPartTypes === "object"
@@ -375,9 +373,7 @@ export default function SettingsPage({
       updated.ruleWorkloadBalancing = "medium";
       updated.ruleSegmentBalancing = "medium";
       updated.ruleSameSexDemogenders = "strict";
-      updated.ruleMainToAssistantConsecutive = "medium";
       updated.rulePrayerRotation = "medium";
-      updated.ruleUnifiedMinistry = true;
       updated.ruleAvoidPioneerPairing = true;
       updated.pairingAvoidance = "strict";
     } else if (preset === "balanced") {
@@ -389,9 +385,7 @@ export default function SettingsPage({
       updated.ruleWorkloadBalancing = "weak";
       updated.ruleSegmentBalancing = "weak";
       updated.ruleSameSexDemogenders = "strict";
-      updated.ruleMainToAssistantConsecutive = "weak";
       updated.rulePrayerRotation = "medium";
-      updated.ruleUnifiedMinistry = true;
       updated.ruleAvoidPioneerPairing = false;
       updated.pairingAvoidance = "medium";
     } else if (preset === "flexible") {
@@ -403,9 +397,7 @@ export default function SettingsPage({
       updated.ruleWorkloadBalancing = "off";
       updated.ruleSegmentBalancing = "off";
       updated.ruleSameSexDemogenders = "weak";
-      updated.ruleMainToAssistantConsecutive = "off";
       updated.rulePrayerRotation = "weak";
-      updated.ruleUnifiedMinistry = true;
       updated.ruleAvoidPioneerPairing = false;
       updated.pairingAvoidance = "weak";
     }
@@ -1172,7 +1164,7 @@ export default function SettingsPage({
 
               {renderRuleCustomizerRow(
                 "Prefer Role Alternation (Main / Assistant)",
-                "Promotes fairness by ensuring publishers switch between Main and Assistant roles in student ministry parts, and do not serve as assistants in consecutive assignments.",
+                "Ensures publishers alternate between Main and Assistant roles in the ministry segment, and prevents assigning a publisher as an assistant too soon after giving a main part.",
                 "ruleRoleAlternation"
               )}
 
@@ -1196,12 +1188,7 @@ export default function SettingsPage({
                 false
               )}
 
-              {renderRuleCustomizerRow(
-                "Avoid Back-to-Back Parts (consecutive weeks)",
-                "Prevents assigning a publisher as an assistant if they gave a main part the previous week (unless as a fallback when no one else is available).",
-                "ruleMainToAssistantConsecutive",
-                false
-              )}
+
 
               {renderRuleCustomizerRow(
                 "Prayer Rotation Balancing",
@@ -1254,26 +1241,7 @@ export default function SettingsPage({
                 </select>
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all gap-4">
-                <div className="space-y-1">
-                  <span className="font-semibold text-slate-800 text-sm">Allow Family/Household Pairings (Unified Ministry exception)</span>
-                  <p className="text-xs text-slate-500">Treats main and assistant parts in the ministry segment as a single unified workload to ensure publishers alternate roles and prevent double-scheduling.</p>
-                </div>
-                <select
-                  className="input text-xs py-1.5 max-w-[150px]"
-                  value={draft.ruleUnifiedMinistry !== false ? "true" : "false"}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      ruleUnifiedMinistry: e.target.value === "true",
-                      schedulingPreset: "custom",
-                    })
-                  }
-                >
-                  <option value="true">Enabled</option>
-                  <option value="false">Disabled</option>
-                </select>
-              </div>
+
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all gap-4">
                 <div className="space-y-1">

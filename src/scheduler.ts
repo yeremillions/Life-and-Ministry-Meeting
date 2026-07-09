@@ -4,6 +4,7 @@ import {
   needsAssistant,
   checkPairingViolation,
   meetsSpecialRequirement,
+  evaluateRoleTransitionPenalty,
 } from "./meeting";
 import {
   Assignee,
@@ -14,7 +15,7 @@ import {
   SegmentId,
   RuleEnforcementLevel,
 } from "./types";
-import { getMeetingDate, workbookPeriod } from "./utils";
+import { getMeetingDate, workbookPeriod, daysBetween } from "./utils";
 
 export function getMinistryCategory(a: Assignee): "QE" | "E" | "QMS" | "MS" | "Brothers" | "Sisters" {
   if (a.privileges?.includes("QE")) return "QE";
@@ -197,16 +198,7 @@ export function buildStats(
   return stats;
 }
 
-/** Days between two ISO dates (YYYY-MM-DD). */
-function daysBetween(aIso: string, bIso: string): number {
-  if (!aIso || !bIso) return 0;
-  const [y1, m1, d1] = aIso.trim().split("-").map(Number);
-  const [y2, m2, d2] = bIso.trim().split("-").map(Number);
-  if (isNaN(y1) || isNaN(y2)) return 0;
-  const t1 = Date.UTC(y1, m1 - 1, d1);
-  const t2 = Date.UTC(y2, m2 - 1, d2);
-  return Math.round((t2 - t1) / (1000 * 60 * 60 * 24));
-}
+
 
 /**
  * Aggregate counts used to balance the Treasures opening Talk between
@@ -463,13 +455,11 @@ export function scoreCandidate(
     | "ruleSegmentBalancing"
     | "ruleInfirmedThrottling"
     | "ruleSameSexDemogenders"
-    | "ruleMainToAssistantConsecutive"
     | "qePrayerRatio"
     | "ePrayerRatio"
     | "qmsPrayerRatio"
     | "msPrayerRatio"
     | "rulePrayerRotation"
-    | "ruleUnifiedMinistry"
   >,
   isMinorMain?: boolean,
   partnerIsMinor?: boolean,
@@ -481,17 +471,17 @@ export function scoreCandidate(
   void seed;
   let score = 0;
 
-  // Ministry segment role alternation:
+  // Ministry segment role transition check (consolidated)
   const roleAlternationLevel = opts.ruleRoleAlternation ?? "strong";
-  if (roleAlternationLevel !== "off" && part.segment === "ministry" && stats.lastMinistryRole !== undefined) {
-    const isRepeatedRole = (role === "main" && stats.lastMinistryRole === "main") ||
-                           (role === "assistant" && stats.lastMinistryRole === "assistant");
-    if (isRepeatedRole) {
-      const penalty = roleAlternationLevel === "weak" ? 500 :
-                      roleAlternationLevel === "medium" ? 5000 :
-                      roleAlternationLevel === "strong" ? 20000 : 1000000;
-      score -= penalty;
-    }
+  if (roleAlternationLevel !== "off" && part.segment === "ministry" && stats.lastMinistryRole !== undefined && stats.lastWeekMinistry) {
+    const gapWeeks = daysBetween(stats.lastWeekMinistry, weekOf) / 7;
+    const penalty = evaluateRoleTransitionPenalty(
+      stats.lastMinistryRole,
+      role,
+      gapWeeks,
+      roleAlternationLevel
+    );
+    score -= penalty;
   }
 
   // ── Rotation Fairness Rules (Date-Based Rotation Mark System) ──────
@@ -604,7 +594,7 @@ export function scoreCandidate(
         if (!candIsQE && !candIsE && !candIsQMS && !candIsMS && targetNonPrivilegedShare === 0) score -= 1000000;
       }
     } else {
-      const isUnifiedMinistry = (opts.ruleUnifiedMinistry ?? true) && part.segment === "ministry";
+      const isUnifiedMinistry = part.segment === "ministry";
       const lastWeek = isUnifiedMinistry ? stats.lastWeekMinistry : stats.lastWeekMain;
 
       if (lastWeek) {
@@ -671,7 +661,7 @@ export function scoreCandidate(
   } else {
     // Assistant role — use assistant-only history.
     const workloadBalancingLevel = opts.ruleWorkloadBalancing ?? "medium";
-    const isUnifiedMinistry = (opts.ruleUnifiedMinistry ?? true) && part.segment === "ministry";
+    const isUnifiedMinistry = part.segment === "ministry";
     const lastWeek = isUnifiedMinistry ? stats.lastWeekMinistry : stats.lastWeekAssistant;
     const gapDays = isUnifiedMinistry ? minGapDays : 21;
 
@@ -901,17 +891,7 @@ export function scoreCandidate(
     score -= penalty;
   }
 
-  // Penalty for main part last week followed by assistant part this week
-  const consecutiveMainAsstLevel = opts.ruleMainToAssistantConsecutive ?? "medium";
-  if (role === "assistant" && consecutiveMainAsstLevel !== "off" && stats.lastWeekMain) {
-    const gap = daysBetween(stats.lastWeekMain, weekOf);
-    if (gap < 14) {
-      const penalty = consecutiveMainAsstLevel === "weak" ? 100 :
-                      consecutiveMainAsstLevel === "medium" ? 1000 :
-                      consecutiveMainAsstLevel === "strong" ? 10000 : 200000;
-      score -= penalty;
-    }
-  }
+
 
   // Prefer adult partner if candidate's last part was with a minor
   // Prefer adult candidate if partner's last part was with a minor
@@ -986,13 +966,11 @@ export interface AutoAssignOptions {
   ruleSegmentBalancing?: RuleEnforcementLevel;
   ruleInfirmedThrottling?: RuleEnforcementLevel;
   ruleSameSexDemogenders?: RuleEnforcementLevel;
-  ruleMainToAssistantConsecutive?: RuleEnforcementLevel;
   qePrayerRatio?: number;
   ePrayerRatio?: number;
   qmsPrayerRatio?: number;
   msPrayerRatio?: number;
   rulePrayerRotation?: RuleEnforcementLevel;
-  ruleUnifiedMinistry?: boolean;
   ruleAvoidPioneerPairing?: boolean;
 }
 
@@ -1344,7 +1322,7 @@ function pickCandidate(args: PickArgs): Assignee | null {
   }
 
   // ── Hard constraint: minimum gap between main assignments ──────────
-  const isUnifiedMinistry = (opts.ruleUnifiedMinistry ?? true) && part.segment === "ministry";
+  const isUnifiedMinistry = part.segment === "ministry";
   if (isUnifiedMinistry) {
     if (minGapDays > 0 && (opts.ruleMinGap ?? "strict") === "strict") {
       const filtered = eligiblePool.filter((a) => {
@@ -1590,40 +1568,28 @@ function pickCandidate(args: PickArgs): Assignee | null {
     }
   }
 
-  // ── Hard constraint: prevent assistant role if they had a recent main part last week ──
-  if (role === "assistant" && (opts.ruleMainToAssistantConsecutive ?? "medium") === "strict") {
+  // ── Hard constraint: ministry segment role transition evaluation (strict) ──
+  if (part.segment === "ministry" && (opts.ruleRoleAlternation ?? "strong") === "strict") {
     const filtered = eligiblePool.filter((a) => {
       const s = stats.get(a.id!);
-      if (!s || !s.lastWeekMain) return true;
-      const gap = daysBetween(s.lastWeekMain, weekOf);
-      return gap >= 14;
+      if (!s || !s.lastMinistryRole || !s.lastWeekMinistry) return true;
+
+      // 1. Exclude same-role repeats outright
+      if (s.lastMinistryRole === role) {
+        return false;
+      }
+
+      // 2. Exclude Assistant candidates who had Main within the last 14 days (2-week gap)
+      if (s.lastMinistryRole === "main" && role === "assistant") {
+        const gap = daysBetween(s.lastWeekMinistry, weekOf);
+        if (gap < 14) {
+          return false;
+        }
+      }
+
+      return true;
     });
     if (filtered.length > 0) eligiblePool = filtered;
-  }
-
-  // ── Hard constraint: prevent assistant twice in a row (part of Role Alternation) ──
-  if (role === "assistant" && (opts.ruleRoleAlternation ?? "strong") === "strict") {
-    const filtered = eligiblePool.filter((a) => {
-      const s = stats.get(a.id!);
-      if (!s || !s.lastWeekAssistant) return true;
-      const lastMain = s.lastWeekMain;
-      const lastAsst = s.lastWeekAssistant;
-      const wasLastAssistant = lastAsst && (!lastMain || lastAsst > lastMain);
-      return !wasLastAssistant;
-    });
-    if (filtered.length > 0) eligiblePool = filtered;
-  }
-
-  // ── Hard constraint: ministry segment role alternation ─────────────
-  if ((role === "main" || role === "assistant") && (opts.ruleRoleAlternation ?? "strong") === "strict") {
-    if (part.segment === "ministry") {
-      const filtered = eligiblePool.filter((a) => {
-        const s = stats.get(a.id!);
-        if (!s || s.lastMinistryRole === undefined) return true;
-        return s.lastMinistryRole !== role;
-      });
-      if (filtered.length > 0) eligiblePool = filtered;
-    }
   }
 
   // ── Hard constraint: strict category rotation for prayers ───────────

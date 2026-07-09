@@ -1399,6 +1399,7 @@ function PartRow({
 
   const mainViolations = useMemo(() => {
     if (!mainPerson) return [];
+    const s = stats.get(mainPerson.id!);
     return getRuleViolations(
       mainPerson,
       assignment.partType,
@@ -1408,9 +1409,11 @@ function PartRow({
       undefined,
       week.weekOf,
       settings,
-      assistantPerson?.isMinor
+      assistantPerson?.isMinor,
+      s?.lastMinistryRole,
+      s?.lastWeekMinistry
     );
-  }, [mainPerson, assistantPerson, assignment.partType, settings.assignmentRules, week.weekOf, settings]);
+  }, [mainPerson, assistantPerson, assignment.partType, settings.assignmentRules, stats, week.weekOf, settings]);
 
   const assistantViolations = useMemo(() => {
     if (!assistantPerson) return [];
@@ -1435,7 +1438,10 @@ function PartRow({
       mainPerson?.isMinor ?? false,
       lastAssignmentRole,
       week.weekOf,
-      settings
+      settings,
+      undefined,
+      s?.lastMinistryRole,
+      s?.lastWeekMinistry
     );
   }, [assistantPerson, assignment.partType, settings.assignmentRules, mainPerson, stats, week.weekOf, settings]);
 
@@ -2030,13 +2036,11 @@ function AssigneePicker({
           ruleSegmentBalancing: settings.ruleSegmentBalancing,
           ruleInfirmedThrottling: settings.ruleInfirmedThrottling,
           ruleSameSexDemogenders: settings.ruleSameSexDemogenders,
-          ruleMainToAssistantConsecutive: settings.ruleMainToAssistantConsecutive,
           qePrayerRatio: settings.qePrayerRatio ?? 20,
           ePrayerRatio: settings.ePrayerRatio ?? 20,
           qmsPrayerRatio: settings.qmsPrayerRatio ?? 20,
           msPrayerRatio: settings.msPrayerRatio ?? 20,
           rulePrayerRotation: settings.rulePrayerRotation,
-          ruleUnifiedMinistry: settings.ruleUnifiedMinistry,
         },
         mainIsMinor,
         partnerIsMinor,
@@ -2134,7 +2138,9 @@ function AssigneePicker({
         lastAssignmentRole,
         weekOf,
         settings,
-        partnerIsMinor
+        partnerIsMinor,
+        s?.lastMinistryRole,
+        s?.lastWeekMinistry
       );
 
       // Same-Sex Demo Match Check inside options map

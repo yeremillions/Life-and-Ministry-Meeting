@@ -125,3 +125,15 @@ export function getMeetingDate(weekOf: string, meetingDay: string): string {
   return toIso(date);
 }
 
+/** Days between two ISO dates (YYYY-MM-DD). */
+export function daysBetween(aIso: string, bIso: string): number {
+  if (!aIso || !bIso) return 0;
+  const [y1, m1, d1] = aIso.trim().split("-").map(Number);
+  const [y2, m2, d2] = bIso.trim().split("-").map(Number);
+  if (isNaN(y1) || isNaN(y2)) return 0;
+  const t1 = Date.UTC(y1, m1 - 1, d1);
+  const t2 = Date.UTC(y2, m2 - 1, d2);
+  return Math.round((t2 - t1) / (1000 * 60 * 60 * 24));
+}
+
+
