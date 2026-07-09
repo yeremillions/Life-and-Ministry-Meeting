@@ -496,7 +496,8 @@ export function scoreCandidate(
     // Has been assigned before. Add bonus proportional to the gap in days
     // since their last assignment in this specific category (oldest first).
     const catGap = daysBetween(lastWeekForPart, weekOf);
-    score += catGap * 100;
+    const catMultiplier = part.segment === "ministry" ? 1.5 : 100;
+    score += catGap * catMultiplier;
   }
 
   // ── Gap-based scoring ────────────────────────────────────────────────
