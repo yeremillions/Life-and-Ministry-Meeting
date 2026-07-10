@@ -15,7 +15,7 @@ import {
   SegmentId,
   RuleEnforcementLevel,
 } from "./types";
-import { getMeetingDate, workbookPeriod, daysBetween } from "./utils";
+import { getMeetingDate, workbookPeriod, daysBetween, toIso, addDays } from "./utils";
 
 export function getMinistryCategory(a: Assignee): "QE" | "E" | "QMS" | "MS" | "Brothers" | "Sisters" {
   if (a.privileges?.includes("QE")) return "QE";
@@ -1677,6 +1677,39 @@ function pickCandidate(args: PickArgs): Assignee | null {
   );
 }
 
+function hasAssignmentInOneWeekPeriod(
+  aId: number,
+  weekOf: string,
+  historicalWeeks: Week[],
+  currentAssignments: Assignment[]
+): boolean {
+  const currentWeekDate = new Date(weekOf + "T00:00:00");
+  const prevWeekIso = toIso(addDays(currentWeekDate, -7));
+  const nextWeekIso = toIso(addDays(currentWeekDate, 7));
+
+  // Check current assignments
+  for (const ass of currentAssignments ?? []) {
+    if (ass.assigneeId === aId || ass.assistantId === aId) {
+      return true;
+    }
+  }
+
+  // Check historical weeks
+  for (const hw of historicalWeeks ?? []) {
+    if (hw.weekOf === prevWeekIso || hw.weekOf === nextWeekIso || hw.weekOf === weekOf) {
+      if (!hw.specialEvent) {
+        for (const ass of hw.assignments) {
+          if (ass.assigneeId === aId || ass.assistantId === aId) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
 function rankAndPick(
   pool: Assignee[],
   part: Assignment,
@@ -1731,6 +1764,32 @@ function rankAndPick(
       partnerLastPartWasWithMinor,
       prayerSplit
     );
+
+    // Prioritize family members as assistant for minors
+    if (role === "assistant" && isMinorMain && part.assigneeId != null && opts.households && allAssignees) {
+      const main = allAssignees.find((p) => p.id === part.assigneeId);
+      if (main) {
+        const mainH = opts.households.find((h) => h.memberIds.includes(main.id!));
+        if (mainH && mainH.memberIds.includes(candidate.id!)) {
+          // Candidate is in the same household!
+          // 1. Identify Mum
+          const mumMember = allAssignees.find(p => mainH.memberIds.includes(p.id!) && p.isMother);
+          const mumHasOtherAss = mumMember ? hasAssignmentInOneWeekPeriod(mumMember.id!, weekOf, historicalWeeks ?? [], assignments ?? []) : false;
+          
+          if (candidate.isMother) {
+            score += mumHasOtherAss ? 50000 : 100000;
+          } else if (candidate.isFather) {
+            score += mumHasOtherAss ? 100000 : 80000;
+          } else if (!candidate.isMinor) {
+            // Other adults in the household
+            score += mumHasOtherAss ? 80000 : 60000;
+          } else {
+            // Minor family members
+            score += 20000;
+          }
+        }
+      }
+    }
 
     // Apply prayer category rotation penalty
     const prayerRotationLevel = opts.rulePrayerRotation ?? "medium";
