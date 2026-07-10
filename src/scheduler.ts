@@ -1386,6 +1386,13 @@ function pickCandidate(args: PickArgs): Assignee | null {
     eligiblePool = zeroAssignmentCandidates;
   }
 
+  // ── Hard constraint: On a week with a "What Would You Say?" part, do not assign brothers to other ministry segment parts ──
+  const hasWhatWouldYouSay = assignments?.some((ass) => ass.partType === "What Would You Say?");
+  if (hasWhatWouldYouSay && part.segment === "ministry" && part.partType !== "What Would You Say?") {
+    const filtered = eligiblePool.filter((a) => a.gender !== "M");
+    if (filtered.length > 0) eligiblePool = filtered;
+  }
+
   // ── Demonstration part constraints (limit total brother parts and adjacent weeks) ──
   const isDemonstrationPart =
     part.segment === "ministry" &&
