@@ -756,8 +756,15 @@ function getSkippedReason(
     totalMeetingWeeks++;
     const meetingDateStr = getMeetingDate(w.weekOf, meetingDay);
     const ranges = a.unavailableRanges ?? [];
-    const overlapsAny = ranges.some((range: any) => meetingDateStr >= range.start && meetingDateStr <= range.end);
-    const isUnavailable = mode === "available" ? !overlapsAny : overlapsAny;
+    let isUnavailable = false;
+    if (ranges.length > 0) {
+      const overlapsAny = ranges.some((range: any) => meetingDateStr >= range.start && meetingDateStr <= range.end);
+      if (mode === "available") {
+        isUnavailable = !overlapsAny;
+      } else {
+        isUnavailable = overlapsAny;
+      }
+    }
     if (isUnavailable) {
       unavailableWeeks++;
     }
