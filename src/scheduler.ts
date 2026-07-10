@@ -1358,6 +1358,34 @@ function pickCandidate(args: PickArgs): Assignee | null {
     if (filtered.length > 0) eligiblePool = filtered;
   }
 
+  // ── Hard constraint: Prioritise candidates with 0 assignments in the current workbook period ──
+  const { key: currentPeriodKey } = workbookPeriod(weekOf);
+  const getPeriodCount = (aId: number) => {
+    let count = 0;
+    // 1. Check historical/already-saved weeks in the current period
+    for (const hw of historicalWeeks) {
+      if (workbookPeriod(hw.weekOf).key === currentPeriodKey && !hw.specialEvent) {
+        for (const ass of hw.assignments) {
+          if (ass.assigneeId === aId || ass.assistantId === aId) {
+            count++;
+          }
+        }
+      }
+    }
+    // 2. Check the current week's draft assignments so far
+    for (const ass of assignments ?? []) {
+      if (ass.assigneeId === aId || ass.assistantId === aId) {
+        count++;
+      }
+    }
+    return count;
+  };
+
+  const zeroAssignmentCandidates = eligiblePool.filter((a) => getPeriodCount(a.id!) === 0);
+  if (zeroAssignmentCandidates.length > 0) {
+    eligiblePool = zeroAssignmentCandidates;
+  }
+
   // ── Demonstration part constraints (limit total brother parts and adjacent weeks) ──
   const isDemonstrationPart =
     part.segment === "ministry" &&
