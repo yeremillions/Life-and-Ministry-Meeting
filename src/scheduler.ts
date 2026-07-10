@@ -1765,8 +1765,8 @@ function rankAndPick(
       prayerSplit
     );
 
-    // Prioritize family members as assistant for minors
-    if (role === "assistant" && isMinorMain && part.assigneeId != null && opts.households && allAssignees) {
+    // Prioritize family members as assistant for minors (Apply Yourself to the Field Ministry only)
+    if (role === "assistant" && isMinorMain && part.segment === "ministry" && part.assigneeId != null && opts.households && allAssignees) {
       const main = allAssignees.find((p) => p.id === part.assigneeId);
       if (main) {
         const mainH = opts.households.find((h) => h.memberIds.includes(main.id!));
