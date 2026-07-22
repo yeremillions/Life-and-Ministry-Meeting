@@ -51,6 +51,8 @@ export default function WeekendImportModal({
         publicTalkSpeakerId?: number;
         rawSpeaker?: string;
         rawSpeakerCongregation?: string;
+        publicTalkTitle?: string;
+        publicTalkNumber?: number;
         publicTalkChairmanId?: number;
         watchtowerConductorId?: number;
         watchtowerReaderId?: number;
@@ -89,6 +91,9 @@ export default function WeekendImportModal({
         throw new Error("No weekend meeting schedules were found in the document. Please verify the format.");
       }
 
+      // Sort chronologically (oldest to newest)
+      results.sort((a, b) => a.weekOf.localeCompare(b.weekOf));
+
       setParsed(results);
 
       // Auto-resolve names
@@ -101,6 +106,8 @@ export default function WeekendImportModal({
           publicTalkSpeakerId: !isGuest ? matchPerson(m.rawSpeaker)?.id : undefined,
           rawSpeaker: m.rawSpeaker,
           rawSpeakerCongregation: m.rawSpeakerCongregation,
+          publicTalkTitle: m.publicTalkTitle,
+          publicTalkNumber: m.publicTalkNumber,
           publicTalkChairmanId: matchPerson(m.rawChairman)?.id,
           watchtowerConductorId: matchPerson(m.rawConductor)?.id || wtOverseer?.id,
           watchtowerReaderId: matchPerson(m.rawReader)?.id,
@@ -131,8 +138,8 @@ export default function WeekendImportModal({
           publicTalkSpeakerId: resolved?.publicTalkSpeakerId,
           rawSpeaker: resolved?.rawSpeaker,
           rawSpeakerCongregation: resolved?.rawSpeakerCongregation,
-          publicTalkTitle: m.publicTalkTitle,
-          publicTalkNumber: m.publicTalkNumber,
+          publicTalkTitle: resolved?.publicTalkTitle,
+          publicTalkNumber: resolved?.publicTalkNumber,
           publicTalkChairmanId: resolved?.publicTalkChairmanId,
           watchtowerConductorId: resolved?.watchtowerConductorId,
           watchtowerReaderId: resolved?.watchtowerReaderId,
@@ -199,13 +206,11 @@ export default function WeekendImportModal({
                     <div key={m.weekOf} className="border border-slate-200 rounded p-3 bg-slate-50 space-y-2">
                       <div className="flex justify-between border-b border-slate-200 pb-1.5 items-center">
                         <span className="font-bold text-xs text-slate-800">{m.banner}</span>
-                        {m.publicTalkTitle && (
-                          <span className="text-[11px] text-slate-500 italic max-w-[70%] truncate">
-                            #{m.publicTalkNumber}: {m.publicTalkTitle}
-                          </span>
+                        {m.meetingDate && (
+                          <span className="text-[10px] text-slate-400 font-semibold">{m.meetingDate}</span>
                         )}
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                         {/* Speaker */}
                         <div>
                           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">
@@ -282,6 +287,52 @@ export default function WeekendImportModal({
                               </div>
                             )}
                           </div>
+                        </div>
+
+                        {/* Outline & Title */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">
+                            Outline & Title
+                          </label>
+                          <div className="flex gap-1">
+                            <input
+                              type="number"
+                              className="text-xs p-1 border border-slate-300 rounded w-12 text-center font-bold text-slate-800"
+                              placeholder="No."
+                              value={resolved.publicTalkNumber || ""}
+                              onChange={(e) => {
+                                const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                                setResolvedAssignments(prev => ({
+                                  ...prev,
+                                  [m.weekOf]: {
+                                    ...prev[m.weekOf],
+                                    publicTalkNumber: val,
+                                  }
+                                }));
+                              }}
+                            />
+                            <input
+                              type="text"
+                              className="text-xs p-1 border border-slate-300 rounded flex-1 font-semibold text-slate-800 min-w-0"
+                              placeholder="Talk Title"
+                              value={resolved.publicTalkTitle || ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setResolvedAssignments(prev => ({
+                                  ...prev,
+                                  [m.weekOf]: {
+                                    ...prev[m.weekOf],
+                                    publicTalkTitle: val,
+                                  }
+                                }));
+                              }}
+                            />
+                          </div>
+                          {m.publicTalkTitle && (
+                            <span className="text-[10px] text-slate-400 italic block mt-0.5 truncate" title={m.publicTalkTitle}>
+                              Parsed: #{m.publicTalkNumber} - {m.publicTalkTitle}
+                            </span>
+                          )}
                         </div>
 
                         {/* Chairman */}
