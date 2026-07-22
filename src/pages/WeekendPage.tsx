@@ -5,11 +5,36 @@ import type { WeekendMeeting } from "../types";
 import { weekRangeLabel, nextMondayIso, workbookPeriod } from "../utils";
 import WeekendImportModal from "../components/WeekendImportModal";
 import ConfirmationModal from "../components/ConfirmationModal";
+import SearchableSelect from "../components/SearchableSelect";
 
 export default function WeekendPage() {
   const weekendMeetings = useLiveQuery(() => db.weekendMeetings.orderBy("weekOf").reverse().toArray(), []) ?? [];
   const assignees = useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
   const weeks = useLiveQuery(() => db.weeks.toArray(), []) ?? [];
+
+  // Eligible lists for weekend roles
+  const speakerChairmanEligible = useMemo(() => {
+    return assignees.filter(
+      (a) =>
+        a.gender === "M" &&
+        !a.archived &&
+        a.active &&
+        (a.privileges.includes("E") ||
+          a.privileges.includes("QE") ||
+          a.privileges.includes("MS") ||
+          a.privileges.includes("QMS"))
+    );
+  }, [assignees]);
+
+  const readerEligible = useMemo(() => {
+    return assignees.filter(
+      (a) =>
+        a.gender === "M" &&
+        !a.archived &&
+        a.active &&
+        a.privileges.includes("CBSR")
+    );
+  }, [assignees]);
 
   const [importingOpen, setImportingOpen] = useState(false);
   const [selectedPeriodKey, setSelectedPeriodKey] = useState<string | null>(null);
@@ -234,21 +259,13 @@ export default function WeekendPage() {
 
                     {meeting.publicTalkSpeakerType === "local" ? (
                       <div>
-                        <select
-                          className="text-xs p-1.5 border border-slate-300 rounded bg-white w-full font-semibold text-slate-800"
-                          value={meeting.publicTalkSpeakerId || ""}
-                          onChange={(e) => {
-                            const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
-                            handleUpdateField(meeting, "publicTalkSpeakerId", val);
-                          }}
-                        >
-                          <option value="">-- Unassigned --</option>
-                          {assignees.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.name}
-                            </option>
-                          ))}
-                        </select>
+                        <SearchableSelect
+                          value={meeting.publicTalkSpeakerId}
+                          options={speakerChairmanEligible}
+                          onChange={(id) => handleUpdateField(meeting, "publicTalkSpeakerId", id)}
+                          placeholder="-- Speaker --"
+                          warningMessage={getMidweekOverlapMessage(meeting.weekOf, meeting.publicTalkSpeakerId)}
+                        />
                         {getMidweekOverlapMessage(meeting.weekOf, meeting.publicTalkSpeakerId) && (
                           <span className="block text-[9px] font-bold text-rose-600 mt-1">
                             {getMidweekOverlapMessage(meeting.weekOf, meeting.publicTalkSpeakerId)}
@@ -310,21 +327,13 @@ export default function WeekendPage() {
                     Chairman
                   </span>
                   <div>
-                    <select
-                      className="text-xs p-1.5 border border-slate-300 rounded bg-white w-full font-semibold text-slate-800"
-                      value={meeting.publicTalkChairmanId || ""}
-                      onChange={(e) => {
-                        const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
-                        handleUpdateField(meeting, "publicTalkChairmanId", val);
-                      }}
-                    >
-                      <option value="">-- Unassigned --</option>
-                      {assignees.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      value={meeting.publicTalkChairmanId}
+                      options={speakerChairmanEligible}
+                      onChange={(id) => handleUpdateField(meeting, "publicTalkChairmanId", id)}
+                      placeholder="-- Chairman --"
+                      warningMessage={getMidweekOverlapMessage(meeting.weekOf, meeting.publicTalkChairmanId)}
+                    />
                     {getMidweekOverlapMessage(meeting.weekOf, meeting.publicTalkChairmanId) && (
                       <span className="block text-[9px] font-bold text-rose-600 mt-1">
                         {getMidweekOverlapMessage(meeting.weekOf, meeting.publicTalkChairmanId)}
@@ -340,21 +349,13 @@ export default function WeekendPage() {
                   </span>
                   <div className="space-y-2">
                     <div>
-                      <select
-                        className="text-xs p-1.5 border border-slate-300 rounded bg-white w-full font-semibold text-slate-800"
-                        value={meeting.watchtowerConductorId || ""}
-                        onChange={(e) => {
-                          const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
-                          handleUpdateField(meeting, "watchtowerConductorId", val);
-                        }}
-                      >
-                        <option value="">-- Conductor --</option>
-                        {assignees.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                      </select>
+                      <SearchableSelect
+                        value={meeting.watchtowerConductorId}
+                        options={speakerChairmanEligible}
+                        onChange={(id) => handleUpdateField(meeting, "watchtowerConductorId", id)}
+                        placeholder="-- Conductor --"
+                        warningMessage={getMidweekOverlapMessage(meeting.weekOf, meeting.watchtowerConductorId)}
+                      />
                       {getMidweekOverlapMessage(meeting.weekOf, meeting.watchtowerConductorId) && (
                         <span className="block text-[9px] font-bold text-rose-600 mt-1">
                           {getMidweekOverlapMessage(meeting.weekOf, meeting.watchtowerConductorId)}
@@ -362,21 +363,13 @@ export default function WeekendPage() {
                       )}
                     </div>
                     <div>
-                      <select
-                        className="text-xs p-1.5 border border-slate-300 rounded bg-white w-full font-semibold text-slate-800"
-                        value={meeting.watchtowerReaderId || ""}
-                        onChange={(e) => {
-                          const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
-                          handleUpdateField(meeting, "watchtowerReaderId", val);
-                        }}
-                      >
-                        <option value="">-- Reader --</option>
-                        {assignees.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                      </select>
+                      <SearchableSelect
+                        value={meeting.watchtowerReaderId}
+                        options={readerEligible}
+                        onChange={(id) => handleUpdateField(meeting, "watchtowerReaderId", id)}
+                        placeholder="-- Reader --"
+                        warningMessage={getMidweekOverlapMessage(meeting.weekOf, meeting.watchtowerReaderId)}
+                      />
                       {getMidweekOverlapMessage(meeting.weekOf, meeting.watchtowerReaderId) && (
                         <span className="block text-[9px] font-bold text-rose-600 mt-1">
                           {getMidweekOverlapMessage(meeting.weekOf, meeting.watchtowerReaderId)}

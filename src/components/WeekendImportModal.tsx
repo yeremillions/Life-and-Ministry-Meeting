@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
 import { parseWeekendPdf, parseWeekendDocx, type ParsedWeekendMeeting } from "../weekendParser";
 import type { WeekendMeeting, Assignee } from "../types";
+import SearchableSelect from "./SearchableSelect";
 
 export default function WeekendImportModal({
   onClose,
@@ -12,6 +13,31 @@ export default function WeekendImportModal({
   onImported: (count: number) => void;
 }) {
   const assignees = useLiveQuery(() => db.assignees.orderBy("name").toArray(), []) ?? [];
+
+  // Eligible lists for weekend roles
+  const speakerChairmanEligible = useMemo(() => {
+    return assignees.filter(
+      (a) =>
+        a.gender === "M" &&
+        !a.archived &&
+        a.active &&
+        (a.privileges.includes("E") ||
+          a.privileges.includes("QE") ||
+          a.privileges.includes("MS") ||
+          a.privileges.includes("QMS"))
+    );
+  }, [assignees]);
+
+  const readerEligible = useMemo(() => {
+    return assignees.filter(
+      (a) =>
+        a.gender === "M" &&
+        !a.archived &&
+        a.active &&
+        a.privileges.includes("CBSR")
+    );
+  }, [assignees]);
+
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParsedWeekendMeeting[] | null>(null);
@@ -204,25 +230,20 @@ export default function WeekendImportModal({
                               <option value="visiting">Guest Speaker</option>
                             </select>
                             {resolved.publicTalkSpeakerType === "local" ? (
-                              <select
-                                className="text-xs p-1 border border-slate-300 rounded bg-white w-full"
-                                value={resolved.publicTalkSpeakerId || ""}
-                                onChange={(e) => {
-                                  const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                              <SearchableSelect
+                                value={resolved.publicTalkSpeakerId}
+                                options={speakerChairmanEligible}
+                                onChange={(id) => {
                                   setResolvedAssignments(prev => ({
                                     ...prev,
                                     [m.weekOf]: {
                                       ...prev[m.weekOf],
-                                      publicTalkSpeakerId: val,
+                                      publicTalkSpeakerId: id,
                                     }
                                   }));
                                 }}
-                              >
-                                <option value="">-- Unassigned --</option>
-                                {assignees.map(a => (
-                                  <option key={a.id} value={a.id}>{a.name}</option>
-                                ))}
-                              </select>
+                                placeholder="-- Speaker --"
+                              />
                             ) : (
                               <div className="space-y-1">
                                 <input
@@ -267,25 +288,20 @@ export default function WeekendImportModal({
                           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">
                             Chairman
                           </label>
-                          <select
-                            className="text-xs p-1 border border-slate-300 rounded bg-white w-full"
-                            value={resolved.publicTalkChairmanId || ""}
-                            onChange={(e) => {
-                              const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                          <SearchableSelect
+                            value={resolved.publicTalkChairmanId}
+                            options={speakerChairmanEligible}
+                            onChange={(id) => {
                               setResolvedAssignments(prev => ({
                                 ...prev,
                                 [m.weekOf]: {
                                   ...prev[m.weekOf],
-                                  publicTalkChairmanId: val,
+                                  publicTalkChairmanId: id,
                                 }
                               }));
                             }}
-                          >
-                            <option value="">-- Unassigned --</option>
-                            {assignees.map(a => (
-                              <option key={a.id} value={a.id}>{a.name}</option>
-                            ))}
-                          </select>
+                            placeholder="-- Chairman --"
+                          />
                           <span className="text-[10px] text-slate-400 italic block mt-0.5">
                             Parsed: {m.rawChairman || "none"}
                           </span>
@@ -296,25 +312,20 @@ export default function WeekendImportModal({
                           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">
                             WT Conductor
                           </label>
-                          <select
-                            className="text-xs p-1 border border-slate-300 rounded bg-white w-full"
-                            value={resolved.watchtowerConductorId || ""}
-                            onChange={(e) => {
-                              const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                          <SearchableSelect
+                            value={resolved.watchtowerConductorId}
+                            options={speakerChairmanEligible}
+                            onChange={(id) => {
                               setResolvedAssignments(prev => ({
                                 ...prev,
                                 [m.weekOf]: {
                                   ...prev[m.weekOf],
-                                  watchtowerConductorId: val,
+                                  watchtowerConductorId: id,
                                 }
                               }));
                             }}
-                          >
-                            <option value="">-- Unassigned --</option>
-                            {assignees.map(a => (
-                              <option key={a.id} value={a.id}>{a.name}</option>
-                            ))}
-                          </select>
+                            placeholder="-- Conductor --"
+                          />
                           <span className="text-[10px] text-slate-400 italic block mt-0.5">
                             Parsed: {m.rawConductor || "none"}
                           </span>
@@ -325,25 +336,20 @@ export default function WeekendImportModal({
                           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">
                             WT Reader
                           </label>
-                          <select
-                            className="text-xs p-1 border border-slate-300 rounded bg-white w-full"
-                            value={resolved.watchtowerReaderId || ""}
-                            onChange={(e) => {
-                              const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                          <SearchableSelect
+                            value={resolved.watchtowerReaderId}
+                            options={readerEligible}
+                            onChange={(id) => {
                               setResolvedAssignments(prev => ({
                                 ...prev,
                                 [m.weekOf]: {
                                   ...prev[m.weekOf],
-                                  watchtowerReaderId: val,
+                                  watchtowerReaderId: id,
                                 }
                               }));
                             }}
-                          >
-                            <option value="">-- Unassigned --</option>
-                            {assignees.map(a => (
-                              <option key={a.id} value={a.id}>{a.name}</option>
-                            ))}
-                          </select>
+                            placeholder="-- Reader --"
+                          />
                           <span className="text-[10px] text-slate-400 italic block mt-0.5">
                             Parsed: {m.rawReader || "none"}
                           </span>
