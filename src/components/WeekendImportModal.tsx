@@ -92,6 +92,7 @@ export default function WeekendImportModal({
       setParsed(results);
 
       // Auto-resolve names
+      const wtOverseer = assignees.find((a) => a.isWtOverseer);
       const mappings: typeof resolvedAssignments = {};
       for (const m of results) {
         const isGuest = !!m.rawSpeakerCongregation || !matchPerson(m.rawSpeaker);
@@ -101,7 +102,7 @@ export default function WeekendImportModal({
           rawSpeaker: m.rawSpeaker,
           rawSpeakerCongregation: m.rawSpeakerCongregation,
           publicTalkChairmanId: matchPerson(m.rawChairman)?.id,
-          watchtowerConductorId: matchPerson(m.rawConductor)?.id,
+          watchtowerConductorId: matchPerson(m.rawConductor)?.id || wtOverseer?.id,
           watchtowerReaderId: matchPerson(m.rawReader)?.id,
         };
       }

@@ -93,10 +93,12 @@ export default function WeekendPage() {
       ? `${mMon} ${mon.getDate()}-${sun.getDate()}`
       : `${mMon} ${mon.getDate()}-${mSun} ${sun.getDate()}`;
 
+    const wtOverseer = assignees.find((a) => a.isWtOverseer);
     const newMeeting: Omit<WeekendMeeting, "id"> = {
       weekOf: nextWeekOf,
       banner,
       publicTalkSpeakerType: "local",
+      watchtowerConductorId: wtOverseer?.id,
       createdAt: Date.now(),
     };
 
