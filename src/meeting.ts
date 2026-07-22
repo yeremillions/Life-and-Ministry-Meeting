@@ -608,6 +608,7 @@ export function meetsSpecialRequirement(
   if (normalized === "service overseer") return !!a.isServiceOverseer;
   if (normalized === "hlc member") return !!a.isHlcMember;
   if (normalized === "lmm overseer") return !!a.isLmmOverseer;
+  if (normalized === "watchtower overseer") return !!a.isWtOverseer;
   if (normalized === "father") return !!a.isFather;
   if (normalized === "mother") return !!a.isMother;
   if (normalized === "husband") return !!a.isHusband;

@@ -33,6 +33,7 @@ export default function ConflictsPage({
   const rawWeeks = useLiveQuery(() => db.weeks.orderBy("weekOf").toArray(), []) ?? [];
   const settings = useLiveQuery(() => db.settings.get("app"), []) ?? null;
   const households = useLiveQuery(() => db.households.toArray(), []) ?? [];
+  const weekendMeetings = useLiveQuery(() => db.weekendMeetings.toArray(), []) ?? [];
 
   // Sanitise data as done in Dashboard
   const assignees = useMemo(() => {
@@ -128,8 +129,8 @@ export default function ConflictsPage({
   // Generate conflicts for the selected weeks
   const allPeriodConflicts = useMemo(() => {
     const stats = buildStats(assignees, weeks);
-    return periodWeeks.flatMap((w) => findWeekConflicts(w, assignees, households, settings, stats, weeks));
-  }, [periodWeeks, assignees, weeks, households, settings]);
+    return periodWeeks.flatMap((w) => findWeekConflicts(w, assignees, households, settings, stats, weeks, weekendMeetings));
+  }, [periodWeeks, assignees, weeks, households, settings, weekendMeetings]);
 
   // Read ignored list from settings
   const ignoredList = useMemo(() => settings?.ignoredConflicts ?? [], [settings]);

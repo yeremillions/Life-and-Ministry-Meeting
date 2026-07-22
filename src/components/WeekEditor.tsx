@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
 import type {
   Assignee,
@@ -8,6 +9,7 @@ import type {
   SegmentId,
   Week,
   SpecialEventType,
+  WeekendMeeting,
 } from "../types";
 import { DEFAULT_ASSIGNMENT_RULES } from "../types";
 import {
@@ -66,10 +68,34 @@ export default function WeekEditor(props: WeekEditorProps) {
   const [showOptimizationModal, setShowOptimizationModal] = useState(false);
   const [isEditingDispatched, setIsEditingDispatched] = useState(false);
   const isReadOnly = !!week.dispatched && !isEditingDispatched;
+  const weekendMeetings: WeekendMeeting[] = useLiveQuery(() => db.weekendMeetings.toArray(), []) ?? [];
 
   useEffect(() => {
     setIsEditingDispatched(false);
   }, [week.id]);
+
+  const currentWeekendMeeting = useMemo(() => {
+    return weekendMeetings.find(m => m.weekOf === week.weekOf);
+  }, [weekendMeetings, week.weekOf]);
+
+  const weekendAssigneeNames = useMemo(() => {
+    if (!currentWeekendMeeting) return null;
+    const lookup = (id?: number) => {
+      if (id == null) return null;
+      return assignees.find(a => a.id === id)?.name || null;
+    };
+    return {
+      speaker: currentWeekendMeeting.publicTalkSpeakerType === "local"
+        ? lookup(currentWeekendMeeting.publicTalkSpeakerId)
+        : currentWeekendMeeting.rawSpeaker || null,
+      speakerCong: currentWeekendMeeting.publicTalkSpeakerType === "visiting"
+        ? currentWeekendMeeting.rawSpeakerCongregation
+        : undefined,
+      chairman: lookup(currentWeekendMeeting.publicTalkChairmanId) || currentWeekendMeeting.rawChairman || null,
+      conductor: lookup(currentWeekendMeeting.watchtowerConductorId) || currentWeekendMeeting.rawConductor || null,
+      reader: lookup(currentWeekendMeeting.watchtowerReaderId) || currentWeekendMeeting.rawReader || null,
+    };
+  }, [currentWeekendMeeting, assignees]);
 
   const bySegment = useMemo(() => {
     const map: Record<SegmentId, Assignment[]> = {
@@ -413,6 +439,52 @@ export default function WeekEditor(props: WeekEditorProps) {
           >
             ← Back to {props.periodLabel ? `"${props.periodLabel}"` : "Workbook"} Overview
           </button>
+        </div>
+      )}
+      {currentWeekendMeeting && weekendAssigneeNames && (
+        <div className="card bg-slate-50 border-slate-200 p-4 text-xs shadow-sm flex flex-col gap-2">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <span className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">
+              Weekend Meeting Schedule Summary
+            </span>
+            {currentWeekendMeeting.meetingDate && (
+              <span className="text-slate-500 font-medium">{currentWeekendMeeting.meetingDate}</span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-slate-600">
+            <div>
+              <span className="block text-[10px] uppercase font-bold text-slate-400">Public Talk Speaker</span>
+              <span className="font-semibold text-slate-800">
+                {weekendAssigneeNames.speaker || <span className="text-slate-400 italic">Unassigned</span>}
+              </span>
+              {weekendAssigneeNames.speakerCong && (
+                <span className="block text-[10px] text-slate-500 font-medium">({weekendAssigneeNames.speakerCong})</span>
+              )}
+              {currentWeekendMeeting.publicTalkTitle && (
+                <span className="block text-[10px] mt-0.5 text-slate-500 italic">
+                  Outline #{currentWeekendMeeting.publicTalkNumber}: {currentWeekendMeeting.publicTalkTitle}
+                </span>
+              )}
+            </div>
+            <div>
+              <span className="block text-[10px] uppercase font-bold text-slate-400">Chairman</span>
+              <span className="font-semibold text-slate-800">
+                {weekendAssigneeNames.chairman || <span className="text-slate-400 italic">Unassigned</span>}
+              </span>
+            </div>
+            <div>
+              <span className="block text-[10px] uppercase font-bold text-slate-400">WT Conductor</span>
+              <span className="font-semibold text-slate-800">
+                {weekendAssigneeNames.conductor || <span className="text-slate-400 italic">Unassigned</span>}
+              </span>
+            </div>
+            <div>
+              <span className="block text-[10px] uppercase font-bold text-slate-400">WT Reader</span>
+              <span className="font-semibold text-slate-800">
+                {weekendAssigneeNames.reader || <span className="text-slate-400 italic">Unassigned</span>}
+              </span>
+            </div>
+          </div>
         </div>
       )}
       <header className="card">
@@ -1381,6 +1453,7 @@ function PartRow({
   disabled?: boolean;
 }) {
   const mainPerson = assignees.find((a) => a.id === assignment.assigneeId);
+  const weekendMeetings: WeekendMeeting[] = useLiveQuery(() => db.weekendMeetings.toArray(), []) ?? [];
 
   const eligibleMain = useMemo(() => {
     const rule = settings.assignmentRules?.[assignment.partType] || DEFAULT_ASSIGNMENT_RULES[assignment.partType];
@@ -1400,7 +1473,7 @@ function PartRow({
   const mainViolations = useMemo(() => {
     if (!mainPerson) return [];
     const s = stats.get(mainPerson.id!);
-    return getRuleViolations(
+    const base = getRuleViolations(
       mainPerson,
       assignment.partType,
       "main",
@@ -1413,7 +1486,30 @@ function PartRow({
       s?.lastMinistryRole,
       s?.lastWeekMinistry
     );
-  }, [mainPerson, assistantPerson, assignment.partType, settings.assignmentRules, stats, week.weekOf, settings]);
+
+    // Same-week weekend conflict warning for UI editor
+    if (settings.ruleWeekendConflict && settings.ruleWeekendConflict !== "off" && !mainPerson.isWtOverseer) {
+      const weekendMeeting = weekendMeetings.find(m => m.weekOf === week.weekOf);
+      if (weekendMeeting) {
+        const isAssigned =
+          (weekendMeeting.publicTalkSpeakerType === "local" && weekendMeeting.publicTalkSpeakerId === mainPerson.id) ||
+          weekendMeeting.publicTalkChairmanId === mainPerson.id ||
+          weekendMeeting.watchtowerConductorId === mainPerson.id ||
+          weekendMeeting.watchtowerReaderId === mainPerson.id;
+        if (isAssigned) {
+          let roleName = "Weekend Assignment";
+          if (weekendMeeting.publicTalkSpeakerType === "local" && weekendMeeting.publicTalkSpeakerId === mainPerson.id) roleName = "PT Speaker";
+          else if (weekendMeeting.publicTalkChairmanId === mainPerson.id) roleName = "PT Chairman";
+          else if (weekendMeeting.watchtowerConductorId === mainPerson.id) roleName = "WT Conductor";
+          else if (weekendMeeting.watchtowerReaderId === mainPerson.id) roleName = "WT Reader";
+
+          base.push(`${mainPerson.name} has a weekend assignment (${roleName}) in the same week.`);
+        }
+      }
+    }
+
+    return base;
+  }, [mainPerson, assistantPerson, assignment.partType, settings.assignmentRules, stats, week.weekOf, settings, weekendMeetings]);
 
   const assistantViolations = useMemo(() => {
     if (!assistantPerson) return [];
@@ -1430,7 +1526,7 @@ function PartRow({
     } else if (s && s.lastWeekMain) {
       lastAssignmentRole = "main";
     }
-    return getRuleViolations(
+    const base = getRuleViolations(
       assistantPerson,
       assignment.partType,
       "assistant",
@@ -1443,7 +1539,30 @@ function PartRow({
       s?.lastMinistryRole,
       s?.lastWeekMinistry
     );
-  }, [assistantPerson, assignment.partType, settings.assignmentRules, mainPerson, stats, week.weekOf, settings]);
+
+    // Same-week weekend conflict warning for UI editor
+    if (settings.ruleWeekendConflict && settings.ruleWeekendConflict !== "off" && !assistantPerson.isWtOverseer) {
+      const weekendMeeting = weekendMeetings.find(m => m.weekOf === week.weekOf);
+      if (weekendMeeting) {
+        const isAssigned =
+          (weekendMeeting.publicTalkSpeakerType === "local" && weekendMeeting.publicTalkSpeakerId === assistantPerson.id) ||
+          weekendMeeting.publicTalkChairmanId === assistantPerson.id ||
+          weekendMeeting.watchtowerConductorId === assistantPerson.id ||
+          weekendMeeting.watchtowerReaderId === assistantPerson.id;
+        if (isAssigned) {
+          let roleName = "Weekend Assignment";
+          if (weekendMeeting.publicTalkSpeakerType === "local" && weekendMeeting.publicTalkSpeakerId === assistantPerson.id) roleName = "PT Speaker";
+          else if (weekendMeeting.publicTalkChairmanId === assistantPerson.id) roleName = "PT Chairman";
+          else if (weekendMeeting.watchtowerConductorId === assistantPerson.id) roleName = "WT Conductor";
+          else if (weekendMeeting.watchtowerReaderId === assistantPerson.id) roleName = "WT Reader";
+
+          base.push(`${assistantPerson.name} has a weekend assignment (${roleName}) in the same week.`);
+        }
+      }
+    }
+
+    return base;
+  }, [assistantPerson, assignment.partType, settings.assignmentRules, mainPerson, stats, week.weekOf, settings, weekendMeetings]);
 
   const seg = segmentOf(assignment.segment);
   const showAssistant = needsAssistant(assignment.partType, settings.assignmentRules);

@@ -4,7 +4,7 @@ import { db } from "../db";
 import { buildStats, dueSoon, AssigneeStats } from "../scheduler";
 import { SEGMENTS, segmentOf, needsAssistant, checkPairingViolation } from "../meeting";
 import { todayIso, weekRangeLabel, toIso, mondayOf, getMeetingDate } from "../utils";
-import type { Week, Assignee, AppSettings, Household, Assignment } from "../types";
+import type { Week, Assignee, AppSettings, Household, Assignment, WeekendMeeting } from "../types";
 import { DEFAULT_ASSIGNMENT_RULES } from "../types";
 import QuickStartWizard from "../components/QuickStartWizard";
 import ConfirmationModal from "../components/ConfirmationModal";
@@ -29,7 +29,8 @@ export function findWeekConflicts(
   households: Household[],
   settings: AppSettings | null,
   stats?: Map<number, AssigneeStats>,
-  allWeeks?: Week[]
+  allWeeks?: Week[],
+  weekendMeetings?: WeekendMeeting[]
 ): Conflict[] {
   if (week.specialEvent) return [];
 
@@ -55,6 +56,47 @@ export function findWeekConflicts(
     const main = a.assigneeId != null ? assignees.find((p) => p.id === a.assigneeId) : null;
     const assistant = a.assistantId != null ? assignees.find((p) => p.id === a.assistantId) : null;
     const rule = rules[a.partType] || DEFAULT_ASSIGNMENT_RULES[a.partType];
+
+    // ── Weekend Assignment Conflict ──
+    if (settings?.ruleWeekendConflict && settings.ruleWeekendConflict !== "off" && weekendMeetings) {
+      const weekendMeeting = weekendMeetings.find((m) => m.weekOf === week.weekOf);
+      if (weekendMeeting) {
+        const checkAndAddWeekendConflict = (person: Assignee, isMain: boolean) => {
+          if (person.isWtOverseer) return; // Exempt Watchtower Overseer
+
+          const isAssigned =
+            (weekendMeeting.publicTalkSpeakerType === "local" && weekendMeeting.publicTalkSpeakerId === person.id) ||
+            weekendMeeting.publicTalkChairmanId === person.id ||
+            weekendMeeting.watchtowerConductorId === person.id ||
+            weekendMeeting.watchtowerReaderId === person.id;
+
+          if (isAssigned) {
+            let roleName = "Weekend Assignment";
+            if (weekendMeeting.publicTalkSpeakerType === "local" && weekendMeeting.publicTalkSpeakerId === person.id) roleName = "PT Speaker";
+            else if (weekendMeeting.publicTalkChairmanId === person.id) roleName = "PT Chairman";
+            else if (weekendMeeting.watchtowerConductorId === person.id) roleName = "WT Conductor";
+            else if (weekendMeeting.watchtowerReaderId === person.id) roleName = "WT Reader";
+
+            conflicts.push({
+              id: `${week.id}-${a.uid}-${isMain ? "main" : "assistant"}-weekendconflict`,
+              weekId: week.id!,
+              weekOf: week.weekOf,
+              partUid: a.uid,
+              partType: a.partType,
+              partTitle: a.title,
+              ruleName: "Weekend Assignment Conflict",
+              message: `${person.name} is assigned to a midweek part but also has a weekend assignment (${roleName}) in the same week.`,
+              severity: settings.ruleWeekendConflict === "strict" ? "error" : "warning",
+              assigneeId: isMain ? person.id : undefined,
+              assistantId: !isMain ? person.id : undefined,
+            });
+          }
+        };
+
+        if (main) checkAndAddWeekendConflict(main, true);
+        if (assistant) checkAndAddWeekendConflict(assistant, false);
+      }
+    }
 
     // Main assignee rules
     if (main) {
@@ -545,6 +587,8 @@ export default function Dashboard({
     useLiveQuery(() => db.settings.get("app"), []) ?? null;
   const households =
     useLiveQuery(() => db.households.toArray(), []) ?? [];
+  const weekendMeetings =
+    useLiveQuery(() => db.weekendMeetings.toArray(), []) ?? [];
 
   const assignees = useMemo(() => {
     try {
@@ -711,12 +755,12 @@ export default function Dashboard({
 
     isBrandNew = assignees.length === 0 && weeks.length === 0;
 
-    const allUpcomingConflicts = upcoming.flatMap((w) => findWeekConflicts(w, assignees, households, settings, stats, weeks));
+    const allUpcomingConflicts = upcoming.flatMap((w) => findWeekConflicts(w, assignees, households, settings, stats, weeks, weekendMeetings));
     const ignoredList = settings?.ignoredConflicts ?? [];
     const ignoredUpcomingCount = allUpcomingConflicts.filter((c) => ignoredList.includes(c.id)).length;
 
     const conflictsByWeek = upcoming.reduce<{ weekId: number; weekOf: string; list: Conflict[] }[]>((acc, w) => {
-      const list = findWeekConflicts(w, assignees, households, settings, stats, weeks);
+      const list = findWeekConflicts(w, assignees, households, settings, stats, weeks, weekendMeetings);
       const activeList = list.filter((c) => !ignoredList.includes(c.id));
       if (activeList.length > 0) {
         acc.push({ weekId: w.id!, weekOf: w.weekOf, list: activeList });

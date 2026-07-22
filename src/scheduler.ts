@@ -14,6 +14,7 @@ import {
   Household,
   SegmentId,
   RuleEnforcementLevel,
+  WeekendMeeting,
 } from "./types";
 import { getMeetingDate, workbookPeriod, daysBetween, toIso, addDays } from "./utils";
 
@@ -460,6 +461,8 @@ export function scoreCandidate(
     | "qmsPrayerRatio"
     | "msPrayerRatio"
     | "rulePrayerRotation"
+    | "ruleWeekendConflict"
+    | "weekendMeetings"
   >,
   isMinorMain?: boolean,
   partnerIsMinor?: boolean,
@@ -906,6 +909,29 @@ export function scoreCandidate(
     }
   }
 
+  // ── Weekend Conflict Scoring Penalty & WT Overseer Exemption ──────
+  if (a.isWtOverseer) {
+    // Watchtower Overseer has a tedious weekly assignment, so reduce their midweek workload.
+    if (role === "main") {
+      score -= 1500;
+    }
+  } else if (opts.ruleWeekendConflict && opts.ruleWeekendConflict !== "off") {
+    // Non-WT Overseers receive a penalty if they have a weekend assignment.
+    const weekendMeeting = opts.weekendMeetings?.find((m) => m.weekOf === weekOf);
+    if (weekendMeeting) {
+      const isAssignedInWeekend =
+        (weekendMeeting.publicTalkSpeakerType === "local" && weekendMeeting.publicTalkSpeakerId === a.id) ||
+        weekendMeeting.publicTalkChairmanId === a.id ||
+        weekendMeeting.watchtowerConductorId === a.id ||
+        weekendMeeting.watchtowerReaderId === a.id;
+      if (isAssignedInWeekend) {
+        const penalty = opts.ruleWeekendConflict === "weak" ? 500 :
+                        opts.ruleWeekendConflict === "medium" ? 2000 : 8000;
+        score -= penalty;
+      }
+    }
+  }
+
   // Random tiny jitter for tie-breaking.
   // Scaled small enough (0..0.99) to never override meaningful differences.
   const jitter = Math.random() * 100;
@@ -973,6 +999,8 @@ export interface AutoAssignOptions {
   msPrayerRatio?: number;
   rulePrayerRotation?: RuleEnforcementLevel;
   ruleAvoidPioneerPairing?: boolean;
+  ruleWeekendConflict?: RuleEnforcementLevel;
+  weekendMeetings?: WeekendMeeting[];
 }
 
 /**
@@ -1341,6 +1369,30 @@ function pickCandidate(args: PickArgs): Assignee | null {
         return daysBetween(s.lastWeekMain, weekOf) >= minGapDays;
       });
       if (filtered.length > 0) eligiblePool = filtered;
+    }
+  }
+
+  // ── Hard constraint: Avoid weekend conflicts ────────────────────────
+  if (opts.ruleWeekendConflict && opts.ruleWeekendConflict !== "off") {
+    const weekendMeeting = opts.weekendMeetings?.find((m) => m.weekOf === weekOf);
+    if (weekendMeeting) {
+      const filtered = eligiblePool.filter((a) => {
+        // Exempt Watchtower Overseers from same-week conflict rules
+        if (a.isWtOverseer) return true;
+
+        const isAssigned =
+          (weekendMeeting.publicTalkSpeakerType === "local" && weekendMeeting.publicTalkSpeakerId === a.id) ||
+          weekendMeeting.publicTalkChairmanId === a.id ||
+          weekendMeeting.watchtowerConductorId === a.id ||
+          weekendMeeting.watchtowerReaderId === a.id;
+        return !isAssigned;
+      });
+
+      if (filtered.length > 0) {
+        eligiblePool = filtered;
+      } else if (opts.ruleWeekendConflict === "strict") {
+        eligiblePool = []; // No fallback under strict rule level
+      }
     }
   }
 

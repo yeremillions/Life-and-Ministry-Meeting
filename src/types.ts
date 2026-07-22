@@ -52,6 +52,7 @@ export interface Assignee {
   isServiceOverseer?: boolean;
   isHlcMember?: boolean;
   isLmmOverseer?: boolean;
+  isWtOverseer?: boolean;
   isFather?: boolean;
   isMother?: boolean;
   isHusband?: boolean;
@@ -116,6 +117,31 @@ export interface Week {
 
 export type SpecialEventType = "Convention" | "Assembly" | "Memorial" | "Other";
 
+export interface WeekendMeeting {
+  id?: number;
+  /** ISO date (YYYY-MM-DD) of the Monday that the meeting week begins. */
+  weekOf: string;
+  banner?: string;
+  /** ISO date (YYYY-MM-DD) of the actual weekend meeting (Saturday or Sunday). */
+  meetingDate?: string;
+  publicTalkSpeakerType?: "local" | "visiting";
+  publicTalkSpeakerId?: number; // local assignee
+  publicTalkSpeakerName?: string; // for visiting speakers
+  publicTalkSpeakerCongregation?: string; // for visiting speakers
+  rawSpeaker?: string;
+  rawSpeakerCongregation?: string;
+  publicTalkTitle?: string;
+  publicTalkNumber?: number;
+  publicTalkChairmanId?: number; // local assignee
+  watchtowerConductorId?: number; // local assignee
+  watchtowerReaderId?: number; // local assignee
+  rawChairman?: string;
+  rawConductor?: string;
+  rawReader?: string;
+  createdAt: number;
+  updatedAt?: number;
+}
+
 /**
  * A household groups enrollees who live together (or are family members).
  * Members of the same household may be paired as main/assistant in Apply
@@ -163,6 +189,7 @@ export interface AppSettings {
   ruleSameSexDemogenders?: RuleEnforcementLevel;
   rulePrayerRotation?: RuleEnforcementLevel;
   ruleAvoidPioneerPairing?: boolean;
+  ruleWeekendConflict?: RuleEnforcementLevel;
 
   // ── Scheduler fairness knobs ──────────────────────────────────────────
 
@@ -405,6 +432,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ruleSameSexDemogenders: "strict",
   rulePrayerRotation: "medium",
   ruleAvoidPioneerPairing: false,
+  ruleWeekendConflict: "medium",
   msTreasuresRatio: 0,
   qmsTreasuresRatio: 0,
   privilegedBibleReadingRatio: 10,
@@ -434,6 +462,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     "Service Overseer",
     "HLC Member",
     "LMM Overseer",
+    "Watchtower Overseer",
     "Father",
     "Mother",
     "Husband",

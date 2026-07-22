@@ -10,13 +10,15 @@ import EnrolleeProfile from "./pages/EnrolleeProfile";
 import HelpPage from "./pages/HelpPage";
 import AdminPage from "./pages/AdminPage";
 import ConflictsPage from "./pages/ConflictsPage";
+import WeekendPage from "./pages/WeekendPage";
 
-type Tab = "dashboard" | "enrollees" | "schedule" | "reports" | "settings" | "help" | "admin" | "profile" | "conflicts";
+type Tab = "dashboard" | "enrollees" | "schedule" | "weekend" | "reports" | "settings" | "help" | "admin" | "profile" | "conflicts";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "enrollees", label: "Enrollees" },
   { id: "schedule", label: "Schedule" },
+  { id: "weekend", label: "Weekend" },
   { id: "reports", label: "Reports" },
   { id: "settings", label: "Settings" },
   { id: "help", label: "Help" },
@@ -221,6 +223,9 @@ export default function App() {
             onPeriodKeyChange={setSchedulePeriodKey}
             onNavigateToProfile={navigateToProfile}
           />
+        )}
+        {tab === "weekend" && (
+          <WeekendPage />
         )}
         {tab === "reports" && (
           <ReportsPage

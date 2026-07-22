@@ -9,6 +9,7 @@ import {
   type LogEntry,
   type AssignmentRule,
   type RuleEnforcementLevel,
+  type WeekendMeeting,
   DEFAULT_SETTINGS,
 } from "./types";
 
@@ -41,6 +42,7 @@ class MeetingDB extends Dexie {
   settings!: Table<AppSettings, string>;
   households!: Table<Household, number>;
   logs!: Table<LogEntry, number>;
+  weekendMeetings!: Table<WeekendMeeting, number>;
 
   constructor() {
     super("life-and-ministry-meeting");
@@ -121,6 +123,16 @@ class MeetingDB extends Dexie {
       settings:   "id",
       households: "++id, name, createdAt",
       logs:       "++id, timestamp, category",
+    });
+
+    // v7: support for weekend meetings
+    this.version(7).stores({
+      assignees:  "++id, name, gender, active, createdAt",
+      weeks:      "++id, weekOf, createdAt",
+      settings:   "id",
+      households: "++id, name, createdAt",
+      logs:       "++id, timestamp, category",
+      weekendMeetings: "++id, weekOf, createdAt",
     });
   }
 }
@@ -274,6 +286,15 @@ export async function ensureSettings(): Promise<AppSettings> {
         updated.assignmentRules[partType] = mergedRule;
       } else {
         updated.assignmentRules[partType] = { ...defaultRule };
+      }
+    }
+
+    if (updated.specialRequirements && !updated.specialRequirements.includes("Watchtower Overseer")) {
+      const idx = updated.specialRequirements.indexOf("LMM Overseer");
+      if (idx >= 0) {
+        updated.specialRequirements.splice(idx + 1, 0, "Watchtower Overseer");
+      } else {
+        updated.specialRequirements.push("Watchtower Overseer");
       }
     }
 
