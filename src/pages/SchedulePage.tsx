@@ -199,9 +199,11 @@ export default function SchedulePage({
   async function autoFill(week: Week, preserveExisting: boolean) {
     const settings = await ensureSettings();
     const allWeeks = await db.weeks.toArray();
+    const weekendMeetings = await db.weekendMeetings.toArray();
     const updated = autoAssignWeek(week, assignees, allWeeks, {
       ...settings,
       households,
+      weekendMeetings,
       preserveExisting,
       minGapWeeks: settings.minGapWeeks ?? 2,
       chairmanGapWeeks: settings.chairmanGapWeeks ?? 3,
@@ -218,6 +220,7 @@ export default function SchedulePage({
 
   async function bulkAssignPeriod(group: { key: string; label: string; weeks: Week[] }, preserveExisting: boolean) {
     const settings = await ensureSettings();
+    const weekendMeetings = await db.weekendMeetings.toArray();
     // Sort weeks in the period chronologically
     const sortedPeriodWeeks = [...group.weeks].sort((a, b) => a.weekOf.localeCompare(b.weekOf));
 
@@ -242,6 +245,7 @@ export default function SchedulePage({
       const updated = autoAssignWeek(targetWeek, assignees, allWeeks, {
         ...settings,
         households,
+        weekendMeetings,
         preserveExisting,
         minGapWeeks: settings.minGapWeeks ?? 2,
         chairmanGapWeeks: settings.chairmanGapWeeks ?? 3,

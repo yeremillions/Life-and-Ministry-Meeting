@@ -171,6 +171,7 @@ export default function QuickStartWizard({
       
       const households = await db.households.toArray();
       const historicalWeeks = await db.weeks.toArray();
+      const weekendMeetings = await db.weekendMeetings.toArray();
       const updatedWeeks = [];
       
       for (const w of importedWeeks) {
@@ -185,6 +186,7 @@ export default function QuickStartWizard({
           { 
             ...settings, 
             households,
+            weekendMeetings,
             preserveExisting: true,
             minGapWeeks: settings.minGapWeeks ?? 2,
             chairmanGapWeeks: settings.chairmanGapWeeks ?? 3,
