@@ -1,4 +1,4 @@
-import { detectYear as inferYear } from "./utils";
+import { detectYear as inferYear, toTitleCase } from "./utils";
 import mammoth from "mammoth";
 import { extractPdfText } from "./workbookParser";
 
@@ -534,7 +534,7 @@ function buildResult(
     banner,
     meetingDate: date.toISOString().split("T")[0],
     publicTalkNumber,
-    publicTalkTitle,
+    publicTalkTitle: publicTalkTitle ? toTitleCase(publicTalkTitle) : undefined,
     rawSpeaker,
     rawSpeakerCongregation,
     rawChairman,

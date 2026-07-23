@@ -4,6 +4,7 @@ import { db } from "../db";
 import { parseWeekendPdf, parseWeekendDocx, type ParsedWeekendMeeting } from "../weekendParser";
 import type { WeekendMeeting, Assignee } from "../types";
 import SearchableSelect from "./SearchableSelect";
+import { toTitleCase } from "../utils";
 
 export default function WeekendImportModal({
   onClose,
@@ -100,17 +101,51 @@ export default function WeekendImportModal({
       const wtOverseer = assignees.find((a) => a.isWtOverseer);
       const mappings: typeof resolvedAssignments = {};
       for (const m of results) {
-        const isGuest = !!m.rawSpeakerCongregation || !matchPerson(m.rawSpeaker);
+        let rawChairman = m.rawChairman;
+        let rawReader = m.rawReader;
+
+        // 1. Swap Chairman and Reader if parsed Chairman is not eligible for Chairman,
+        // and parsed Reader IS eligible for Chairman (or Reader field is blank).
+        const matchedChairman = matchPerson(rawChairman);
+        const isChairmanInDropdown = !!matchedChairman && speakerChairmanEligible.some(a => a.id === matchedChairman.id);
+
+        if (!isChairmanInDropdown && rawChairman) {
+          const matchedReader = matchPerson(rawReader);
+          const isReaderEligibleForChairman = !!matchedReader && speakerChairmanEligible.some(a => a.id === matchedReader.id);
+          const isReaderBlank = !rawReader || rawReader.trim() === "";
+
+          if (isReaderEligibleForChairman || isReaderBlank) {
+            // Swap Chairman and WT Reader
+            const temp = rawChairman;
+            rawChairman = rawReader;
+            rawReader = temp;
+
+            // Reflect swap in parsed object so UI labels update
+            m.rawChairman = rawChairman;
+            m.rawReader = rawReader;
+          }
+        }
+
+        // Re-match after potential swap
+        const finalChairman = matchPerson(rawChairman);
+        const finalReader = matchPerson(rawReader);
+        const matchedSpeaker = matchPerson(m.rawSpeaker);
+
+        // 2. Format Title to Title Case
+        const titleFormatted = m.publicTalkTitle ? toTitleCase(m.publicTalkTitle) : undefined;
+        m.publicTalkTitle = titleFormatted;
+
+        // 3. Default to Local Speaker for all weeks
         mappings[m.weekOf] = {
-          publicTalkSpeakerType: isGuest ? "visiting" : "local",
-          publicTalkSpeakerId: !isGuest ? matchPerson(m.rawSpeaker)?.id : undefined,
+          publicTalkSpeakerType: "local",
+          publicTalkSpeakerId: matchedSpeaker ? matchedSpeaker.id : undefined,
           rawSpeaker: m.rawSpeaker,
           rawSpeakerCongregation: m.rawSpeakerCongregation,
-          publicTalkTitle: m.publicTalkTitle,
+          publicTalkTitle: titleFormatted,
           publicTalkNumber: m.publicTalkNumber,
-          publicTalkChairmanId: matchPerson(m.rawChairman)?.id,
+          publicTalkChairmanId: finalChairman && speakerChairmanEligible.some(a => a.id === finalChairman.id) ? finalChairman.id : undefined,
           watchtowerConductorId: matchPerson(m.rawConductor)?.id || wtOverseer?.id,
-          watchtowerReaderId: matchPerson(m.rawReader)?.id,
+          watchtowerReaderId: finalReader && readerEligible.some(a => a.id === finalReader.id) ? finalReader.id : undefined,
         };
       }
       setResolvedAssignments(mappings);

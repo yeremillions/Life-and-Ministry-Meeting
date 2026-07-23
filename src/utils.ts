@@ -136,4 +136,43 @@ export function daysBetween(aIso: string, bIso: string): number {
   return Math.round((t2 - t1) / (1000 * 60 * 60 * 24));
 }
 
+/**
+ * Converts a string (e.g. ALL CAPS title) to Title Case, preserving minor words in lowercase
+ * and keeping quotes/punctuation intact.
+ */
+export function toTitleCase(str: string): string {
+  if (!str) return "";
+
+  const minorWords = new Set([
+    "a", "an", "and", "as", "at", "but", "by", "for", "in", "nor", "of", "on", "or", "so", "the", "to", "up", "yet", "with"
+  ]);
+
+  const words = str.trim().split(/\s+/);
+
+  const titleCased = words.map((word, index) => {
+    if (!word) return "";
+
+    const match = word.match(/^([^a-zA-Z0-9]*)(.*?)([^a-zA-Z0-9]*)$/);
+    if (!match) return word;
+
+    const [, prefix, core, suffix] = match;
+    if (!core) return word;
+
+    const isFirst = index === 0;
+    const isLast = index === words.length - 1;
+
+    let casedCore: string;
+    if (!isFirst && !isLast && minorWords.has(core.toLowerCase())) {
+      casedCore = core.toLowerCase();
+    } else {
+      casedCore = core.charAt(0).toUpperCase() + core.slice(1).toLowerCase();
+    }
+
+    return prefix + casedCore + suffix;
+  });
+
+  return titleCased.join(" ");
+}
+
+
 
