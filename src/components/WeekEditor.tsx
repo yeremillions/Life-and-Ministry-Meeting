@@ -97,7 +97,7 @@ export default function WeekEditor(props: WeekEditorProps) {
     };
   }, [currentWeekendMeeting, assignees]);
 
-  const awayBrothers = useMemo(() => {
+  const awayEnrollees = useMemo(() => {
     const mon = week.weekOf;
     const monDate = new Date(mon + "T00:00:00");
     const sunDate = new Date(monDate);
@@ -109,7 +109,6 @@ export default function WeekEditor(props: WeekEditorProps) {
     return assignees
       .filter((a) => {
         if (a.archived || !a.active) return false;
-        if (a.gender !== "M") return false;
 
         const ranges = a.unavailableRanges ?? [];
         if (ranges.length === 0) return false;
@@ -525,23 +524,23 @@ export default function WeekEditor(props: WeekEditorProps) {
           </div>
         )}
 
-        {/* Brothers Away This Week Column */}
+        {/* Enrollees Away This Week Column */}
         <div className="lg:col-span-1 card bg-slate-50 border-slate-200 p-4 text-xs shadow-sm flex flex-col gap-2">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <span className="font-bold text-slate-700 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-              <span>✈️</span> Brothers Away This Week
+              <span>✈️</span> Enrollees Away This Week
             </span>
-            <span className={`pill text-[10px] ${awayBrothers.length > 0 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"}`}>
-              {awayBrothers.length} {awayBrothers.length === 1 ? "brother" : "brothers"}
+            <span className={`pill text-[10px] ${awayEnrollees.length > 0 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"}`}>
+              {awayEnrollees.length} {awayEnrollees.length === 1 ? "enrollee" : "enrollees"}
             </span>
           </div>
-          {awayBrothers.length === 0 ? (
+          {awayEnrollees.length === 0 ? (
             <div className="text-slate-400 italic text-[11px] py-1 flex items-center gap-1">
-              <span>✓</span> No brothers reported away for this week.
+              <span>✓</span> No enrollees reported away for this week.
             </div>
           ) : (
             <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto custom-scrollbar pr-1">
-              {awayBrothers.map(({ person, range }) => (
+              {awayEnrollees.map(({ person, range }) => (
                 <div key={person.id} className="flex items-center justify-between bg-white border border-slate-200 rounded px-2.5 py-1.5 text-[11px] shadow-2xs">
                   <span className="font-semibold text-slate-800">{person.name}</span>
                   {range ? (
