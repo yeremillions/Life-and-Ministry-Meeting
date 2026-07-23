@@ -97,6 +97,37 @@ export default function WeekEditor(props: WeekEditorProps) {
     };
   }, [currentWeekendMeeting, assignees]);
 
+  const awayBrothers = useMemo(() => {
+    const mon = week.weekOf;
+    const monDate = new Date(mon + "T00:00:00");
+    const sunDate = new Date(monDate);
+    sunDate.setDate(sunDate.getDate() + 6);
+    const sun = sunDate.toISOString().split("T")[0];
+
+    const mode = props.settings?.availabilityMode || "unavailable";
+
+    return assignees
+      .filter((a) => {
+        if (a.archived || !a.active) return false;
+        if (a.gender !== "M") return false;
+
+        const ranges = a.unavailableRanges ?? [];
+        if (ranges.length === 0) return false;
+
+        const overlaps = ranges.some((r) => r.start <= sun && r.end >= mon);
+        if (mode === "available") return !overlaps;
+        return overlaps;
+      })
+      .map((a) => {
+        const ranges = a.unavailableRanges ?? [];
+        const matchingRange = ranges.find((r) => r.start <= sun && r.end >= mon);
+        return {
+          person: a,
+          range: matchingRange,
+        };
+      });
+  }, [assignees, week.weekOf, props.settings]);
+
   const bySegment = useMemo(() => {
     const map: Record<SegmentId, Assignment[]> = {
       opening: [],
@@ -441,52 +472,93 @@ export default function WeekEditor(props: WeekEditorProps) {
           </button>
         </div>
       )}
-      {currentWeekendMeeting && weekendAssigneeNames && (
-        <div className="card bg-slate-50 border-slate-200 p-4 text-xs shadow-sm flex flex-col gap-2">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-            <span className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">
-              Weekend Meeting Schedule Summary
-            </span>
-            {currentWeekendMeeting.meetingDate && (
-              <span className="text-slate-500 font-medium">{currentWeekendMeeting.meetingDate}</span>
-            )}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-slate-600">
-            <div>
-              <span className="block text-[10px] uppercase font-bold text-slate-400">Public Talk Speaker</span>
-              <span className="font-semibold text-slate-800">
-                {weekendAssigneeNames.speaker || <span className="text-slate-400 italic">Unassigned</span>}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Weekend Meeting Schedule Summary Column */}
+        {currentWeekendMeeting && weekendAssigneeNames ? (
+          <div className="lg:col-span-2 card bg-slate-50 border-slate-200 p-4 text-xs shadow-sm flex flex-col gap-2">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <span className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">
+                Weekend Meeting Schedule Summary
               </span>
-              {weekendAssigneeNames.speakerCong && (
-                <span className="block text-[10px] text-slate-500 font-medium">({weekendAssigneeNames.speakerCong})</span>
+              {currentWeekendMeeting.meetingDate && (
+                <span className="text-slate-500 font-medium">{currentWeekendMeeting.meetingDate}</span>
               )}
-              {currentWeekendMeeting.publicTalkTitle && (
-                <span className="block text-[10px] mt-0.5 text-slate-500 italic">
-                  Outline #{currentWeekendMeeting.publicTalkNumber}: {currentWeekendMeeting.publicTalkTitle}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-slate-600">
+              <div>
+                <span className="block text-[10px] uppercase font-bold text-slate-400">Public Talk Speaker</span>
+                <span className="font-semibold text-slate-800">
+                  {weekendAssigneeNames.speaker || <span className="text-slate-400 italic">Unassigned</span>}
                 </span>
-              )}
-            </div>
-            <div>
-              <span className="block text-[10px] uppercase font-bold text-slate-400">Chairman</span>
-              <span className="font-semibold text-slate-800">
-                {weekendAssigneeNames.chairman || <span className="text-slate-400 italic">Unassigned</span>}
-              </span>
-            </div>
-            <div>
-              <span className="block text-[10px] uppercase font-bold text-slate-400">WT Conductor</span>
-              <span className="font-semibold text-slate-800">
-                {weekendAssigneeNames.conductor || <span className="text-slate-400 italic">Unassigned</span>}
-              </span>
-            </div>
-            <div>
-              <span className="block text-[10px] uppercase font-bold text-slate-400">WT Reader</span>
-              <span className="font-semibold text-slate-800">
-                {weekendAssigneeNames.reader || <span className="text-slate-400 italic">Unassigned</span>}
-              </span>
+                {weekendAssigneeNames.speakerCong && (
+                  <span className="block text-[10px] text-slate-500 font-medium">({weekendAssigneeNames.speakerCong})</span>
+                )}
+                {currentWeekendMeeting.publicTalkTitle && (
+                  <span className="block text-[10px] mt-0.5 text-slate-500 italic truncate" title={currentWeekendMeeting.publicTalkTitle}>
+                    Outline #{currentWeekendMeeting.publicTalkNumber}: {currentWeekendMeeting.publicTalkTitle}
+                  </span>
+                )}
+              </div>
+              <div>
+                <span className="block text-[10px] uppercase font-bold text-slate-400">Chairman</span>
+                <span className="font-semibold text-slate-800">
+                  {weekendAssigneeNames.chairman || <span className="text-slate-400 italic">Unassigned</span>}
+                </span>
+              </div>
+              <div>
+                <span className="block text-[10px] uppercase font-bold text-slate-400">WT Conductor</span>
+                <span className="font-semibold text-slate-800">
+                  {weekendAssigneeNames.conductor || <span className="text-slate-400 italic">Unassigned</span>}
+                </span>
+              </div>
+              <div>
+                <span className="block text-[10px] uppercase font-bold text-slate-400">WT Reader</span>
+                <span className="font-semibold text-slate-800">
+                  {weekendAssigneeNames.reader || <span className="text-slate-400 italic">Unassigned</span>}
+                </span>
+              </div>
             </div>
           </div>
+        ) : (
+          <div className="lg:col-span-2 card bg-slate-50 border-slate-200 p-4 text-xs shadow-sm flex items-center justify-between text-slate-400 italic">
+            <span>No weekend meeting schedule uploaded for this week yet.</span>
+          </div>
+        )}
+
+        {/* Brothers Away This Week Column */}
+        <div className="lg:col-span-1 card bg-slate-50 border-slate-200 p-4 text-xs shadow-sm flex flex-col gap-2">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <span className="font-bold text-slate-700 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+              <span>✈️</span> Brothers Away This Week
+            </span>
+            <span className={`pill text-[10px] ${awayBrothers.length > 0 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"}`}>
+              {awayBrothers.length} {awayBrothers.length === 1 ? "brother" : "brothers"}
+            </span>
+          </div>
+          {awayBrothers.length === 0 ? (
+            <div className="text-slate-400 italic text-[11px] py-1 flex items-center gap-1">
+              <span>✓</span> No brothers reported away for this week.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto custom-scrollbar pr-1">
+              {awayBrothers.map(({ person, range }) => (
+                <div key={person.id} className="flex items-center justify-between bg-white border border-slate-200 rounded px-2.5 py-1.5 text-[11px] shadow-2xs">
+                  <span className="font-semibold text-slate-800">{person.name}</span>
+                  {range ? (
+                    <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-medium border border-amber-100" title={range.reason || "Away"}>
+                      {range.start.slice(5)} to {range.end.slice(5)}{range.reason ? ` (${range.reason})` : ""}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-medium border border-amber-100">
+                      Away
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
       <header className="card">
         <div className="flex flex-col gap-4">
           {/* Top part: Title and Stats */}
