@@ -53,6 +53,7 @@ export interface Assignee {
   isHlcMember?: boolean;
   isLmmOverseer?: boolean;
   isWtOverseer?: boolean;
+  isOftenAway?: boolean;
   isFather?: boolean;
   isMother?: boolean;
   isHusband?: boolean;

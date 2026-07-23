@@ -1488,7 +1488,7 @@ function PartRow({
     );
 
     // Same-week weekend conflict warning for UI editor
-    if (settings.ruleWeekendConflict && settings.ruleWeekendConflict !== "off" && !mainPerson.isWtOverseer) {
+    if (settings.ruleWeekendConflict && settings.ruleWeekendConflict !== "off" && !mainPerson.isWtOverseer && !mainPerson.isOftenAway) {
       const weekendMeeting = weekendMeetings.find(m => m.weekOf === week.weekOf);
       if (weekendMeeting) {
         const isAssigned =
@@ -1541,7 +1541,7 @@ function PartRow({
     );
 
     // Same-week weekend conflict warning for UI editor
-    if (settings.ruleWeekendConflict && settings.ruleWeekendConflict !== "off" && !assistantPerson.isWtOverseer) {
+    if (settings.ruleWeekendConflict && settings.ruleWeekendConflict !== "off" && !assistantPerson.isWtOverseer && !assistantPerson.isOftenAway) {
       const weekendMeeting = weekendMeetings.find(m => m.weekOf === week.weekOf);
       if (weekendMeeting) {
         const isAssigned =

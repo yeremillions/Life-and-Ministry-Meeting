@@ -718,7 +718,7 @@ export default function EnrolleesPage({
                         {a.baptised ? "Yes" : "No"}
                       </td>
                       <td className="py-2 pr-3">
-                        {((a.privileges ?? []).length === 0 && !a.isSecretary && !a.isServiceOverseer && !a.isHlcMember && !a.isLmmOverseer && !a.isWtOverseer && !a.isFather && !a.isMother && !a.isHusband && !a.isWife) ? (
+                        {((a.privileges ?? []).length === 0 && !a.isSecretary && !a.isServiceOverseer && !a.isHlcMember && !a.isLmmOverseer && !a.isWtOverseer && !a.isOftenAway && !a.isFather && !a.isMother && !a.isHusband && !a.isWife) ? (
                           <span className="text-slate-400">—</span>
                         ) : (
                           <div className="flex gap-1 flex-wrap">
@@ -735,6 +735,7 @@ export default function EnrolleesPage({
                             {a.isHlcMember && <span className="pill bg-indigo-100 text-indigo-800">HLC Member</span>}
                             {a.isLmmOverseer && <span className="pill bg-indigo-100 text-indigo-800">LMM Overseer</span>}
                             {a.isWtOverseer && <span className="pill bg-indigo-100 text-indigo-800">WT Overseer</span>}
+                            {a.isOftenAway && <span className="pill bg-amber-100 text-amber-800">Often Away</span>}
                             {a.isFather && <span className="pill bg-indigo-100 text-indigo-800">Father</span>}
                             {a.isMother && <span className="pill bg-indigo-100 text-indigo-800">Mother</span>}
                             {a.isHusband && <span className="pill bg-indigo-100 text-indigo-800">Husband</span>}
@@ -1176,6 +1177,7 @@ export function EnrolleeModal({
   const [isHlcMember, setIsHlcMember] = useState(initial?.isHlcMember ?? false);
   const [isLmmOverseer, setIsLmmOverseer] = useState(initial?.isLmmOverseer ?? false);
   const [isWtOverseer, setIsWtOverseer] = useState(initial?.isWtOverseer ?? false);
+  const [isOftenAway, setIsOftenAway] = useState(initial?.isOftenAway ?? false);
   const [isFather, setIsFather] = useState(initial?.isFather ?? false);
   const [isMother, setIsMother] = useState(initial?.isMother ?? false);
   const [isHusband, setIsHusband] = useState(initial?.isHusband ?? false);
@@ -1401,6 +1403,14 @@ export function EnrolleeModal({
                       onChange={(e) => setIsWtOverseer(e.target.checked)}
                     />
                     WT Overseer
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-slate-100/50" title="Exempt from same-week weekend conflict rule to fit assignments when available">
+                    <input
+                      type="checkbox"
+                      checked={isOftenAway}
+                      onChange={(e) => setIsOftenAway(e.target.checked)}
+                    />
+                    Often Away
                   </label>
                 </>
               )}
@@ -1730,6 +1740,7 @@ export function EnrolleeModal({
                 isHlcMember,
                 isLmmOverseer,
                 isWtOverseer,
+                isOftenAway,
                 isFather,
                 isMother,
                 isHusband,

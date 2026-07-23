@@ -915,6 +915,8 @@ export function scoreCandidate(
     if (role === "main") {
       score -= 1500;
     }
+  } else if (a.isOftenAway) {
+    // Brothers who are often away are exempt from weekend conflict penalties so they can be assigned when available.
   } else if (opts.ruleWeekendConflict && opts.ruleWeekendConflict !== "off") {
     // Non-WT Overseers receive a penalty if they have a weekend assignment.
     const weekendMeeting = opts.weekendMeetings?.find((m) => m.weekOf === weekOf);
@@ -1377,8 +1379,8 @@ function pickCandidate(args: PickArgs): Assignee | null {
     const weekendMeeting = opts.weekendMeetings?.find((m) => m.weekOf === weekOf);
     if (weekendMeeting) {
       const filtered = eligiblePool.filter((a) => {
-        // Exempt Watchtower Overseers from same-week conflict rules
-        if (a.isWtOverseer) return true;
+        // Exempt Watchtower Overseers and Often Away brothers from same-week conflict rules
+        if (a.isWtOverseer || a.isOftenAway) return true;
 
         const isAssigned =
           (weekendMeeting.publicTalkSpeakerType === "local" && weekendMeeting.publicTalkSpeakerId === a.id) ||

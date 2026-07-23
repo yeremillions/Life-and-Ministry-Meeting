@@ -303,7 +303,7 @@ export default function EnrolleeProfile({
                 ) : <span className="text-slate-400">—</span>}
               </div>
             </div>
-            {(enrollee.isSecretary || enrollee.isServiceOverseer || enrollee.isHlcMember || enrollee.isLmmOverseer || enrollee.isWtOverseer || enrollee.isFather || enrollee.isMother || enrollee.isHusband || enrollee.isWife) && (
+            {(enrollee.isSecretary || enrollee.isServiceOverseer || enrollee.isHlcMember || enrollee.isLmmOverseer || enrollee.isWtOverseer || enrollee.isOftenAway || enrollee.isFather || enrollee.isMother || enrollee.isHusband || enrollee.isWife) && (
               <div className="flex justify-between border-t border-slate-100 pt-2">
                 <span className="text-slate-500">Special Roles</span>
                 <div className="flex flex-wrap justify-end gap-1">
@@ -312,6 +312,7 @@ export default function EnrolleeProfile({
                   {enrollee.isHlcMember && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">HLC Member</span>}
                   {enrollee.isLmmOverseer && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">LMM Overseer</span>}
                   {enrollee.isWtOverseer && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">WT Overseer</span>}
+                  {enrollee.isOftenAway && <span className="pill bg-amber-50 text-amber-700 text-[10px] border border-amber-100">Often Away</span>}
                   {enrollee.isFather && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">Father</span>}
                   {enrollee.isMother && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">Mother</span>}
                   {enrollee.isHusband && <span className="pill bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-100">Husband</span>}

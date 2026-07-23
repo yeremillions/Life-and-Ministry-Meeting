@@ -62,7 +62,7 @@ export function findWeekConflicts(
       const weekendMeeting = weekendMeetings.find((m) => m.weekOf === week.weekOf);
       if (weekendMeeting) {
         const checkAndAddWeekendConflict = (person: Assignee, isMain: boolean) => {
-          if (person.isWtOverseer) return; // Exempt Watchtower Overseer
+          if (person.isWtOverseer || person.isOftenAway) return; // Exempt Watchtower Overseer and Often Away brothers
 
           const isAssigned =
             (weekendMeeting.publicTalkSpeakerType === "local" && weekendMeeting.publicTalkSpeakerId === person.id) ||

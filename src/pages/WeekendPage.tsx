@@ -142,7 +142,7 @@ export default function WeekendPage() {
   function getMidweekOverlapMessage(weekOf: string, assigneeId?: number): string | null {
     if (assigneeId == null) return null;
     const person = assignees.find((a) => a.id === assigneeId);
-    if (!person || person.isWtOverseer) return null; // Exempt WT Overseers
+    if (!person || person.isWtOverseer || person.isOftenAway) return null; // Exempt WT Overseers and Often Away brothers
 
     const midweekWeek = weeks.find((w) => w.weekOf === weekOf);
     if (!midweekWeek || midweekWeek.specialEvent) return null;
