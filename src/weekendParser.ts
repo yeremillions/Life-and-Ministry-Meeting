@@ -184,8 +184,118 @@ function parseDateInLine(line: string, year: number): Date | null {
   return null;
 }
 
+function extractFields(text: string) {
+  const headers = [
+    { key: "chairman", regex: /\b(?:Chairman|Presiding|Preside)\b/i },
+    { key: "conductor", regex: /\b(?:WT\s+Conductor|Watchtower\s+Conductor|Conductor)\b/i },
+    { key: "reader", regex: /\b(?:WT\s+Reader|Watchtower\s+Reader|Reader)\b/i },
+    { key: "speaker", regex: /\b(?:Speaker|Lecturer|Talk\s+by)\b/i },
+    { key: "congregation", regex: /\b(?:Congregation|Congreg|Cong)\b/i },
+    { key: "outline", regex: /\b(?:Outline|Talk|No\.|#)\s*(\d{1,3})\b/i }
+  ];
+
+  interface Match {
+    key: string;
+    index: number;
+    endIndex: number;
+    value?: string;
+    outlineNum?: number;
+  }
+
+  const matches: Match[] = [];
+
+  for (const h of headers) {
+    const rx = new RegExp(h.regex.source, "gi");
+    let m;
+    while ((m = rx.exec(text)) !== null) {
+      const matchObj: Match = {
+        key: h.key,
+        index: m.index,
+        endIndex: rx.lastIndex
+      };
+      if (h.key === "outline" && m[1]) {
+        matchObj.outlineNum = parseInt(m[1], 10);
+      }
+      matches.push(matchObj);
+    }
+  }
+
+  // Also search for raw outline numbers that are not part of other headers, e.g. "45 Is This World..."
+  const rawNumRx = /\b(\d{1,3})\b/g;
+  let m;
+  while ((m = rawNumRx.exec(text)) !== null) {
+    const num = parseInt(m[1], 10);
+    if (num > 0 && num <= 200) {
+      const index = m.index;
+      const endIndex = rawNumRx.lastIndex;
+      // Check overlap
+      const hasOverlap = matches.some(existing => index >= existing.index && index < existing.endIndex);
+      if (!hasOverlap) {
+        matches.push({
+          key: "rawNumber",
+          index,
+          endIndex,
+          outlineNum: num
+        });
+      }
+    }
+  }
+
+  // Sort matches by start index
+  matches.sort((a, b) => a.index - b.index);
+
+  // Filter out overlapping sub-matches
+  const cleanMatches: Match[] = [];
+  for (const match of matches) {
+    const isSub = cleanMatches.some(existing => match.index >= existing.index && match.endIndex <= existing.endIndex);
+    if (!isSub) {
+      cleanMatches.push(match);
+    }
+  }
+
+  cleanMatches.sort((a, b) => a.index - b.index);
+
+  // Extract text values between header matches
+  for (let i = 0; i < cleanMatches.length; i++) {
+    const current = cleanMatches[i];
+    const next = cleanMatches[i + 1];
+    const valStart = current.endIndex;
+    const valEnd = next ? next.index : text.length;
+    let val = text.substring(valStart, valEnd).trim();
+
+    // Clean up leading/trailing colons, dashes, spaces
+    val = val.replace(/^[:.-]+\s*/, "").replace(/\s*[:.-]+$/, "").trim();
+    current.value = val;
+  }
+
+  return cleanMatches;
+}
+
 function parseBlockLines(lines: string[], weekOf: string): ParsedWeekendMeeting | null {
   if (lines.length === 0) return null;
+
+  let remainingText = "";
+  if (lines.length > 1) {
+    remainingText = lines.slice(1).join(" ");
+  } else {
+    const line = lines[0];
+    const match1 = BANNER_RE.exec(line);
+    const match2 = /\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/.exec(line);
+    const match3 = /\b(\d{1,2})[-/](\d{1,2})[-/](20\d{2})\b/.exec(line);
+    const matchRegex1 = new RegExp(`\\b(${MONTHS_RE})\\s+(\\d{1,2})\\b(?:\\s*,?\\s*\\b(20\\d{2})\\b)?`, "i").exec(line);
+    const matchRegex2 = new RegExp(`\\b(\\d{1,2})\\s+(${MONTHS_RE})\\b(?:\\s*,?\\s*\\b(20\\d{2})\\b)?`, "i").exec(line);
+    
+    let dateEndIndex = 0;
+    const allMatches = [match1, match2, match3, matchRegex1, matchRegex2].filter(Boolean) as RegExpExecArray[];
+    if (allMatches.length > 0) {
+      const maxEnd = Math.max(...allMatches.map(m => m.index + m[0].length));
+      dateEndIndex = maxEnd;
+    }
+    remainingText = line.substring(dateEndIndex);
+  }
+
+  // Run the keyword extraction on the remaining text
+  const fields = extractFields(remainingText);
 
   let publicTalkNumber: number | undefined = undefined;
   let publicTalkTitle: string | undefined = undefined;
@@ -195,57 +305,30 @@ function parseBlockLines(lines: string[], weekOf: string): ParsedWeekendMeeting 
   let rawConductor: string | undefined = undefined;
   let rawReader: string | undefined = undefined;
 
-  for (const line of lines) {
-    // Check Chairman
-    let m = /(?:Chairman|Presiding|Preside):\s*(.+)/i.exec(line);
-    if (!m) m = /(?:Chairman|Presiding|Preside)\s+([A-Z][a-zA-Z'. -]+)/i.exec(line);
-    if (m) { rawChairman = m[1].trim(); continue; }
-
-    // Check Conductor
-    m = /(?:Conductor|WT Conductor|Watchtower Conductor):\s*(.+)/i.exec(line);
-    if (!m) m = /(?:Conductor|WT Conductor|Watchtower Conductor)\s+([A-Z][a-zA-Z'. -]+)/i.exec(line);
-    if (m) { rawConductor = m[1].trim(); continue; }
-
-    // Check Reader
-    m = /(?:Reader|WT Reader|Watchtower Reader):\s*(.+)/i.exec(line);
-    if (!m) m = /(?:Reader|WT Reader|Watchtower Reader)\s+([A-Z][a-zA-Z'. -]+)/i.exec(line);
-    if (m) { rawReader = m[1].trim(); continue; }
-
-    // Check Speaker
-    m = /(?:Speaker|Lecturer|Talk by):\s*(.+)/i.exec(line);
-    if (!m) m = /(?:Speaker|Lecturer|Talk by)\s+([A-Z][a-zA-Z'. -]+)/i.exec(line);
-    if (m) {
-      const sp = parseSpeaker(m[1]);
-      rawSpeaker = sp.name;
-      rawSpeakerCongregation = sp.congregation;
-      continue;
-    }
-
-    // Check Outline Outline #45 / Outline 45 / No. 45 / Talk #45
-    m = /(?:Outline|Talk|No\.|#)\s*(\d{1,3})\b\s*[:.-]?\s*(.*)/i.exec(line);
-    if (m) {
-      publicTalkNumber = parseInt(m[1], 10);
-      if (m[2].trim()) {
-        publicTalkTitle = m[2].trim();
-      }
-      continue;
-    }
-
-    m = /^(\d{1,3})\b\s*[:.-]?\s*(.*)/.exec(line);
-    if (m) {
-      const num = parseInt(m[1], 10);
-      if (num > 0 && num <= 200) {
-        publicTalkNumber = num;
-        if (m[2].trim()) {
-          publicTalkTitle = m[2].trim();
+  for (const f of fields) {
+    if (f.key === "chairman") {
+      rawChairman = f.value;
+    } else if (f.key === "conductor") {
+      rawConductor = f.value;
+    } else if (f.key === "reader") {
+      rawReader = f.value;
+    } else if (f.key === "speaker") {
+      if (f.value) {
+        const sp = parseSpeaker(f.value);
+        rawSpeaker = sp.name;
+        if (sp.congregation) {
+          rawSpeakerCongregation = sp.congregation;
         }
-        continue;
       }
-    }
-
-    // If we have a talk number but no title, grab it
-    if (publicTalkNumber !== undefined && !publicTalkTitle && !line.includes("Song") && !line.includes("Prayer")) {
-      publicTalkTitle = line.replace(/^["'“”]|["'“”]$/g, "").trim();
+    } else if (f.key === "congregation") {
+      if (f.value) {
+        rawSpeakerCongregation = f.value;
+      }
+    } else if (f.key === "outline" || f.key === "rawNumber") {
+      publicTalkNumber = f.outlineNum;
+      if (f.value) {
+        publicTalkTitle = f.value.replace(/^["'“”]|["'“”]$/g, "").trim();
+      }
     }
   }
 
